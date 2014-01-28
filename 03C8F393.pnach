@@ -2,7 +2,7 @@
 comment=FMV's fix will cause abnormal collection interface
 
 //gameplay by synce
-patch=1,EE,20239d48,extended,3fe28f5c
+patch=1,EE,20239d48,extended,3fe38e38
 
 //FMV's fix by nemesis2000
 //value 1

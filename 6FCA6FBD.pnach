@@ -1,7 +1,7 @@
 gametitle=BioHazard Outbreak File #2 [NTSC-J] (SLPM-65692)
 
 //gameplay by synce
-patch=1,EE,202491fc,extended,3fe28f5c
+patch=1,EE,202491fc,extended,3fe38e38
 
 //FMV's fix by nemesis2000
 patch=1,EE,0034C5E8,word,24060015

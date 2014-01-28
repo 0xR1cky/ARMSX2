@@ -1,9 +1,14 @@
 gametitle=Silent Hill 3 (SLUS-20622)
 comment=Widescreen hack by nemesis2000 (pnach by nemesis2000)
 
-//gameplay
-patch=1,EE,001b4a64,word,3c023f28 //hor val / ntsc mode
-patch=1,EE,001b4a68,word,3442f5c3 //hor val / ntsc mode
+//widescreen (old version)
+//patch=1,EE,001b4a64,word,3c023f28 //hor val / ntsc mode
+//patch=1,EE,001b4a68,word,3442f5c3 //hor val / ntsc mode
+
+//matrix hack
+patch=1,EE,0012165c,word,3c013f40 //00000000
+patch=1,EE,00121660,word,44810000 //00000000
+patch=1,EE,00121668,word,4600c602 //00000000
 
 //FMV's fix
 patch=1,EE,002b60b8,word,24112550 //fmv height
