@@ -24,9 +24,7 @@ enum PluginsEnum_t
 	PluginId_GS = 0,
 	PluginId_PAD,
 	PluginId_SPU2,
-	PluginId_CDVD,
 	PluginId_USB,
-	PluginId_FW,
 	PluginId_DEV9,
 	PluginId_Count,
 
@@ -455,6 +453,7 @@ struct Pcsx2Config
 			CdvdShareWrite		:1,		// allows the iso to be modified while it's loaded
 			EnablePatches		:1,		// enables patch detection and application
 			EnableCheats		:1,		// enables cheat detection and application
+			EnableIPC		    :1,		// enables inter-process communication 
 			EnableWideScreenPatches		:1,
 #ifndef DISABLE_RECORDING
 			EnableRecordingTools :1,

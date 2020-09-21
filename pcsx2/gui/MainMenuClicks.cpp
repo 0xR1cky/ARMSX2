@@ -32,7 +32,7 @@
 
 #ifndef DISABLE_RECORDING
 #	include "Recording/InputRecording.h"
-#	include "Recording/RecordingControls.h"
+#	include "Recording/InputRecordingControls.h"
 #	include "Recording/VirtualPad.h"
 #endif
 
@@ -174,7 +174,52 @@ wxWindowID SwapOrReset_Iso( wxWindow* owner, IScopedCoreThread& core_control, co
 		core_control.AllowResume();
 	}
 
-	GetMainFrame().EnableCdvdPluginSubmenu( g_Conf->CdvdSource == CDVD_SourceType::Plugin);
+	return result;
+}
+
+// Return values:
+//   wxID_CANCEL - User canceled the action outright.
+//   wxID_RESET  - User wants to reset the emu in addition to swap discs
+//   (anything else) - Standard swap, no reset.  (hotswap!)
+wxWindowID SwapOrReset_Disc( wxWindow* owner, IScopedCoreThread& core, const wxString driveLetter)
+{
+	wxWindowID result = wxID_CANCEL;
+
+	if ((g_Conf->CdvdSource == CDVD_SourceType::Disc) && (driveLetter == g_Conf->Folders.RunDisc.GetPath()))
+	{
+		core.AllowResume();
+		return result;
+	}
+
+	if (SysHasValidState())
+	{
+		core.DisallowResume();
+		wxDialogWithHelpers dialog(owner, _("Confirm disc change"));
+
+		dialog += dialog.Heading("New drive selected: " + driveLetter);
+		dialog += dialog.GetCharHeight();
+		dialog += dialog.Heading(_("Do you want to swap discs or boot the new disc (via system reset)?"));
+
+		result = pxIssueConfirmation(dialog, MsgButtons().Reset().Cancel().Custom(_("Swap Disc"), "swap"));
+		if (result == wxID_CANCEL)
+		{
+			core.AllowResume();
+			return result;
+		}
+	}
+
+	g_Conf->CdvdSource = CDVD_SourceType::Disc;
+	SysUpdateDiscSrcDrive(driveLetter);
+	if (result == wxID_RESET)
+	{
+		core.DisallowResume();
+		sApp.SysExecute(CDVD_SourceType::Disc);
+	}
+	else
+	{
+		Console.Indent().WriteLn("Hot swapping to new disc!");
+		core.AllowResume();
+	}
 
 	return result;
 }
@@ -202,7 +247,7 @@ wxWindowID SwapOrReset_CdvdSrc( wxWindow* owner, CDVD_SourceType newsrc )
 		if( result == wxID_CANCEL )
 		{
 			core.AllowResume();
-			sMainFrame.UpdateIsoSrcSelection();
+			sMainFrame.UpdateCdvdSrcSelection();
 			return result;
 		}
 	}
@@ -216,7 +261,7 @@ wxWindowID SwapOrReset_CdvdSrc( wxWindow* owner, CDVD_SourceType newsrc )
 			WX_STR(wxString(CDVD_SourceLabels[enum_cast(oldsrc)])),
 			WX_STR(wxString(CDVD_SourceLabels[enum_cast(newsrc)])));
 		//CoreThread.ChangeCdvdSource();
-		sMainFrame.UpdateIsoSrcSelection();
+		sMainFrame.UpdateCdvdSrcSelection();
 		core.AllowResume();
 	}
 	else
@@ -224,8 +269,6 @@ wxWindowID SwapOrReset_CdvdSrc( wxWindow* owner, CDVD_SourceType newsrc )
 		core.DisallowResume();
 		sApp.SysExecute( g_Conf->CdvdSource );
 	}
-
-	GetMainFrame().EnableCdvdPluginSubmenu( g_Conf->CdvdSource == CDVD_SourceType::Plugin );
 
 	return result;
 }
@@ -364,11 +407,6 @@ void MainEmuFrame::_DoBootCdvd()
 	sApp.SysExecute( g_Conf->CdvdSource );
 }
 
-void MainEmuFrame::EnableCdvdPluginSubmenu(bool isEnable)
-{
-	EnableMenuItem( GetPluginMenuId_Settings(PluginId_CDVD), isEnable );
-}
-
 void MainEmuFrame::Menu_CdvdSource_Click( wxCommandEvent &event )
 {
 	CDVD_SourceType newsrc = CDVD_SourceType::NoDisc;
@@ -376,7 +414,7 @@ void MainEmuFrame::Menu_CdvdSource_Click( wxCommandEvent &event )
 	switch( event.GetId() )
 	{
 		case MenuId_Src_Iso:	newsrc = CDVD_SourceType::Iso;		break;
-		case MenuId_Src_Plugin:	newsrc = CDVD_SourceType::Plugin;	break;
+		case MenuId_Src_Disc: newsrc = CDVD_SourceType::Disc;		break;
 		case MenuId_Src_NoDisc: newsrc = CDVD_SourceType::NoDisc;	break;
 		jNO_DEFAULT
 	}
@@ -473,7 +511,6 @@ void MainEmuFrame::Menu_EnableBackupStates_Click( wxCommandEvent& )
 	//  (1st save after the toggle keeps the old pre-toggle value)..
 	//  wonder what that means for all the other menu checkboxes which only use AppSaveSettings... (avih)
 	AppApplySettings();
-	
 	AppSaveSettings();
 }
 
@@ -491,6 +528,13 @@ void MainEmuFrame::Menu_EnableCheats_Click( wxCommandEvent& )
 	AppSaveSettings();
 }
 
+void MainEmuFrame::Menu_EnableIPC_Click( wxCommandEvent& )
+{
+	g_Conf->EmuOptions.EnableIPC  = GetMenuBar()->IsChecked( MenuId_EnableIPC );
+	AppApplySettings();
+	AppSaveSettings();
+}
+
 void MainEmuFrame::Menu_EnableWideScreenPatches_Click( wxCommandEvent& )
 {
 	g_Conf->EmuOptions.EnableWideScreenPatches  = GetMenuBar()->IsChecked( MenuId_EnableWideScreenPatches );
@@ -499,7 +543,7 @@ void MainEmuFrame::Menu_EnableWideScreenPatches_Click( wxCommandEvent& )
 }
 
 #ifndef DISABLE_RECORDING
-void MainEmuFrame::Menu_EnableRecordingTools_Click(wxCommandEvent&)
+void MainEmuFrame::Menu_EnableRecordingTools_Click(wxCommandEvent& event)
 {
 	bool checked = GetMenuBar()->IsChecked(MenuId_EnableInputRecording);
 	// Confirm with User
@@ -529,6 +573,9 @@ void MainEmuFrame::Menu_EnableRecordingTools_Click(wxCommandEvent&)
 	}
 	else
 	{
+		//Properly close any currently loaded recording file before disabling
+		if (g_InputRecording.IsActive())
+			Menu_Recording_Stop_Click(event);
 		GetMenuBar()->Remove(TopLevelMenu_InputRecording);
 		// Always turn controller logs off, but never turn it on by default
 		SysConsole.controlInfo.Enabled = checked;
@@ -540,6 +587,8 @@ void MainEmuFrame::Menu_EnableRecordingTools_Click(wxCommandEvent&)
 				viewport->InitDefaultAccelerators();
 			}
 		}
+		if (g_InputRecordingControls.IsPaused())
+			g_InputRecordingControls.Resume();
 	}
 
 	g_Conf->EmuOptions.EnableRecordingTools = checked;
@@ -684,11 +733,11 @@ void MainEmuFrame::Menu_ConfigPlugin_Click(wxCommandEvent& event)
 		// If the CoreThread is paused prior to opening the PAD plugin settings then when the settings 
 		// are closed the PAD will not re-open. To avoid this, we resume emulation prior to the plugins 
 		// configuration handler doing so.
-		if (g_Conf->EmuOptions.EnableRecordingTools && g_RecordingControls.IsEmulationAndRecordingPaused())
+		if (g_Conf->EmuOptions.EnableRecordingTools && g_InputRecordingControls.IsPaused())
 		{
-			g_RecordingControls.Unpause();
+			g_InputRecordingControls.Resume();
 			GetCorePlugins().Configure(pid);
-			g_RecordingControls.Pause();
+			g_InputRecordingControls.Pause();
 		}
 		else
 			GetCorePlugins().Configure(pid);
@@ -802,13 +851,13 @@ void MainEmuFrame::VideoCaptureUpdate()
 
 		if (GSsetupRecording)
 		{
-			// GSsetupRecording can be aborted/canceled by the user. Don't go on to record the audio if that happens.
-			if (GSsetupRecording(m_capturingVideo, NULL))
+			// GSsetupRecording can be aborted/canceled by the user. Don't go on to record the audio if that happens
+			std::wstring* filename = nullptr;
+			if (filename = GSsetupRecording(m_capturingVideo))
 			{
 				if (SPU2setupRecording)
-				{
-					SPU2setupRecording(m_capturingVideo, NULL);
-				}
+					SPU2setupRecording(m_capturingVideo, filename);
+				delete filename;
 			}
 			else
 			{
@@ -821,27 +870,21 @@ void MainEmuFrame::VideoCaptureUpdate()
 			// the GS doesn't support recording.
 			if (SPU2setupRecording)
 			{
-				SPU2setupRecording(m_capturingVideo, NULL);
+				SPU2setupRecording(m_capturingVideo, nullptr);
 			}
 		}
 
 		if (GetMainFramePtr() && needsMainFrameEnable)
-		{
 			GetMainFramePtr()->Enable();
-		}
 
 	}
 	else
 	{
 		// stop recording
 		if (GSsetupRecording)
-		{
-			GSsetupRecording(m_capturingVideo, NULL);
-		}
+			GSsetupRecording(m_capturingVideo);
 		if (SPU2setupRecording)
-		{
-			SPU2setupRecording(m_capturingVideo, NULL);
-		}
+			SPU2setupRecording(m_capturingVideo, nullptr);
 	}
 
 	if (m_capturingVideo)
@@ -868,29 +911,23 @@ void MainEmuFrame::Menu_Capture_Screenshot_Screenshot_Click(wxCommandEvent & eve
 #ifndef DISABLE_RECORDING
 void MainEmuFrame::Menu_Recording_New_Click(wxCommandEvent &event)
 {
-	g_InputRecording.Stop();
-
-	NewRecordingFrame* NewRecordingFrame = wxGetApp().GetNewRecordingFramePtr();
-	if (NewRecordingFrame)
+	const bool initiallyPaused = g_InputRecordingControls.IsPaused();
+	if (!initiallyPaused)
+		g_InputRecordingControls.PauseImmediately();
+	NewRecordingFrame* newRecordingFrame = wxGetApp().GetNewRecordingFramePtr();
+	if (newRecordingFrame)
 	{
-		if (NewRecordingFrame->ShowModal() == wxID_CANCEL)
+		if (newRecordingFrame->ShowModal() == wxID_CANCEL)
 		{
+			if (!initiallyPaused)
+				g_InputRecordingControls.Resume();
 			return;
 		}
-		// From Current Frame
-		if (NewRecordingFrame->GetFrom() == 0)
+		if (!g_InputRecording.Create(newRecordingFrame->GetFile(), !newRecordingFrame->GetFrom(), newRecordingFrame->GetAuthor()))
 		{
-			if (!CoreThread.IsOpen())
-			{
-				recordingConLog(L"[REC]: Game is not open, aborting new input recording.\n");
-				return;
-			}
-			g_InputRecording.Create(NewRecordingFrame->GetFile(), true, NewRecordingFrame->GetAuthor());
-		}
-		// From Power-On
-		else if (NewRecordingFrame->GetFrom() == 1)
-		{
-			g_InputRecording.Create(NewRecordingFrame->GetFile(), false, NewRecordingFrame->GetAuthor());
+			if (!initiallyPaused)
+				g_InputRecordingControls.Resume();
+			return;
 		}
 	}
 	m_menuRecording.FindChildItem(MenuId_Recording_New)->Enable(false);
@@ -899,18 +936,33 @@ void MainEmuFrame::Menu_Recording_New_Click(wxCommandEvent &event)
 
 void MainEmuFrame::Menu_Recording_Play_Click(wxCommandEvent &event)
 {
-	g_InputRecording.Stop();
+	const bool initiallyPaused = g_InputRecordingControls.IsPaused();
+	if (!initiallyPaused)
+		g_InputRecordingControls.PauseImmediately();
 	wxFileDialog openFileDialog(this, _("Select P2M2 record file."), L"", L"",
 		L"p2m2 file(*.p2m2)|*.p2m2", wxFD_OPEN);
 	if (openFileDialog.ShowModal() == wxID_CANCEL)
 	{
+		if (!initiallyPaused)
+			g_InputRecordingControls.Resume();
 		return;
 	}
 
 	wxString path = openFileDialog.GetPath();
-	g_InputRecording.Play(path, true);
-	m_menuRecording.FindChildItem(MenuId_Recording_New)->Enable(false);
-	m_menuRecording.FindChildItem(MenuId_Recording_Stop)->Enable(true);
+	const bool recordingLoaded = g_InputRecording.IsActive();
+	if (!g_InputRecording.Play(path))
+	{
+		if (recordingLoaded)
+			Menu_Recording_Stop_Click(event);
+		if (!initiallyPaused)
+			g_InputRecordingControls.Resume();
+		return;
+	}
+	if (!recordingLoaded)
+	{
+		m_menuRecording.FindChildItem(MenuId_Recording_New)->Enable(false);
+		m_menuRecording.FindChildItem(MenuId_Recording_Stop)->Enable(true);
+	}
 }
 
 void MainEmuFrame::Menu_Recording_Stop_Click(wxCommandEvent &event)
@@ -922,18 +974,6 @@ void MainEmuFrame::Menu_Recording_Stop_Click(wxCommandEvent &event)
 
 void MainEmuFrame::Menu_Recording_VirtualPad_Open_Click(wxCommandEvent &event)
 {
-	VirtualPad *vp = NULL;
-	if (event.GetId() == MenuId_Recording_VirtualPad_Port0)
-	{
-		vp = wxGetApp().GetVirtualPadPtr(0);
-	}
-	else if (event.GetId() == MenuId_Recording_VirtualPad_Port1)
-	{
-		vp = wxGetApp().GetVirtualPadPtr(1);
-	}
-	if (vp != NULL)
-	{
-		vp->Show();
-	}
+	wxGetApp().GetVirtualPadPtr(event.GetId() - MenuId_Recording_VirtualPad_Port0)->Show();
 }
 #endif

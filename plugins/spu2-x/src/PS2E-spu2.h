@@ -35,8 +35,10 @@
 
 EXPORT_C_(s32)
 SPU2init();
-EXPORT_C_(void)
+EXPORT_C_(s32)
 SPU2reset();
+EXPORT_C_(s32)
+SPU2ps1reset();
 EXPORT_C_(s32)
 SPU2open(void *pDsp);
 EXPORT_C_(void)
@@ -79,7 +81,7 @@ SPU2irqCallback(void (*SPU2callback)(), void (*DMA4callback)(), void (*DMA7callb
 // returns a non zero value if successful
 // for now, pData is not used
 EXPORT_C_(int)
-SPU2setupRecording(int start, void *pData);
+SPU2setupRecording(int start, std::wstring* filename);
 
 EXPORT_C_(void)
 SPU2setClockPtr(u32 *ptr);
