@@ -402,7 +402,6 @@ protected:
 
 	virtual bool OpenPlugin_GS();
 	virtual bool OpenPlugin_PAD();
-	virtual bool OpenPlugin_SPU2();
 	virtual bool OpenPlugin_DEV9();
 	virtual bool OpenPlugin_USB();
 	virtual bool OpenPlugin_Mcd();
@@ -411,7 +410,6 @@ protected:
 
 	virtual void ClosePlugin_GS();
 	virtual void ClosePlugin_PAD();
-	virtual void ClosePlugin_SPU2();
 	virtual void ClosePlugin_DEV9();
 	virtual void ClosePlugin_USB();
 	virtual void ClosePlugin_Mcd();
@@ -420,6 +418,30 @@ protected:
 };
 
 extern const PluginInfo tbl_PluginInfo[];
+
+template<typename Func>
+static void ForPlugins(const Func& f)
+{
+	const PluginInfo* pi = tbl_PluginInfo;
+
+	do
+	{
+		f(pi);
+	}  while(++pi, pi->shortname != nullptr);
+}
+
+template<typename Func>
+static bool IfPlugins(const Func& f)
+{
+	const PluginInfo* pi = tbl_PluginInfo;
+
+	do
+	{
+		if (f(pi)) return true;
+	}  while(++pi, pi->shortname != nullptr);
+
+	return false;
+}
 
 // GetPluginManager() is a required external implementation. This function is *NOT*
 // provided by the PCSX2 core library.  It provides an interface for the linking User

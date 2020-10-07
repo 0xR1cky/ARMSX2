@@ -20,6 +20,7 @@
 #include "AppSaveStates.h"
 #include "Counters.h"
 #include "GS.h"
+#include "MainFrame.h"
 #include "MSWstuff.h"
 
 #include "ConsoleLogger.h"
@@ -130,7 +131,25 @@ void GSPanel::InitRecordingAccelerators()
 	m_Accels->Map(AAC(WXK_NUMPAD8), "States_LoadSlot8");
 	m_Accels->Map(AAC(WXK_NUMPAD9), "States_LoadSlot9");
 
-	recordingConLog(L"Initialized Recording Key Bindings\n");
+	GetMainFramePtr()->initializeRecordingMenuItem(
+		MenuId_Recording_FrameAdvance,
+		m_Accels->findKeycodeWithCommandId("FrameAdvance").toTitleizedString());
+	GetMainFramePtr()->initializeRecordingMenuItem(
+		MenuId_Recording_TogglePause,
+		m_Accels->findKeycodeWithCommandId("TogglePause").toTitleizedString());
+	GetMainFramePtr()->initializeRecordingMenuItem(
+		MenuId_Recording_ToggleRecordingMode,
+		m_Accels->findKeycodeWithCommandId("InputRecordingModeToggle").toTitleizedString(),
+		g_InputRecording.IsActive());
+
+	recordingConLog(L"Initialized Input Recording Key Bindings\n");
+}
+
+void GSPanel::RemoveRecordingAccelerators()
+{
+	m_Accels.reset(new AcceleratorDictionary);
+	InitDefaultAccelerators();
+	recordingConLog(L"Disabled Input Recording Key Bindings\n");
 }
 #endif
 
