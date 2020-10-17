@@ -27,6 +27,7 @@
 
 #ifndef DISABLE_RECORDING
 #	include "Recording/InputRecording.h"
+#	include "Recording/Utilities/InputRecordingLogger.h"
 #endif
 
 #include <wx/utils.h>
@@ -142,7 +143,7 @@ void GSPanel::InitRecordingAccelerators()
 		m_Accels->findKeycodeWithCommandId("InputRecordingModeToggle").toTitleizedString(),
 		g_InputRecording.IsActive());
 
-	recordingConLog(L"Initialized Input Recording Key Bindings\n");
+	inputRec::consoleLog("Initialized Input Recording Key Bindings");
 }
 
 void GSPanel::RemoveRecordingAccelerators()
@@ -274,8 +275,6 @@ void GSPanel::DoResize()
 		zoom = std::max( (float)arr, (float)(1.0/arr) );
 
 	viewport.Scale(zoom, zoom*g_Conf->GSWindow.StretchY.ToFloat()/100.0 );
-	if (viewport == client && EmuConfig.Gamefixes.FMVinSoftwareHack && g_Conf->GSWindow.IsFullscreen)
-		viewport.x += 1; //avoids crash on some systems switching HW><SW in fullscreen aspect ratio's with FMV Software switch.
 	SetSize( viewport );
 	CenterOnParent();
 	
