@@ -189,7 +189,6 @@ struct V_Voice
 	s32 SCurrent;
 
 	// it takes a few ticks for voices to start on the real SPU2?
-	void QueueStart();
 	bool Start();
 	void Stop();
 };
@@ -392,6 +391,7 @@ struct V_Core
 
 	u32 IRQA; // Interrupt Address
 	u32 TSA;  // DMA Transfer Start Address
+	u32 ActiveTSA; // Active DMA TSA - Required for NFL 2k5 which overwrites it mid transfer
 
 	bool IRQEnable; // Interrupt Enable
 	bool FxEnable;  // Effect Enable
@@ -399,9 +399,12 @@ struct V_Core
 	bool AdmaInProgress;
 
 	s8 DMABits;        // DMA related?
-	s8 NoiseClk;       // Noise Clock
+	u8 NoiseClk;       // Noise Clock
+	u32 NoiseCnt;      // Noise Counter
+	u32 NoiseOut;      // Noise Output
 	u16 AutoDMACtrl;   // AutoDMA Status
 	s32 DMAICounter;   // DMA Interrupt Counter
+	u32 LastClock;     // DMA Interrupt Clock Cycle Counter
 	u32 InputDataLeft; // Input Buffer
 	u32 InputPosRead;
 	u32 InputPosWrite;
@@ -437,6 +440,9 @@ struct V_Core
 
 	// old dma only
 	u16* DMAPtr;
+	u16* DMARPtr; // Mem pointer for DMA Reads
+	u32 ReadSize;
+	bool IsDMARead;
 	u32 MADR;
 	u32 TADR;
 
@@ -503,17 +509,19 @@ struct V_Core
 
 	__forceinline u16 DmaRead()
 	{
-		const u16 ret = (u16)spu2M_Read(TSA);
-		++TSA;
-		TSA &= 0xfffff;
+		const u16 ret = (u16)spu2M_Read(ActiveTSA);
+		++ActiveTSA;
+		ActiveTSA &= 0xfffff;
+		TSA = ActiveTSA;
 		return ret;
 	}
 
 	__forceinline void DmaWrite(u16 value)
 	{
-		spu2M_Write(TSA, value);
-		++TSA;
-		TSA &= 0xfffff;
+		spu2M_Write(ActiveTSA, value);
+		++ActiveTSA;
+		ActiveTSA &= 0xfffff;
+		TSA = ActiveTSA;
 	}
 
 	void LogAutoDMA(FILE* fp);
@@ -525,10 +533,12 @@ struct V_Core
 	// old dma only
 	void DoDMAwrite(u16* pMem, u32 size);
 	void DoDMAread(u16* pMem, u32 size);
+	void FinishDMAread();
 
 	void AutoDMAReadBuffer(int mode);
 	void StartADMAWrite(u16* pMem, u32 sz);
 	void PlainDMAWrite(u16* pMem, u32 sz);
+	void FinishDMAwrite();
 };
 
 extern V_Core Cores[2];
@@ -546,6 +556,7 @@ extern s16* _spu2mem;
 extern int PlayMode;
 
 extern void SetIrqCall(int core);
+extern void SetIrqCallDMA(int core);
 extern void StartVoices(int core, u32 value);
 extern void StopVoices(int core, u32 value);
 extern void InitADSR();

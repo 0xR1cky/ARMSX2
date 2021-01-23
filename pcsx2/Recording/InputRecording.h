@@ -18,12 +18,13 @@
 #ifndef DISABLE_RECORDING
 
 #include "Recording/InputRecordingFile.h"
-
+#include "Recording/VirtualPad/VirtualPad.h"
 
 class InputRecording
 {
 public:
-	InputRecording();
+	// Initializes all VirtualPad windows with "parent" as their base
+	void InitVirtualPadWindows(wxWindow* parent);
 
 	// Save or load PCSX2's global frame counter (g_FrameCount) along with each full/fast boot
 	//
@@ -76,19 +77,23 @@ public:
 	// Set the running frame counter for the input recording to an arbitrary value
 	void SetFrameCounter(u32 newGFrameCount);
 
-	// Store the starting internal PCSX2 g_FrameCount value
-	void SetStartingFrame(u32 newStartingFrame);
+	// Sets up all values and prints console logs pertaining to the start of a recording
+	void SetupInitialState(u32 newStartingFrame);
 
 	/// Functions called from GUI
 
 	// Create a new input recording file
-	bool Create(wxString filename, bool fromSaveState, wxString authorName);
+	bool Create(wxString filename, const bool fromSaveState, wxString authorName);
 	// Play an existing input recording from a file
 	bool Play(wxString filename);
 	// Stop the active input recording
 	void Stop();
-	// Initialze VirtualPad window
-	void setVirtualPadPtr(VirtualPad* ptr, int const port);
+// Displays the VirtualPad window for the chosen pad
+	void ShowVirtualPad(const int port);
+	// Logs the padData and redraws the virtualPad windows of active pads
+	void LogAndRedraw();
+	// Resets a recording if the base savestate could not be loaded at the start
+	void FailedSavestate();
 
 private:
 	enum class InputRecordingMode
@@ -102,10 +107,10 @@ private:
 	static const int CONTROLLER_PORT_TWO = 1;
 
 	// 0x42 is the magic number to indicate the default controller read query
-	// See - Lilypad.cpp::PADpoll - https://github.com/PCSX2/pcsx2/blob/v1.5.0-dev/plugins/LilyPad/LilyPad.cpp#L1193
+	// See - PAD.cpp::PADpoll - https://github.com/PCSX2/pcsx2/blob/master/pcsx2/PAD/Windows/PAD.cpp#L1255
 	static const u8 READ_DATA_AND_VIBRATE_FIRST_BYTE = 0x42;
 	// 0x5A is always the second byte in the buffer when the normal READ_DATA_AND_VIBRATE (0x42) query is executed.
-	// See - LilyPad.cpp::PADpoll - https://github.com/PCSX2/pcsx2/blob/v1.5.0-dev/plugins/LilyPad/LilyPad.cpp#L1194
+	// See - PAD.cpp::PADpoll - https://github.com/PCSX2/pcsx2/blob/master/pcsx2/PAD/Windows/PAD.cpp#L1256
 	static const u8 READ_DATA_AND_VIBRATE_SECOND_BYTE = 0x5A;
 
 	// DEPRECATED: Slated for removal
@@ -117,11 +122,16 @@ private:
 	bool incrementUndo = false;
 	InputRecordingMode state = InputRecording::InputRecordingMode::NotActive;
 
-	// Controller Data
-	PadData* padData[2];
-
-	// VirtualPads
-	VirtualPad* virtualPads[2];
+	// Array of usable pads (currently, only 2)
+	struct InputRecordingPad
+	{
+		// Controller Data
+		PadData* padData;
+		// VirtualPad
+		VirtualPad* virtualPad;
+		InputRecordingPad();
+		~InputRecordingPad();
+	} pads[2];
 
 	// Resolve the name and region of the game currently loaded using the GameDB
 	// If the game cannot be found in the DB, the fallback is the ISO filename

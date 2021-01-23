@@ -15,7 +15,7 @@
 
 #include "PrecompiledHeader.h"
 #include "../Config.h"
-#ifdef __linux__
+#if defined(__linux__) || defined(__APPLE__)
 #include "../Linux/Config.h"
 #endif
 #include "../Global.h"
@@ -350,7 +350,7 @@ void DebugTab::CallUpdate(wxCommandEvent& /*event*/)
 }
 
 Dialog::Dialog()
-	: wxDialog(nullptr, wxID_ANY, "SPU2 Config", wxDefaultPosition, wxDefaultSize, wxCAPTION | wxCLOSE_BOX)
+	: wxDialog(nullptr, wxID_ANY, "Audio Settings", wxDefaultPosition, wxDefaultSize, wxCAPTION | wxCLOSE_BOX)
 {
 	m_top_box = new wxBoxSizer(wxVERTICAL);
 	auto* module_box = new wxBoxSizer(wxVERTICAL);

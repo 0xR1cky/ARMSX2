@@ -16,6 +16,7 @@
 #include "PrecompiledHeader.h"
 #include "../Global.h"
 #include "Dialogs.h"
+#include "Config.h"
 #include <math.h>
 
 #ifdef PCSX2_DEVBUILD
@@ -57,7 +58,6 @@ float VolumeAdjustBR;
 float VolumeAdjustSL;
 float VolumeAdjustSR;
 float VolumeAdjustLFE;
-unsigned int delayCycles;
 
 bool postprocess_filter_enabled = 1;
 bool postprocess_filter_dealias = false;
@@ -101,7 +101,6 @@ void ReadSettings()
 	VolumeAdjustSLdb = CfgReadFloat(L"MIXING", L"VolumeAdjustSL(dB)", 0);
 	VolumeAdjustSRdb = CfgReadFloat(L"MIXING", L"VolumeAdjustSR(dB)", 0);
 	VolumeAdjustLFEdb = CfgReadFloat(L"MIXING", L"VolumeAdjustLFE(dB)", 0);
-	delayCycles = CfgReadInt(L"DEBUG", L"DelayCycles", 4);
 	VolumeAdjustC = powf(10, VolumeAdjustCdb / 10);
 	VolumeAdjustFL = powf(10, VolumeAdjustFLdb / 10);
 	VolumeAdjustFR = powf(10, VolumeAdjustFRdb / 10);
@@ -153,7 +152,9 @@ void ReadSettings()
 	if (mods[OutputModule] == nullptr)
 	{
 		// Unsupported or legacy module.
-		fwprintf(stderr, L"* SPU2: Unknown output module '%s' specified in configuration file.\n", omodid);
+		Console.Warning("* SPU2: Unknown output module '%s' specified in configuration file.", omodid);
+		Console.Warning("* SPU2: Defaulting to XAudio (%s).", XAudio2Out->GetIdent());
+		OutputModule = FindOutputModuleById(XAudio2Out->GetIdent());
 	}
 }
 
@@ -182,7 +183,6 @@ void WriteSettings()
 	CfgWriteInt(L"OUTPUT", L"Synch_Mode", SynchMode);
 	CfgWriteInt(L"OUTPUT", L"SpeakerConfiguration", numSpeakers);
 	CfgWriteInt(L"OUTPUT", L"DplDecodingLevel", dplLevel);
-	CfgWriteInt(L"DEBUG", L"DelayCycles", delayCycles);
 
 	if (Config_WaveOut.Device.empty())
 		Config_WaveOut.Device = L"default";
@@ -268,7 +268,7 @@ BOOL CALLBACK ConfigProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			SetWindowText(GetDlgItem(hWnd, IDC_LATENCY_LABEL), temp);
 
 			int configvol = (int)(FinalVolume * 100 + 0.5f);
-			INIT_SLIDER(IDC_VOLUME_SLIDER, 0, 100, 10, 42, 1);
+			INIT_SLIDER(IDC_VOLUME_SLIDER, 0, 100, 10, 5, 1);
 
 			SendDialogMsg(hWnd, IDC_VOLUME_SLIDER, TBM_SETPOS, TRUE, configvol);
 			swprintf_s(temp, L"%d%%", configvol);

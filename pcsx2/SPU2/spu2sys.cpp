@@ -24,6 +24,7 @@
 #include "Global.h"
 #include "Dma.h"
 #include "IopDma.h"
+#include "IopCommon.h"
 
 #include "spu2.h" // needed until I figure out a nice solution for irqcallback dependencies.
 
@@ -40,7 +41,8 @@ u32 Cycles;
 
 int PlayMode;
 
-bool has_to_call_irq = false;
+bool has_to_call_irq[2] = { false, false };
+bool has_to_call_irq_dma[2] = { false, false };
 
 bool psxmode = false;
 
@@ -48,10 +50,14 @@ void SetIrqCall(int core)
 {
 	// reset by an irq disable/enable cycle, behaviour found by
 	// test programs that bizarrely only fired one interrupt
-	if (Spdif.Info & 4 << core)
-		return;
-	Spdif.Info |= 4 << core;
-	has_to_call_irq = true;
+	has_to_call_irq[core] = true;
+}
+
+void SetIrqCallDMA(int core)
+{
+	// reset by an irq disable/enable cycle, behaviour found by
+	// test programs that bizarrely only fired one interrupt
+	has_to_call_irq_dma[core] = true;
 }
 
 __forceinline s16* GetMemPtr(u32 addr)
@@ -124,6 +130,8 @@ void V_Core::Init(int index)
 	Mute = false;
 	DMABits = 0;
 	NoiseClk = 0;
+	NoiseCnt = 0;
+	NoiseOut = 0;
 	AutoDMACtrl = 0;
 	InputDataLeft = 0;
 	InputPosRead = 0;
@@ -139,6 +147,7 @@ void V_Core::Init(int index)
 	MADR = 0;
 	TADR = 0;
 	KeyOn = 0;
+	OutPos = 0;
 
 	psxmode = false;
 	psxSoundDataTransferControl = 0;
@@ -327,44 +336,30 @@ void V_Core::UpdateEffectsBufferSize()
 	RevBuffers.APF2_R_SRC = EffectsBufferIndexer(Revb.APF2_R_DST - Revb.APF2_SIZE);
 }
 
-void V_Voice::QueueStart()
-{
-	if (Cycles - PlayCycle < delayCycles)
-	{
-		// Required by The Legend of Spyro: The Eternal Night (probably the other two legend games too)
-		ConLog(" *** KeyOn after less than %d T disregarded.\n", delayCycles);
-		return;
-	}
-	PlayCycle = Cycles;
-}
-
 bool V_Voice::Start()
 {
-	if ((Cycles - PlayCycle) >= delayCycles)
+	if (StartA & 7)
 	{
-		if (StartA & 7)
-		{
-			fprintf(stderr, " *** Misaligned StartA %05x!\n", StartA);
-			StartA = (StartA + 0xFFFF8) + 0x8;
-		}
-
-		ADSR.Releasing = false;
-		ADSR.Value = 1;
-		ADSR.Phase = 1;
-		SCurrent = 28;
-		LoopMode = 0;
-		LoopFlags = 0;
-		NextA = StartA | 1;
-		Prev1 = 0;
-		Prev2 = 0;
-
-		PV1 = PV2 = 0;
-		PV3 = PV4 = 0;
-		NextCrest = -0x8000;
-		return true;
+		fprintf(stderr, " *** Misaligned StartA %05x!\n", StartA);
+		StartA = (StartA + 0xFFFF8) + 0x8;
 	}
-	else
-		return false;
+
+	ADSR.Releasing = false;
+	ADSR.Value = 1;
+	ADSR.Phase = 1;
+	SCurrent = 28;
+	LoopMode = 0;
+	SP = 0;
+	LoopFlags = 0;
+	NextA = StartA | 1;
+	Prev1 = 0;
+	Prev2 = 0;
+
+	PV1 = PV2 = 0;
+	PV3 = PV4 = 0;
+	NextCrest = -0x8000;
+	PlayCycle = Cycles;
+	return true;
 }
 
 void V_Voice::Stop()
@@ -413,51 +408,18 @@ __forceinline void TimeUpdate(u32 cClocks)
 	//Update Mixing Progress
 	while (dClocks >= TickInterval)
 	{
-		if (has_to_call_irq)
+		for (int i = 0; i < 2; i++)
 		{
-			//ConLog("* SPU2: Irq Called (%04x) at cycle %d.\n", Spdif.Info, Cycles);
-			has_to_call_irq = false;
-			if (!SPU2_dummy_callback)
-				spu2Irq();
-		}
-
-		//Update DMA4 interrupt delay counter
-		if (Cores[0].DMAICounter > 0)
-		{
-			Cores[0].DMAICounter -= TickInterval;
-			if (Cores[0].DMAICounter <= 0)
+			if (has_to_call_irq[i])
 			{
-				//ConLog("counter set and callback!\n");
-				Cores[0].MADR = Cores[0].TADR;
-				Cores[0].DMAICounter = 0;
-				if (!SPU2_dummy_callback)
-					spu2DMA4Irq();
-				else
-					SPU2interruptDMA4();
-			}
-			else
-			{
-				Cores[0].MADR += TickInterval << 1;
-			}
-		}
-
-		//Update DMA7 interrupt delay counter
-		if (Cores[1].DMAICounter > 0)
-		{
-			Cores[1].DMAICounter -= TickInterval;
-			if (Cores[1].DMAICounter <= 0)
-			{
-				Cores[1].MADR = Cores[1].TADR;
-				Cores[1].DMAICounter = 0;
-				//ConLog( "* SPU2 > DMA 7 Callback!  %d\n", Cycles );
-				if (!SPU2_dummy_callback)
-					spu2DMA7Irq();
-				else
-					SPU2interruptDMA7();
-			}
-			else
-			{
-				Cores[1].MADR += TickInterval << 1;
+				//ConLog("* SPU2: Irq Called (%04x) at cycle %d.\n", Spdif.Info, Cycles);
+				has_to_call_irq[i] = false;
+				if (!(Spdif.Info & (4 << i)) && Cores[i].IRQEnable)
+				{
+					Spdif.Info |= (4 << i);
+					if (!SPU2_dummy_callback)
+						spu2Irq();
+				}
 			}
 		}
 
@@ -465,17 +427,121 @@ __forceinline void TimeUpdate(u32 cClocks)
 		lClocks += TickInterval;
 		Cycles++;
 
-		for (int i = 0; i < 2; i++)
-			if (Cores[i].KeyOn)
-				for (int j = 0; j < 24; j++)
-					if (Cores[i].KeyOn >> j & 1)
-						if (Cores[i].Voices[j].Start())
-							Cores[i].KeyOn &= ~(1 << j);
-
 		// Note: IOP does not use MMX regs, so no need to save them.
 		//SaveMMXRegs();
 		Mix();
 		//RestoreMMXRegs();
+	}
+
+	//Update DMA4 interrupt delay counter
+	if (Cores[0].DMAICounter > 0 && (*cyclePtr - Cores[0].LastClock) > 0)
+	{
+		const u32 amt = std::min(*cyclePtr - Cores[0].LastClock, (u32)Cores[0].DMAICounter);
+		Cores[0].DMAICounter -= amt;
+		Cores[0].LastClock = *cyclePtr;
+		Cores[0].MADR += amt / 2;
+		if (Cores[0].DMAICounter <= 0)
+		{
+			if (((Cores[0].AutoDMACtrl & 1) != 1) && Cores[0].ReadSize)
+			{
+				if (Cores[0].IsDMARead)
+					Cores[0].FinishDMAread();
+				else
+					Cores[0].FinishDMAwrite();
+			}
+
+			for (int i = 0; i < 2; i++)
+			{
+				if (has_to_call_irq_dma[i])
+				{
+					//ConLog("* SPU2: Irq Called (%04x) at cycle %d.\n", Spdif.Info, Cycles);
+					has_to_call_irq_dma[i] = false;
+					if (!(Spdif.Info & (4 << i)) && Cores[i].IRQEnable)
+					{
+						Spdif.Info |= (4 << i);
+						if (!SPU2_dummy_callback)
+							spu2Irq();
+					}
+				}
+			}
+			if (!Cores[0].DMAICounter)
+			{
+				Cores[0].MADR = Cores[0].TADR;
+				if (!SPU2_dummy_callback)
+					spu2DMA4Irq();
+				else
+					SPU2interruptDMA4();
+			}
+		}
+		else
+		{
+			if (((psxCounters[6].sCycleT + psxCounters[6].CycleT) - psxRegs.cycle) > Cores[0].DMAICounter)
+			{
+				psxCounters[6].sCycleT = psxRegs.cycle;
+				psxCounters[6].CycleT = Cores[0].DMAICounter;
+
+				psxNextCounter -= (psxRegs.cycle - psxNextsCounter);
+				psxNextsCounter = psxRegs.cycle;
+				if (psxCounters[6].CycleT < psxNextCounter)
+					psxNextCounter = psxCounters[6].CycleT;
+			}
+		}
+	}
+
+	//Update DMA7 interrupt delay counter
+	if (Cores[1].DMAICounter > 0 && (*cyclePtr - Cores[1].LastClock) > 0)
+	{
+		const u32 amt = std::min(*cyclePtr - Cores[1].LastClock, (u32)Cores[1].DMAICounter);
+		Cores[1].DMAICounter -= amt;
+		Cores[1].LastClock = *cyclePtr;
+		Cores[1].MADR += amt / 2;
+		if (Cores[1].DMAICounter <= 0)
+		{
+			if (((Cores[1].AutoDMACtrl & 2) != 2) && Cores[1].ReadSize)
+			{
+				if (Cores[1].IsDMARead)
+					Cores[1].FinishDMAread();
+				else
+					Cores[1].FinishDMAwrite();
+			}
+
+			for (int i = 0; i < 2; i++)
+			{
+				if (has_to_call_irq_dma[i])
+				{
+					//ConLog("* SPU2: Irq Called (%04x) at cycle %d.\n", Spdif.Info, Cycles);
+					has_to_call_irq_dma[i] = false;
+					if (!(Spdif.Info & (4 << i)) && Cores[i].IRQEnable)
+					{
+						Spdif.Info |= (4 << i);
+						if (!SPU2_dummy_callback)
+							spu2Irq();
+					}
+				}
+			}
+
+			if (!Cores[1].DMAICounter)
+			{
+				Cores[1].MADR = Cores[1].TADR;
+				if (!SPU2_dummy_callback)
+					spu2DMA7Irq();
+				else
+					SPU2interruptDMA7();
+			}
+		}
+		else
+		{
+			if (((psxCounters[6].sCycleT + psxCounters[6].CycleT) - psxRegs.cycle) > Cores[1].DMAICounter)
+			{
+				psxCounters[6].sCycleT = psxRegs.cycle;
+				psxCounters[6].CycleT = Cores[1].DMAICounter;
+
+				psxNextCounter -= (psxRegs.cycle - psxNextsCounter);
+				psxNextsCounter = psxRegs.cycle;
+				if (psxCounters[6].CycleT < psxNextCounter)
+					psxNextCounter = psxCounters[6].CycleT;
+			}
+		}
 	}
 }
 
@@ -719,12 +785,13 @@ void V_Core::WriteRegPS1(u32 mem, u16 value)
 
 			case 0x1da6:
 				TSA = map_spu1to2(value);
-				//ConLog("SPU2 Setting TSA to %x \n", TSA);
+				ConLog("SPU2 Setting TSA to %x \n", TSA);
 				break;
 
 			case 0x1da8: // Spu Write to Memory
 				//ConLog("SPU direct DMA Write. Current TSA = %x\n", TSA);
-				if (Cores[0].IRQEnable && (Cores[0].IRQA <= Cores[0].TSA))
+				Cores[0].ActiveTSA = Cores[0].TSA;
+				if (Cores[0].IRQEnable && (Cores[0].IRQA <= Cores[0].ActiveTSA))
 				{
 					SetIrqCall(0);
 					if (!SPU2_dummy_callback)
@@ -993,6 +1060,7 @@ u16 V_Core::ReadRegPS1(u32 mem)
 				//ConLog("SPU2 TSA read: 0x1da6 = %x , (TSA = %x)\n", value, TSA);
 				break;
 			case 0x1da8:
+				ActiveTSA = TSA;
 				value = DmaRead();
 				show = false;
 				break;
@@ -1118,7 +1186,7 @@ static void __fastcall RegWrite_VoiceAddr(u16 value)
 	switch (address)
 	{
 		case 0: // SSA (Waveform Start Addr) (hiword, 4 bits only)
-			thisvoice.StartA = ((value & 0x0F) << 16) | (thisvoice.StartA & 0xFFF8);
+			thisvoice.StartA = ((u32)(value & 0x0F) << 16) | (thisvoice.StartA & 0xFFF8);
 			if (IsDevBuild)
 				DebugCores[core].Voices[voice].lastSetStartA = thisvoice.StartA;
 			break;
@@ -1130,7 +1198,7 @@ static void __fastcall RegWrite_VoiceAddr(u16 value)
 			break;
 
 		case 2:
-			thisvoice.LoopStartA = ((value & 0x0F) << 16) | (thisvoice.LoopStartA & 0xFFF8);
+			thisvoice.LoopStartA = ((u32)(value & 0x0F) << 16) | (thisvoice.LoopStartA & 0xFFF8);
 			thisvoice.LoopMode = 1;
 			break;
 
@@ -1149,7 +1217,7 @@ static void __fastcall RegWrite_VoiceAddr(u16 value)
 			// without it some sound effects get cut off so we need the two NextA cases enabled.
 
 		case 4:
-			thisvoice.NextA = ((value & 0x0F) << 16) | (thisvoice.NextA & 0xFFF8) | 1;
+			thisvoice.NextA = ((u32)(value & 0x0F) << 16) | (thisvoice.NextA & 0xFFF8) | 1;
 			thisvoice.SCurrent = 28;
 			break;
 
@@ -1181,10 +1249,10 @@ static void __fastcall RegWrite_Core(u16 value)
 
 			// Performance Note: The PS2 Bios uses this extensively right before booting games,
 			// causing massive slowdown if we don't shortcut it here.
-
+			thiscore.ActiveTSA = thiscore.TSA;
 			for (int i = 0; i < 2; i++)
 			{
-				if (Cores[i].IRQEnable && (Cores[i].IRQA == thiscore.TSA))
+				if (Cores[i].IRQEnable && (Cores[i].IRQA == thiscore.ActiveTSA))
 				{
 					SetIrqCall(i);
 				}
@@ -1209,9 +1277,7 @@ static void __fastcall RegWrite_Core(u16 value)
 			thiscore.Mute = 0;
 			//thiscore.CoreEnabled=(value>>15) & 0x01; //1 bit
 			// no clue
-			if (value >> 15)
-				thiscore.Regs.STATX = 0;
-			thiscore.Regs.ATTR = value & 0x7fff;
+			thiscore.Regs.ATTR = value & 0xffff;
 
 			if (fxenable && !thiscore.FxEnable && (thiscore.EffectsStartA != thiscore.ExtEffectsStartA || thiscore.EffectsEndA != thiscore.ExtEffectsEndA))
 			{
@@ -1221,11 +1287,12 @@ static void __fastcall RegWrite_Core(u16 value)
 				thiscore.RevBuffers.NeedsUpdated = true;
 			}
 
-			if (oldDmaMode != thiscore.DmaMode)
-			{
-				// FIXME... maybe: if this mode was cleared in the middle of a DMA, should we interrupt it?
-				thiscore.Regs.STATX &= ~0x400; // ready to transfer
-			}
+			if (!thiscore.DmaMode && !(thiscore.Regs.STATX & 0x400))
+				thiscore.Regs.STATX &= ~0x80;
+			else if(!oldDmaMode && thiscore.DmaMode)
+				thiscore.Regs.STATX |= 0x80;
+
+			thiscore.ActiveTSA = thiscore.TSA;
 
 			if (value & 0x000E)
 			{
@@ -1245,6 +1312,9 @@ static void __fastcall RegWrite_Core(u16 value)
 
 				if (!thiscore.IRQEnable)
 					Spdif.Info &= ~(4 << thiscore.Index);
+				else
+					if ((thiscore.IRQA & 0xFFF00000) != 0)
+						DevCon.Warning("SPU2: Core %d IRQA Outside of SPU2 memory, Addr %x", thiscore.Index, thiscore.IRQA);
 			}
 		}
 		break;
@@ -1386,7 +1456,7 @@ static void __fastcall RegWrite_Core(u16 value)
 		//    change the end address anyway.
 		//
 		case REG_A_ESA:
-			SetHiWord(thiscore.ExtEffectsStartA, value);
+			SetHiWord(thiscore.ExtEffectsStartA, value & 0xF);
 			if (!thiscore.FxEnable)
 			{
 				thiscore.EffectsStartA = thiscore.ExtEffectsStartA;
@@ -1406,7 +1476,7 @@ static void __fastcall RegWrite_Core(u16 value)
 			break;
 
 		case REG_A_EEA:
-			thiscore.ExtEffectsEndA = ((u32)value << 16) | 0xFFFF;
+			thiscore.ExtEffectsEndA = ((u32)(value & 0xF) << 16) | 0xFFFF;
 			if (!thiscore.FxEnable)
 			{
 				thiscore.EffectsEndA = thiscore.ExtEffectsEndA;
@@ -1452,10 +1522,11 @@ static void __fastcall RegWrite_Core(u16 value)
 				return;
 			}
 			thiscore.AutoDMACtrl = value;
-
-			if (value == 0)
+			if (value == 0 && thiscore.AdmaInProgress && (thiscore.Regs.STATX & 0x400))
 			{
 				thiscore.AdmaInProgress = 0;
+				thiscore.Regs.STATX &= ~0x400; // Set DMA as not busy transferring
+				// No need to end the DMA here, the IOP seems to handle that
 			}
 			break;
 
@@ -1851,22 +1922,23 @@ void SPU2_FastWrite(u32 rmem, u16 value)
 
 void StartVoices(int core, u32 value)
 {
+	ConLog("KeyOn Write %x\n", value);
+
 	// Optimization: Games like to write zero to the KeyOn reg a lot, so shortcut
 	// this loop if value is zero.
-
 	if (value == 0)
 		return;
 
-	Cores[core].Regs.ENDX &= ~value;
-
 	Cores[core].KeyOn |= value;
+	Cores[core].Regs.ENDX &= ~value;
 
 	for (u8 vc = 0; vc < V_Core::NumVoices; vc++)
 	{
 		if (!((value >> vc) & 1))
 			continue;
 
-		Cores[core].Voices[vc].QueueStart();
+		if (Cores[core].Voices[vc].Start())
+			Cores[core].KeyOn &= ~(1 << vc);
 
 		if (IsDevBuild)
 		{
@@ -1887,12 +1959,21 @@ void StartVoices(int core, u32 value)
 
 void StopVoices(int core, u32 value)
 {
+	ConLog("KeyOff Write %x\n", value);
+
 	if (value == 0)
 		return;
+
 	for (u8 vc = 0; vc < V_Core::NumVoices; vc++)
 	{
 		if (!((value >> vc) & 1))
 			continue;
+
+		if (Cycles - Cores[core].Voices[vc].PlayCycle < 2)
+		{
+			ConLog("Attempt to stop voice %d on core %d in less than 2T since KeyOn\n", vc, core);
+			continue;
+		}
 
 		Cores[core].Voices[vc].ADSR.Releasing = true;
 		if (MsgKeyOnOff())

@@ -119,49 +119,6 @@ void GSRendererOGL::SetupIA(const float& sx, const float& sy)
 	dev->IASetPrimitiveTopology(t);
 }
 
-void GSRendererOGL::EmulateAtst(const int pass, const GSTextureCache::Source* tex)
-{
-	static const uint32 inverted_atst[] = {ATST_ALWAYS, ATST_NEVER, ATST_GEQUAL, ATST_GREATER, ATST_NOTEQUAL, ATST_LESS, ATST_LEQUAL, ATST_EQUAL};
-	int atst = (pass == 2) ? inverted_atst[m_context->TEST.ATST] : m_context->TEST.ATST;
-
-	if (!m_context->TEST.ATE) return;
-
-	switch (atst) {
-		case ATST_LESS:
-			ps_cb.FogColor_AREF.a = (float)m_context->TEST.AREF - 0.1f;
-			m_ps_sel.atst = 1;
-			break;
-		case ATST_LEQUAL:
-			ps_cb.FogColor_AREF.a = (float)m_context->TEST.AREF - 0.1f + 1.0f;
-			m_ps_sel.atst = 1;
-			break;
-		case ATST_GEQUAL:
-			// Maybe a -1 trick multiplication factor could be used to merge with ATST_LEQUAL case
-			ps_cb.FogColor_AREF.a = (float)m_context->TEST.AREF - 0.1f;
-			m_ps_sel.atst = 2;
-			break;
-		case ATST_GREATER:
-			// Maybe a -1 trick multiplication factor could be used to merge with ATST_LESS case
-			ps_cb.FogColor_AREF.a = (float)m_context->TEST.AREF - 0.1f + 1.0f;
-			m_ps_sel.atst = 2;
-			break;
-		case ATST_EQUAL:
-			ps_cb.FogColor_AREF.a = (float)m_context->TEST.AREF;
-			m_ps_sel.atst = 3;
-			break;
-		case ATST_NOTEQUAL:
-			ps_cb.FogColor_AREF.a = (float)m_context->TEST.AREF;
-			m_ps_sel.atst = 4;
-			break;
-
-		case ATST_NEVER: // Draw won't be done so no need to implement it in shader
-		case ATST_ALWAYS:
-		default:
-			m_ps_sel.atst = 0;
-			break;
-	}
-}
-
 void GSRendererOGL::EmulateZbuffer()
 {
 	if (m_context->TEST.ZTE) {
@@ -177,7 +134,7 @@ void GSRendererOGL::EmulateZbuffer()
 	const bool clamp_z = (uint32)(GSVector4i(m_vt.m_max.p).z) > max_z;
 
 	vs_cb.MaxDepth = GSVector2i(0xFFFFFFFF);
-	ps_cb.MaxDepth = GSVector4(0.0f, 0.0f, 0.0f, 1.0f);
+	//ps_cb.MaxDepth = GSVector4(0.0f, 0.0f, 0.0f, 1.0f);
 	m_ps_sel.zclamp = 0;
 
 	if (clamp_z) {
@@ -489,27 +446,27 @@ void GSRendererOGL::EmulateBlending(bool& DATE_GL42, bool& DATE_GL45)
 	const bool blend_non_recursive = !!(blend_flag & BLEND_NO_REC);
 
 	// Warning no break on purpose
-	// Note: the "fall through" comments tell gcc not to complain about not having breaks.
+	// Note: the [[fallthrough]] attribute tell compilers not to complain about not having breaks.
 	switch (m_sw_blending) {
 		case ACC_BLEND_ULTRA:
 			sw_blending |= true;
-			// fall through
+			[[fallthrough]];
 		case ACC_BLEND_FULL:
 			if (!m_vt.m_alpha.valid && (ALPHA.C == 0)) GetAlphaMinMax();
 			sw_blending |= (ALPHA.A != ALPHA.B) && ((ALPHA.C == 0 && m_vt.m_alpha.max > 128) || (ALPHA.C == 2 && ALPHA.FIX > 128u));
-			// fall through
+			[[fallthrough]];
 		case ACC_BLEND_HIGH:
 			sw_blending |= (ALPHA.C == 1);
-			// fall through
+			[[fallthrough]];
 		case ACC_BLEND_MEDIUM:
 			// Initial idea was to enable accurate blending for sprite rendering to handle
 			// correctly post-processing effect. Some games (ZoE) use tons of sprites as particles.
 			// In order to keep it fast, let's limit it to smaller draw call.
 			sw_blending |= m_vt.m_primclass == GS_SPRITE_CLASS && m_drawlist.size() < 100;
-			// fall through
+			[[fallthrough]];
 		case ACC_BLEND_BASIC:
 			sw_blending |= impossible_or_free_blend;
-			// fall through
+			[[fallthrough]];
 		default:
 			/*sw_blending |= accumulation_blend*/;
 	}
@@ -806,12 +763,14 @@ void GSRendererOGL::EmulateTextureSampler(const GSTextureCache::Source* tex)
 		m_ps_ssel.triln = 0;
 	} else {
 		m_ps_ssel.biln  = bilinear;
+		// Aniso filtering doesn't work with textureLod so use texture (automatic_lod) instead.
 		// Enable aniso only for triangles. Sprites are flat so aniso is likely useless (it would save perf for others primitives).
-		m_ps_ssel.aniso = m_vt.m_primclass == GS_TRIANGLE_CLASS ? 1 : 0;
+		const bool anisotropic = m_vt.m_primclass == GS_TRIANGLE_CLASS && !trilinear_manual;
+		m_ps_ssel.aniso = anisotropic;
 		m_ps_ssel.triln = trilinear;
 		if (trilinear_manual) {
 			m_ps_sel.manual_lod = 1;
-		} else if (trilinear_auto) {
+		} else if (trilinear_auto || anisotropic) {
 			m_ps_sel.automatic_lod = 1;
 		}
 	}
@@ -1053,58 +1012,69 @@ void GSRendererOGL::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sour
 	EmulateTextureShuffleAndFbmask();
 
 	// DATE: selection of the algorithm. Must be done before blending because GL42 is not compatible with blending
-	if (DATE) {
-		if (m_prim_overlap == PRIM_OVERLAP_NO || m_texture_shuffle) {
+	if (DATE)
+	{
+		if (m_prim_overlap == PRIM_OVERLAP_NO || m_texture_shuffle)
+		{
 			// It is way too complex to emulate texture shuffle with DATE. So just use
 			// the slow but accurate algo
 			GL_PERF("DATE: With %s", m_texture_shuffle ? "texture shuffle" : "no prim overlap");
 			m_require_full_barrier = true;
 			DATE_GL45 = true;
-		} else if (m_om_csel.wa && !m_context->TEST.ATE) {
+		}
+		else if (m_om_csel.wa && !m_context->TEST.ATE)
+		{
 			// Performance note: check alpha range with GetAlphaMinMax()
 			// Note: all my dump are already above 120fps, but it seems to reduce GPU load
 			// with big upscaling
 			GetAlphaMinMax();
-			if (m_context->TEST.DATM && m_vt.m_alpha.max < 128) {
+			if (m_context->TEST.DATM && m_vt.m_alpha.max < 128)
+			{
 				// Only first pixel (write 0) will pass (alpha is 1)
 				GL_PERF("DATE: Fast with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
 				DATE_one = true;
-			} else if (!m_context->TEST.DATM && m_vt.m_alpha.min >= 128) {
+			}
+			else if (!m_context->TEST.DATM && m_vt.m_alpha.min >= 128)
+			{
 				// Only first pixel (write 1) will pass (alpha is 0)
 				GL_PERF("DATE: Fast with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
 				DATE_one = true;
-			} else if ((m_vt.m_primclass == GS_SPRITE_CLASS && m_drawlist.size() < 50) || (m_index.tail < 100)) {
+			}
+			else if ((m_vt.m_primclass == GS_SPRITE_CLASS && m_drawlist.size() < 50) || (m_index.tail < 100))
+			{
 				// texture barrier will split the draw call into n draw call. It is very efficient for
 				// few primitive draws. Otherwise it sucks.
 				GL_PERF("DATE: Slow with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
 				m_require_full_barrier = true;
 				DATE_GL45 = true;
-			} else {
-				switch (m_accurate_date) {
-					case ACC_DATE_FULL:
-						GL_PERF("DATE: Full AD with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
-						if (GLLoader::found_GL_ARB_shader_image_load_store && GLLoader::found_GL_ARB_clear_texture) {
-							DATE_GL42 = true;
-						} else {
-							m_require_full_barrier = true;
-							DATE_GL45 = true;
-						}
-						break;
-					case ACC_DATE_FAST:
-						GL_PERF("DATE: Fast AD with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
-						DATE_one = true;
-						break;
-					case ACC_DATE_NONE:
-					default:
-						GL_PERF("DATE: Off AD with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
-						break;
+			}
+			else
+			{
+				// Note: Fast level (DATE_one) was removed as it's less accurate.
+				if (m_accurate_date)
+				{
+					GL_PERF("DATE: Full AD with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
+					if (GLLoader::found_GL_ARB_shader_image_load_store && GLLoader::found_GL_ARB_clear_texture)
+					{
+						DATE_GL42 = true;
+					}
+					else
+					{
+						m_require_full_barrier = true;
+						DATE_GL45 = true;
+					}
+				}
+				else
+				{
+					GL_PERF("DATE: Off AD with alpha %d-%d", m_vt.m_alpha.min, m_vt.m_alpha.max);
 				}
 			}
-		} else if (!m_om_csel.wa && !m_context->TEST.ATE) {
+		}
+		else if (!m_om_csel.wa && !m_context->TEST.ATE)
+		{
 			// TODO: is it legal ? Likely but it need to be tested carefully
 			// DATE_GL45 = true;
 			// m_require_one_barrier = true; << replace it with a cheap barrier
-
 		}
 
 		// Will save my life !
@@ -1240,10 +1210,11 @@ void GSRendererOGL::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sour
 	// pass to handle the depth based on the alpha test.
 	bool ate_RGBA_then_Z = false;
 	bool ate_RGB_then_ZA = false;
+	uint8 ps_atst = 0;
 	if (ate_first_pass & ate_second_pass) {
 		GL_DBG("Complex Alpha Test");
-		bool commutative_depth = (m_om_dssel.ztst == ZTST_GEQUAL && m_vt.m_eq.z) || (m_om_dssel.ztst == ZTST_ALWAYS);
-		bool commutative_alpha = (m_context->ALPHA.C != 1); // when either Alpha Src or a constant
+		const bool commutative_depth = (m_om_dssel.ztst == ZTST_GEQUAL && m_vt.m_eq.z) || (m_om_dssel.ztst == ZTST_ALWAYS);
+		const bool commutative_alpha = (m_context->ALPHA.C != 1); // when either Alpha Src or a constant
 
 		ate_RGBA_then_Z = (m_context->TEST.AFAIL == AFAIL_FB_ONLY) & commutative_depth;
 		ate_RGB_then_ZA = (m_context->TEST.AFAIL == AFAIL_RGB_ONLY) & commutative_depth & commutative_alpha;
@@ -1261,7 +1232,8 @@ void GSRendererOGL::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sour
 		m_om_dssel.zwe = false;
 		m_om_csel.wa = false;
 	} else {
-		EmulateAtst(1, tex);
+		EmulateAtst(ps_cb.FogColor_AREF, ps_atst, false);
+		m_ps_sel.atst = ps_atst;
 	}
 
 	if (tex) {
@@ -1373,15 +1345,20 @@ void GSRendererOGL::DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Sour
 	{
 		ASSERT(!m_env.PABE.PABE);
 
-		if (ate_RGBA_then_Z | ate_RGB_then_ZA) {
+		if (ate_RGBA_then_Z | ate_RGB_then_ZA)
+		{
 			// Enable ATE as first pass to update the depth
 			// of pixels that passed the alpha test
-			EmulateAtst(1, tex);
-		} else {
+			EmulateAtst(ps_cb.FogColor_AREF, ps_atst, false);
+		}
+		else
+		{
 			// second pass will process the pixels that failed
 			// the alpha test
-			EmulateAtst(2, tex);
+			EmulateAtst(ps_cb.FogColor_AREF, ps_atst, true);
 		}
+
+		m_ps_sel.atst = ps_atst;
 
 		// Potentially AREF was updated (hope perf impact will be limited)
 		dev->SetupCB(&vs_cb, &ps_cb);

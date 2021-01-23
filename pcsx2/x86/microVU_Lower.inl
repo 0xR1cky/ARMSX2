@@ -80,7 +80,10 @@ mVUop(mVU_DIV) {
 		writeQreg(Fs, mVUinfo.writeQ);
 
 		if (mVU.cop2)
+		{
+			xAND(gprF0, ~0xc0000);
 			xOR(gprF0, ptr32[&mVU.divFlag]);
+		}
 
 		mVU.regAlloc->clearNeeded(Fs);
 		mVU.regAlloc->clearNeeded(Ft);
@@ -103,7 +106,10 @@ mVUop(mVU_SQRT) {
 		writeQreg(Ft, mVUinfo.writeQ);
 
 		if (mVU.cop2)
+		{
+			xAND(gprF0, ~0xc0000);
 			xOR(gprF0, ptr32[&mVU.divFlag]);
+		}
 
 		mVU.regAlloc->clearNeeded(Ft);
 		mVU.profiler.EmitOp(opSQRT);
@@ -145,7 +151,10 @@ mVUop(mVU_RSQRT) {
 		writeQreg(Fs, mVUinfo.writeQ);
 
 		if (mVU.cop2)
+		{
+			xAND(gprF0, ~0xc0000);
 			xOR(gprF0, ptr32[&mVU.divFlag]);
+		}
 
 		mVU.regAlloc->clearNeeded(Fs);
 		mVU.regAlloc->clearNeeded(Ft);
@@ -930,10 +939,10 @@ mVUop(mVU_ISW) {
 		if (!_Is_)
 			xXOR(gprT2, gprT2);
 		xADD(gprT2, _Imm11_);
-		mVUaddrFix (mVU, gprT2);
+		mVUaddrFix (mVU, gprT2q);
 
 		mVUallocVIa(mVU, gprT1, _It_);
-		writeBackISW(mVU, ptr, gprT2);
+		writeBackISW(mVU, ptr, gprT2q);
 		mVU.profiler.EmitOp(opISW);
 	}
 	pass3 { mVUlog("ISW.%s vi%02d, vi%02d + %d", _XYZW_String, _Ft_, _Fs_, _Imm11_);  }

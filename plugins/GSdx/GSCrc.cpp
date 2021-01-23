@@ -27,8 +27,6 @@ CRC::Game CRC::m_games[] =
 {
 	// Note: IDs 0x7ACF7E03, 0x7D4EA48F, 0x37C53760 - shouldn't be added as it's from the multiloaders when packing games.
 	{0x00000000, NoTitle, NoRegion, 0},
-	{0xF46142D3, ArTonelico2, NoRegion, 0},
-	{0xC38067F4, ArTonelico2, NoRegion, 0}, // project metafalica 1.0
 	{0xF95F37EE, ArTonelico2, US, 0},
 	{0x68CE6801, ArTonelico2, JP, 0},
 	{0xCE2C1DBF, ArTonelico2, EU, 0},
@@ -150,7 +148,6 @@ CRC::Game CRC::m_games[] =
 	{0x32A1C752, GT4, US, 0}, // GT4 Online Beta
 	{0x2A84A1E2, GT4, US, 0}, // Mazda MX-5 Edition
 	{0x0087EEC4, GT4, NoRegion, 0}, // JP and US versions have the same CRC - GT4 Online Beta
-	{0xC164550A, WildArms5, JPUNDUB, 0},
 	{0xC1640D2C, WildArms5, US, 0},
 	{0x0FCF8FE4, WildArms5, EU, 0},
 	{0x2294D322, WildArms5, JP, 0},
@@ -223,8 +220,6 @@ CRC::Game CRC::m_games[] =
 	{0xF442260C, MajokkoALaMode2, JP, 0},
 	{0xA616A6C2, TalesOfAbyss, US, 0},
 	{0x14FE77F7, TalesOfAbyss, US, 0},
-	{0x045D77E9, TalesOfAbyss, JPUNDUB, 0},
-	{0x14FD77F7, TalesOfAbyss, JPUNDUB, 0},
 	{0xAA5EC3A3, TalesOfAbyss, JP, 0},
 	{0xFB236A46, SonicUnleashed, US, 0},
 	{0x8C913264, SonicUnleashed, EU, 0},
@@ -232,7 +227,6 @@ CRC::Game CRC::m_games[] =
 	{0x23A97857, StarOcean3, US, 0},
 	{0xBEC32D49, StarOcean3, JP, 0},
 	{0x8192A241, StarOcean3, JP, 0}, // NTSC JP special directors cut limited extra sugar on top edition (the special one :p)
-	// it's the US version with speach files from JP... {0x23A97857, StarOcean3, JPUNDUB, 0},
 	{0xCC96CE93, ValkyrieProfile2, US, 0},
 	{0x774DE8E2, ValkyrieProfile2, JP, 0},
 	{0x04CCB600, ValkyrieProfile2, EU, 0},
@@ -267,22 +261,6 @@ CRC::Game CRC::m_games[] =
 	{0x7FA1510D, TenchuWoH, EU, 0}, // PAL ES, IT
 	{0xC8DADF58, TenchuWoH, EU, 0},
 	{0x13DD9957, TenchuWoH, JP, 0},
-	{0x8BC95883, Sly3, US, 0},
-	{0x3130A4D3, Sly3, US, 0}, // E3 Demo
-	{0x35CCFA60, Sly3, US, 0}, // Regular Demo
-	{0x8C146034, Sly3, EU, 0}, // Demo
-	{0x3670B6F9, Sly3, EU, 0}, // Prototype
-	{0x8164C614, Sly3, EU, 0},
-	{0xA8CC1583, Sly3, KO, 0},
-	{0x518DD841, Sly2, KO, 0},
-	{0x07652DD9, Sly2, US, 0},
-	{0x5B93397F, Sly2, US, 0}, // E3 Demo
-	{0xA480549C, Sly2, US, 0}, // Prototype
-	{0xDD0B5E6C, Sly2, US, 0}, // Internal prototype disc
-	{0x615EA2DB, Sly2, JP, 0}, // Kaitou Sly Cooper 2
-	{0xFDA1CBF6, Sly2, EU, 0},
-	{0x15DD1F6F, Sly2, NoRegion, 0},
-	{0xBF1739E2, Sly2, NoRegion, 0}, // Prototype maybe, is it official ? I don't remember, found it when testing my dumps (LT).
 	{0x506644B3, BigMuthaTruckers, EU, 0},
 	{0x90F0D852, BigMuthaTruckers, US, 0},
 	{0x92624842, BigMuthaTruckers, US, 0},
@@ -293,8 +271,6 @@ CRC::Game CRC::m_games[] =
 	{0xE169BAF8, RedDeadRevolver, US, 0},
 	{0xE2E67E23, RedDeadRevolver, EU, 0},
 	{0x87844524, RedDeadRevolver, RU, 0}, // Unofficial RU-version
-	{0x6DF62AEA, BleachBladeBattlers, JP, 0},
-	{0x6EB71AB0, BleachBladeBattlers, JP, 0}, // 2nd
 	{0xCBB87BF9, EvangelionJo, JP, 0}, // cutie comment
 	{0xC5B75C7C, Oneechanbara2Special, JP, 0}, // cutie comment
 	{0xC725CC6C, Oneechanbara2Special, JP, 0},
@@ -318,11 +294,6 @@ CRC::Game CRC::m_games[] =
 	{0xBC8B3F50, TombRaiderLegend, US, 0}, // cutie comment
 	{0x365172A0, TombRaiderLegend, JP, 0},
 	{0x05177ECE, TombRaiderLegend, EU, 0},
-	{0x879CDA5E, StarWarsForceUnleashed, US, 0},
-	{0x137C792E, StarWarsForceUnleashed, US, 0},
-	{0xCC9BFDE3, StarWarsForceUnleashed, JP, 0},
-	{0xDAF2145C, StarWarsForceUnleashed, EU, 0},
-	{0x87109051, StarWarsForceUnleashed, EU, 0},
 	{0xBEBF8793, BurnoutTakedown, US, 0},
 	{0xBB2E845F, BurnoutTakedown, JP, 0},
 	{0x5F060991, BurnoutTakedown, KO, 0},

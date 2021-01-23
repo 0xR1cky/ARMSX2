@@ -20,7 +20,7 @@
 #include "App.h"
 #include "Counters.h"
 #include "DebugTools/Debug.h"
-#include "GSFrame.h"
+#include "MainFrame.h"
 #include "MemoryTypes.h"
 
 #include "InputRecording.h"
@@ -60,8 +60,7 @@ void InputRecordingControls::HandleFrameAdvanceAndPausing()
 	else if (frameCountTracker != g_FrameCount)
 	{
 		frameCountTracker = g_FrameCount;
-		if (g_InputRecording.GetFrameCounter() < INT_MAX)
-			g_InputRecording.IncrementFrameCounter();
+		g_InputRecording.IncrementFrameCounter();
 	}
 	else
 	{
@@ -209,5 +208,7 @@ void InputRecordingControls::Lock(u32 frame)
 	//Ensures that g_frameCount can be used to resume emulation after a fast/full boot
 	if (!g_InputRecording.GetInputRecordingData().FromSaveState())
 		g_FrameCount = frame + 1;
+	else
+		sMainFrame.StartInputRecording();
 }
 #endif

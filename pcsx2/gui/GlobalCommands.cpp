@@ -321,8 +321,6 @@ namespace Implementations
 			// the content stays on screen. Try to prevent that by first exiting fullscreen,
 			// but don't update the internal PCSX2 state/config, and PCSX2 will restore
 			// fullscreen correctly when emulation resumes according to its state/config.
-			// This is similar to what LilyPad's "Safe fullscreen exit on escape" hack does,
-			// and thus hopefully makes LilyPad's hack redundant.
 			gsframe->ShowFullScreen(false, false);
 		}
 
@@ -352,18 +350,25 @@ namespace Implementations
 			{
 				// aborting suspend request
 				// Note: if we didn't want to suspend emulation for this confirmation dialog,
-				// and if LilyPad has "Safe fullscreen exit on ESC", then pressing ESC would
-				// have exited fullscreen without PCSX2 knowing about it, and since it's not
-				// suspended it would not re-init the fullscreen state if the confirmation is
-				// aborted. On such case we'd have needed to set the gsframe fullscreen mode
-				// here according to g_Conf->GSWindow.IsFullscreen
+				// then pressing ESC would have exited fullscreen without PCSX2 knowing about it,
+				// and since it's not suspended it would not re-init the fullscreen state if the
+				// confirmation is aborted. On such case we'd have needed to set the gsframe
+				// fullscreen mode here according to g_Conf->GSWindow.IsFullscreen
 				CoreThread.Resume();
 				return;
 			}
 		}
 
 		if (g_Conf->GSWindow.CloseOnEsc)
+		{
 			sMainFrame.SetFocus();
+#ifndef DISABLE_RECORDING
+			// Disable recording controls that only make sense if the game is running
+			sMainFrame.enableRecordingMenuItem(MenuId_Recording_FrameAdvance, false);
+			sMainFrame.enableRecordingMenuItem(MenuId_Recording_TogglePause, false);
+			sMainFrame.enableRecordingMenuItem(MenuId_Recording_ToggleRecordingMode, false);
+#endif
+		}
 	}
 
 	void Sys_Resume()
@@ -384,7 +389,8 @@ namespace Implementations
 
 	void Sys_TakeSnapshot()
 	{
-		GSmakeSnapshot(g_Conf->Folders.Snapshots.ToUTF8());
+		if (GSmakeSnapshot(g_Conf->Folders.Snapshots.ToUTF8()))
+			OSDlog(ConsoleColors::Color_Black, true, "Snapshot taken");
 	}
 
 	void Sys_RenderToggle()
@@ -1006,15 +1012,26 @@ void Pcsx2App::InitDefaultGlobalAccelerators()
 	GlobalAccels->Map(AAC(WXK_F4), "Framelimiter_MasterToggle");
 	GlobalAccels->Map(AAC(WXK_F4).Shift(), "Frameskip_Toggle");
 
-	/*GlobalAccels->Map( AAC( WXK_ESCAPE ),		"Sys_Suspend");
-	GlobalAccels->Map( AAC( WXK_F8 ),			"Sys_TakeSnapshot");
-	GlobalAccels->Map( AAC( WXK_F8 ).Shift(),	"Sys_TakeSnapshot");
-	GlobalAccels->Map( AAC( WXK_F8 ).Shift().Cmd(),"Sys_TakeSnapshot");
-	GlobalAccels->Map( AAC( WXK_F9 ),			"Sys_RenderswitchToggle");
+	// At this early stage of startup, the application assumes installed mode, so portable mode custom keybindings may present issues.
+	// Relevant - https://github.com/PCSX2/pcsx2/blob/678829a5b2b8ca7a3e42d8edc9ab201bf00b0fe9/pcsx2/gui/AppInit.cpp#L479
+	// Compared to L990 of GlobalCommands.cpp which also does an init for the GlobalAccelerators.
+	// The idea was to have: Reading from the PCSX2_keys.ini in the ini folder based on PCSX2_keys.ini.default which get overridden. 
+	// We also need to make it easier to do custom hotkeys for both normal/portable PCSX2 in the GUI.
+	GlobalAccels->Map(AAC(WXK_TAB), "Framelimiter_TurboToggle");
+	GlobalAccels->Map(AAC(WXK_TAB).Shift(), "Framelimiter_SlomoToggle");
 
-	GlobalAccels->Map( AAC( WXK_F10 ),			"Sys_LoggingToggle");
-	GlobalAccels->Map( AAC( WXK_F11 ),			"Sys_FreezeGS");
-	GlobalAccels->Map( AAC( WXK_F12 ),			"Sys_RecordingToggle");
+	GlobalAccels->Map(AAC(WXK_F6), "GSwindow_CycleAspectRatio");
+	GlobalAccels->Map(AAC(WXK_RETURN).Alt(), "FullscreenToggle");
 
-	GlobalAccels->Map( AAC( WXK_RETURN ).Alt(),	"FullscreenToggle" );*/
+	GlobalAccels->Map(AAC(WXK_ESCAPE), "Sys_SuspendResume");
+
+	// Fixme: GS Dumps could need a seperate label and hotkey binding or less interlinked with normal screenshots/snapshots , which messes with overloading lots of different mappings, commented the other GlobalAccels for this reason. GSdx hardcodes keybindings.
+	 GlobalAccels->Map(AAC(WXK_F8), "Sys_TakeSnapshot");
+	// GlobalAccels->Map(AAC(WXK_F8).Shift(), "Sys_TakeSnapshot");
+	// GlobalAccels->Map(AAC(WXK_F8).Shift().Cmd(), "Sys_TakeSnapshot");
+	GlobalAccels->Map(AAC(WXK_F9), "Sys_RenderswitchToggle");
+
+	// GlobalAccels->Map(AAC(WXK_F10),	"Sys_LoggingToggle");
+	// GlobalAccels->Map(AAC(WXK_F11),	"Sys_FreezeGS");
+	GlobalAccels->Map(AAC(WXK_F12), "Sys_RecordingToggle");
 }
