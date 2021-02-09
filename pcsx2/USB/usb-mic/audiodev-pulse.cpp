@@ -747,6 +747,8 @@ namespace usb_mic
 				return;
 			}
 
+			std::lock_guard<std::mutex> lock(padev->mMutex);
+
 			padev->mInBuffer.write((uint8_t*)padata, nbytes);
 
 			//if copy succeeded, drop samples at pulse's side
@@ -781,7 +783,6 @@ namespace usb_mic
 					break; //TODO happens?
 				padev->mInBuffer.read<float>(samples);
 			}
-			std::lock_guard<std::mutex> lock(padev->mMutex);
 
 			size_t output_samples = output_frames_gen * padev->GetChannels();
 			float* pSrc = rebuf.data();

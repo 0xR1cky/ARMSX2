@@ -160,6 +160,9 @@ size_t RingBuffer::peek_read() const
 void RingBuffer::write(size_t bytes)
 {
 	//assert( bytes <= m_capacity - size() );
+	assert(m_capacity);
+	if (!m_capacity)
+		return;
 
 	// push m_begin forward if m_end overlaps it
 	if ((m_end < m_begin && m_end + bytes > m_begin) ||
@@ -178,6 +181,9 @@ void RingBuffer::write(size_t bytes)
 void RingBuffer::read(size_t bytes)
 {
 	assert(bytes <= size());
+	assert(m_capacity);
+	if (!m_capacity)
+		return;
 
 	m_overrun = false;
 	if ((m_begin < m_end && m_begin + bytes > m_end) ||

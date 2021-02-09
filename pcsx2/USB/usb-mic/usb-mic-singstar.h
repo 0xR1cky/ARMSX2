@@ -27,7 +27,7 @@ namespace usb_mic
 	public:
 		virtual ~SingstarDevice() {}
 		static USBDevice* CreateDevice(int port);
-		static USBDevice* CreateDevice(int port, const std::string& api);
+		static USBDevice* CreateDevice(int port, const std::string& api, bool only_mono = false);
 		static const TCHAR* Name()
 		{
 			return TEXT("Singstar");
@@ -66,5 +66,20 @@ namespace usb_mic
 		}
 	};
 
+	// Konami Karaoke Revolution NTSC-J
+	class AK5370MicDevice : public SingstarDevice
+	{
+	public:
+		virtual ~AK5370MicDevice() {}
+		static USBDevice* CreateDevice(int port);
+		static const char* TypeName()
+		{
+			return "ak5370_mic";
+		}
+		static const TCHAR* Name()
+		{
+			return TEXT("Karaoke Revolution Mic");
+		}
+	};
 } // namespace usb_mic
 #endif
