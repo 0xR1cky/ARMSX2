@@ -28,6 +28,8 @@
 #include "PAD/Linux/PAD.h"
 #endif
 
+#include "gui/Dialogs/ModalPopups.h"
+
 #include "ConsoleLogger.h"
 
 #ifndef DISABLE_RECORDING
@@ -109,11 +111,13 @@ void GSPanel::InitRecordingAccelerators()
 	m_Accels->Map(AAC(WXK_SPACE), "FrameAdvance");
 	m_Accels->Map(AAC(wxKeyCode('p')).Shift(), "TogglePause");
 	m_Accels->Map(AAC(wxKeyCode('r')).Shift(), "InputRecordingModeToggle");
+	m_Accels->Map(AAC(wxKeyCode('l')).Shift(), "GoToFirstFrame");
 #if defined(__unix__)
 	// Shift+P (80) and Shift+p (112) have two completely different codes 
 	// On Linux the former is sometimes fired so define bindings for both
 	m_Accels->Map(AAC(wxKeyCode('P')).Shift(), "TogglePause");
 	m_Accels->Map(AAC(wxKeyCode('R')).Shift(), "InputRecordingModeToggle");
+	m_Accels->Map(AAC(wxKeyCode('L')).Shift(), "GoToFirstFrame");
 #endif
 
 	m_Accels->Map(AAC(WXK_NUMPAD0).Shift(), "States_SaveSlot0");
@@ -139,16 +143,21 @@ void GSPanel::InitRecordingAccelerators()
 
 	GetMainFramePtr()->initializeRecordingMenuItem(
 		MenuId_Recording_FrameAdvance,
-		m_Accels->findKeycodeWithCommandId("FrameAdvance").toTitleizedString());
+		GetAssociatedKeyCode("FrameAdvance"));
 	GetMainFramePtr()->initializeRecordingMenuItem(
 		MenuId_Recording_TogglePause,
-		m_Accels->findKeycodeWithCommandId("TogglePause").toTitleizedString());
+		GetAssociatedKeyCode("TogglePause"));
 	GetMainFramePtr()->initializeRecordingMenuItem(
 		MenuId_Recording_ToggleRecordingMode,
-		m_Accels->findKeycodeWithCommandId("InputRecordingModeToggle").toTitleizedString(),
+		GetAssociatedKeyCode("InputRecordingModeToggle"),
 		g_InputRecording.IsActive());
 
 	inputRec::consoleLog("Initialized Input Recording Key Bindings");
+}
+
+wxString GSPanel::GetAssociatedKeyCode(const char* id)
+{
+	return m_Accels->findKeycodeWithCommandId(id).toTitleizedString();
 }
 
 void GSPanel::RemoveRecordingAccelerators()
@@ -782,7 +791,7 @@ void GSFrame::OnUpdateTitle( wxTimerEvent& evt )
 	title.Replace(L"${omodei}",		omodei);
 	title.Replace(L"${gsdx}",		fromUTF8(gsDest));
 	title.Replace(L"${videomode}",	ReportVideoMode());
-	if (CoreThread.IsPaused())
+	if (CoreThread.IsPaused() && !GSDump::isRunning)
 		title = templates.Paused + title;
 
 	SetTitle(title);

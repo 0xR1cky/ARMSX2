@@ -29,7 +29,7 @@ int AutoDMAPlayRate[2] = {0, 0};
 // Default settings.
 
 // MIXING
-int Interpolation = 4;
+int Interpolation = 5;
 /* values:
 		0: no interpolation (use nearest)
 		1. linear interpolation
@@ -64,7 +64,7 @@ bool _visual_debug_enabled = false; // windows only feature
 
 // OUTPUT
 u32 OutputModule = 0;
-int SndOutLatencyMS = 300;
+int SndOutLatencyMS = 100;
 int SynchMode = 0; // Time Stretch, Async or Disabled
 #ifdef SPU2X_PORTAUDIO
 u32 OutputAPI = 0;
@@ -84,7 +84,7 @@ void ReadSettings()
 	if (!pathSet)
 		initIni();
 
-	Interpolation = CfgReadInt(L"MIXING", L"Interpolation", 4);
+	Interpolation = CfgReadInt(L"MIXING", L"Interpolation", 5);
 	EffectsDisabled = CfgReadBool(L"MIXING", L"Disable_Effects", false);
 	postprocess_filter_dealias = CfgReadBool(L"MIXING", L"DealiasFilter", false);
 	FinalVolume = ((float)CfgReadInt(L"MIXING", L"FinalVolume", 100)) / 100;
@@ -147,7 +147,7 @@ void ReadSettings()
 #endif
 #endif
 
-	SndOutLatencyMS = CfgReadInt(L"OUTPUT", L"Latency", 300);
+	SndOutLatencyMS = CfgReadInt(L"OUTPUT", L"Latency", 100);
 	SynchMode = CfgReadInt(L"OUTPUT", L"Synch_Mode", 0);
 	numSpeakers = CfgReadInt(L"OUTPUT", L"SpeakerConfiguration", 0);
 

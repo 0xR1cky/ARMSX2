@@ -171,7 +171,7 @@ struct PadFreezeData
 	u8 config;
 
 	u8 vibrate[8];
-	u8 umask[2];
+	u8 umask[3];
 
 	// Vibration indices.
 	u8 vibrateI[2];
@@ -813,7 +813,9 @@ void ResetPad(int port, int slot)
 	else
 		pads[port][slot].mode = MODE_DIGITAL;
 
-	pads[port][slot].umask[0] = pads[port][slot].umask[1] = 0xFF;
+	pads[port][slot].umask[0] = 0xFF;
+	pads[port][slot].umask[1] = 0xFF;
+	pads[port][slot].umask[2] = 0x03;
 	// Sets up vibrate variable.
 	ResetVibrate(port, slot);
 	pads[port][slot].initialized = 1;
@@ -1316,7 +1318,7 @@ u8 PADpoll(u8 value)
 				{
 					queryMaskMode[1] = pad->umask[0];
 					queryMaskMode[2] = pad->umask[1];
-					queryMaskMode[3] = 0x03;
+					queryMaskMode[3] = pad->umask[2];
 					// Not entirely sure about this.
 					//queryMaskMode[3] = 0x01 | (pad->mode == MODE_DS2_NATIVE)*2;
 					queryMaskMode[6] = 0x5A;
@@ -1478,25 +1480,11 @@ u8 PADpoll(u8 value)
 				break;
 			// SET_DS2_NATIVE_MODE
 			case 0x4F:
-				if (query.lastByte == 3 || query.lastByte == 4)
+				if (query.lastByte >2 && query.lastByte < 6)
 				{
 					pad->umask[query.lastByte - 3] = value;
 				}
-				else if (query.lastByte == 5)
-				{
-					if (!(value & 1))
-					{
-						pad->mode = MODE_DIGITAL;
-					}
-					else if (!(value & 2))
-					{
-						pad->mode = MODE_ANALOG;
-					}
-					else
-					{
-						pad->mode = MODE_DS2_NATIVE;
-					}
-				}
+				pad->mode = MODE_DS2_NATIVE;
 				break;
 			default:
 				DEBUG_OUT(0);
@@ -1505,14 +1493,6 @@ u8 PADpoll(u8 value)
 		DEBUG_OUT(query.response[query.lastByte]);
 		return query.response[query.lastByte];
 	}
-}
-
-// returns: 1 if supports pad1
-//			2 if supports pad2
-//			3 if both are supported
-u32 PADquery()
-{
-	return 3;
 }
 
 keyEvent* PADkeyEvent()
@@ -1669,34 +1649,6 @@ s32 PADfreeze(int mode, freezeData* data)
 	else
 		return -1;
 	return 0;
-}
-
-u32 PADreadPort1(PadDataS* pads)
-{
-	PADstartPoll(1);
-	PADpoll(0x42);
-	memcpy(pads, query.response + 1, 7);
-	pads->controllerType = pads[0].controllerType >> 4;
-	memset(pads + 7, 0, sizeof(PadDataS) - 7);
-	return 0;
-}
-
-u32 PADreadPort2(PadDataS* pads)
-{
-	PADstartPoll(2);
-	PADpoll(0x42);
-	memcpy(pads, query.response + 1, 7);
-	pads->controllerType = pads->controllerType >> 4;
-	memset(pads + 7, 0, sizeof(PadDataS) - 7);
-	return 0;
-}
-
-s32 PADqueryMtap(u8 port)
-{
-	port--;
-	if (port > 1)
-		return 0;
-	return config.multitap[port];
 }
 
 s32 PADsetSlot(u8 port, u8 slot)

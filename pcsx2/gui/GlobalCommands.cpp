@@ -33,6 +33,7 @@
 #include "DebugTools/Debug.h"
 #include "R3000A.h"
 #include "SPU2/spu2.h"
+#include "gui/Dialogs/ModalPopups.h"
 
 // renderswitch - tells GSdx to go into dx9 sw if "renderswitch" is set.
 bool renderswitch = false;
@@ -40,7 +41,7 @@ uint renderswitch_delay = 0;
 
 extern bool switchAR;
 
-static int g_Pcsx2Recording = 0; // true 1 if recording video and sound
+static bool g_Pcsx2Recording = false; // true if recording video and sound
 
 
 KeyAcceleratorCode::KeyAcceleratorCode(const wxKeyEvent& evt)
@@ -395,6 +396,8 @@ namespace Implementations
 
 	void Sys_RenderToggle()
 	{
+		if (GSDump::isRunning)
+			return;
 		if (renderswitch_delay == 0)
 		{
 			ScopedCoreThreadPause paused_core(new SysExecEvent_SaveSinglePlugin(PluginId_GS));
@@ -450,9 +453,14 @@ namespace Implementations
 		ScopedCoreThreadPause paused_core;
 		paused_core.AllowResume();
 
-		g_Pcsx2Recording ^= 1;
+		if (wxGetApp().HasGUI())
+		{
+			sMainFrame.VideoCaptureToggle();
+			return;
+		}
 
 		GetMTGS().WaitGS(); // make sure GS is in sync with the audio stream when we start.
+		g_Pcsx2Recording = !g_Pcsx2Recording;
 		if (g_Pcsx2Recording)
 		{
 			// start recording
@@ -469,23 +477,21 @@ namespace Implementations
 			if (GSsetupRecording)
 			{
 				// GSsetupRecording can be aborted/canceled by the user. Don't go on to record the audio if that happens.
-				std::wstring* filename = nullptr;
-				if (filename = GSsetupRecording(g_Pcsx2Recording))
+				std::string filename;
+				if (GSsetupRecording(filename))
 				{
-					SPU2setupRecording(g_Pcsx2Recording, filename);
-					delete filename;
+					if (g_Conf->AudioCapture.EnableAudio && !SPU2setupRecording(&filename))
+					{
+						GSendRecording();
+						g_Pcsx2Recording = false;
+					}
 				}
-				else
-				{
-					// recording dialog canceled by the user. align our state
-					g_Pcsx2Recording ^= 1;
-				}
+				else // recording dialog canceled by the user. align our state
+					g_Pcsx2Recording = false;
 			}
-			else
-			{
-				// the GS doesn't support recording
-				SPU2setupRecording(g_Pcsx2Recording, NULL);
-			}
+			// the GS doesn't support recording
+			else if (!g_Conf->AudioCapture.EnableAudio || !SPU2setupRecording(nullptr))
+				g_Pcsx2Recording = false;
 
 			if (GetMainFramePtr() && needsMainFrameEnable)
 				GetMainFramePtr()->Enable();
@@ -493,9 +499,10 @@ namespace Implementations
 		else
 		{
 			// stop recording
-			if (GSsetupRecording)
-				GSsetupRecording(g_Pcsx2Recording);
-			SPU2setupRecording(g_Pcsx2Recording, NULL);
+			if (GSendRecording)
+				GSendRecording();
+			if (g_Conf->AudioCapture.EnableAudio)
+				SPU2endRecording();
 		}
 	}
 
@@ -534,6 +541,15 @@ namespace Implementations
 		if (g_Conf->EmuOptions.EnableRecordingTools)
 		{
 			g_InputRecordingControls.RecordModeToggle();
+		}
+	}
+
+	void GoToFirstFrame()
+	{
+		if (g_Conf->EmuOptions.EnableRecordingTools && g_InputRecording.IsActive())
+		{
+			// Assumes that gui is active, as you can't access recording options without it
+			g_InputRecording.GoToFirstFrame(GetMainFramePtr());
 		}
 	}
 
@@ -834,6 +850,8 @@ static const GlobalCommandDescriptor CommandDeclarations[] =
 		{"FrameAdvance", Implementations::FrameAdvance, NULL, NULL, false},
 		{"TogglePause", Implementations::TogglePause, NULL, NULL, false},
 		{"InputRecordingModeToggle", Implementations::InputRecordingModeToggle, NULL, NULL, false},
+		{"GoToFirstFrame", Implementations::GoToFirstFrame, NULL, NULL, false},
+
 		{"States_SaveSlot0", Implementations::States_SaveSlot0, NULL, NULL, false},
 		{"States_SaveSlot1", Implementations::States_SaveSlot1, NULL, NULL, false},
 		{"States_SaveSlot2", Implementations::States_SaveSlot2, NULL, NULL, false},
@@ -844,6 +862,7 @@ static const GlobalCommandDescriptor CommandDeclarations[] =
 		{"States_SaveSlot7", Implementations::States_SaveSlot7, NULL, NULL, false},
 		{"States_SaveSlot8", Implementations::States_SaveSlot8, NULL, NULL, false},
 		{"States_SaveSlot9", Implementations::States_SaveSlot9, NULL, NULL, false},
+
 		{"States_LoadSlot0", Implementations::States_LoadSlot0, NULL, NULL, false},
 		{"States_LoadSlot1", Implementations::States_LoadSlot1, NULL, NULL, false},
 		{"States_LoadSlot2", Implementations::States_LoadSlot2, NULL, NULL, false},
