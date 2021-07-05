@@ -185,7 +185,6 @@ void AppCoreThread::Resume()
 		return;
 	}
 
-	GetCorePlugins().Init();
 	SPU2init();
 	_parent::Resume();
 }
@@ -643,13 +642,6 @@ bool AppCoreThread::StateCheckInThread()
 	return _parent::StateCheckInThread();
 }
 
-void AppCoreThread::UploadStateCopy(const VmStateBuffer& copy)
-{
-	ScopedCoreThreadPause paused_core;
-	_parent::UploadStateCopy(copy);
-	paused_core.AllowResume();
-}
-
 static uint m_except_threshold = 0;
 
 void AppCoreThread::ExecuteTaskInThread()
@@ -735,28 +727,9 @@ void SysExecEvent_CoreThreadClose::InvokeEvent()
 
 void SysExecEvent_CoreThreadPause::InvokeEvent()
 {
-#ifdef PCSX2_DEVBUILD
-	bool CorePluginsAreOpen = GetCorePlugins().AreOpen();
-	ScopedCoreThreadPause paused_core;
-	_post_and_wait(paused_core);
-
-	// All plugins should be initialized and opened upon resuming from
-	// a paused state.  If the thread that puased us changed plugin status, it should
-	// have used Close instead.
-	if (CorePluginsAreOpen)
-	{
-		CorePluginsAreOpen = GetCorePlugins().AreOpen();
-		pxAssertDev(CorePluginsAreOpen, "Invalid plugin close/shutdown detected during paused CoreThread; please Stop/Suspend the core instead.");
-	}
-	paused_core.AllowResume();
-
-#else
-
 	ScopedCoreThreadPause paused_core;
 	_post_and_wait(paused_core);
 	paused_core.AllowResume();
-
-#endif
 }
 
 
@@ -889,15 +862,8 @@ ScopedCoreThreadPause::~ScopedCoreThreadPause()
 }
 
 ScopedCoreThreadPopup::ScopedCoreThreadPopup()
+	: m_scoped_core(std::unique_ptr<BaseScopedCoreThread>(new ScopedCoreThreadPause()))
 {
-	// The old style GUI (without GSopen2) must use a full close of the CoreThread, in order to
-	// ensure that the GS window isn't blocking the popup, and to avoid crashes if the GS window
-	// is maximized or fullscreen.
-
-	if (!GSopen2)
-		m_scoped_core = std::unique_ptr<BaseScopedCoreThread>(new ScopedCoreThreadClose());
-	else
-		m_scoped_core = std::unique_ptr<BaseScopedCoreThread>(new ScopedCoreThreadPause());
 };
 
 void ScopedCoreThreadPopup::AllowResume()

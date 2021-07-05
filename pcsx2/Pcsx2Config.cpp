@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -120,9 +120,6 @@ Pcsx2Config::RecompilerOptions::RecompilerOptions()
 	EnableVU0	= true;
 	EnableVU1	= true;
 
-	UseMicroVU0	= true;
-	UseMicroVU1	= true;
-
 	// vu and fpu clamping default to standard overflow.
 	vuOverflow	= true;
 	//vuExtraOverflow = false;
@@ -176,9 +173,6 @@ void Pcsx2Config::RecompilerOptions::LoadSave( IniInterface& ini )
 	IniBitBool( EnableEECache );
 	IniBitBool( EnableVU0 );
 	IniBitBool( EnableVU1 );
-
-	IniBitBool( UseMicroVU0 );
-	IniBitBool( UseMicroVU1 );
 
 	IniBitBool( vuOverflow );
 	IniBitBool( vuExtraOverflow );
@@ -279,7 +273,6 @@ int Pcsx2Config::GSOptions::GetVsync() const
 const wxChar *const tbl_GamefixNames[] =
 {
 	L"VuAddSub",
-	L"FpuCompare",
 	L"FpuMul",
 	L"FpuNegDiv",
 	L"XGKick",
@@ -342,7 +335,6 @@ void Pcsx2Config::GamefixOptions::Set( GamefixId id, bool enabled )
 	switch(id)
 	{
 		case Fix_VuAddSub:		VuAddSubHack		= enabled;	break;
-		case Fix_FpuCompare:	FpuCompareHack		= enabled;	break;
 		case Fix_FpuMultiply:	FpuMulHack			= enabled;	break;
 		case Fix_FpuNegDiv:		FpuNegDivHack		= enabled;	break;
 		case Fix_XGKick:		XgKickHack			= enabled;	break;
@@ -368,7 +360,6 @@ bool Pcsx2Config::GamefixOptions::Get( GamefixId id ) const
 	switch(id)
 	{
 		case Fix_VuAddSub:		return VuAddSubHack;
-		case Fix_FpuCompare:	return FpuCompareHack;
 		case Fix_FpuMultiply:	return FpuMulHack;
 		case Fix_FpuNegDiv:		return FpuNegDivHack;
 		case Fix_XGKick:		return XgKickHack;
@@ -394,7 +385,6 @@ void Pcsx2Config::GamefixOptions::LoadSave( IniInterface& ini )
 	ScopedIniGroup path( ini, L"Gamefixes" );
 
 	IniBitBool( VuAddSubHack );
-	IniBitBool( FpuCompareHack );
 	IniBitBool( FpuMulHack );
 	IniBitBool( FpuNegDivHack );
 	IniBitBool( XgKickHack );
