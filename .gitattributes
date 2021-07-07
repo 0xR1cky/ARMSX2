@@ -7,5 +7,9 @@
 *.vcxproj text eol=crlf
 *.vcxproj.filters text eol=crlf
 
-# Vendored 3rdparty Libraries to not pollute PRs
-3rdparty/yaml-cpp/yaml-cpp/* linguist-vendored
+# Auto-collapse 3rdparty libraries in PR diffs
+3rdparty/* linguist-generated
+# But still show project scaffolding files
+3rdparty/*.props linguist-generated=false
+3rdparty/*.vcxproj linguist-generated=false
+3rdparty/*.vcxproj.filters linguist-generated=false
