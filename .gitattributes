@@ -8,8 +8,8 @@
 *.vcxproj.filters text eol=crlf
 
 # Auto-collapse 3rdparty libraries in PR diffs
-3rdparty/* linguist-generated
+3rdparty/**/* linguist-generated=true
 # But still show project scaffolding files
-3rdparty/*.props linguist-generated=false
-3rdparty/*.vcxproj linguist-generated=false
-3rdparty/*.vcxproj.filters linguist-generated=false
+3rdparty/**/*.props linguist-generated=false
+3rdparty/**/*.vcxproj linguist-generated=false
+3rdparty/**/*.vcxproj.filters linguist-generated=false
