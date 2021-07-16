@@ -220,9 +220,6 @@
     <Filter Include="System\Ps2\USB\usb-eyetoy">
       <UniqueIdentifier>{e4b2d8b4-a9fb-4c6d-b247-2112afd8d099}</UniqueIdentifier>
     </Filter>
-    <Filter Include="System\Ps2\USB\usb-eyetoy\jpgd">
-      <UniqueIdentifier>{fe77f40c-84c0-4a06-affb-b6e7fb09ce49}</UniqueIdentifier>
-    </Filter>
     <Filter Include="System\Ps2\USB\usb-hid">
       <UniqueIdentifier>{a478e196-ac99-4a12-bfbb-2a7a3128d6e9}</UniqueIdentifier>
     </Filter>
