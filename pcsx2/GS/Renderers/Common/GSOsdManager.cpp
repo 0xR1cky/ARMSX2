@@ -309,6 +309,67 @@ void GSOsdManager::RenderGlyph(GSVertexPT1* dst, const glyph_info g, float x, fl
 	++dst;
 }
 
+void GSOsdManager::RenderCursor(GSVertexPT1* dst, float x, float y, uint32 color)
+{
+	float aspect = m_render_size.x / m_render_size.y;
+	float taspect = m_real_size.x / m_real_size.y;
+
+	const glyph_info g = m_char_info['I'];
+	float size_x = 10.f, size_y = 10.f;
+
+	if (m_real_size.x > m_real_size.y)
+	{
+		size_x = 10 * (2.0f / m_real_size.x);
+		size_y = 10 * (2.0f / (m_real_size.y * aspect));
+	}
+	else
+	{
+		size_x = 10 * (2.0f / (m_real_size.y * aspect));
+		size_y = 10 * (2.0f / m_real_size.y);
+	}
+
+ 	//float dx = -(float(m_render_size.x) / m_real_size.x) + x * m_render_size.x * (2.0f / m_real_size.x);
+ 	//float dy = (float(m_render_size.y) / m_real_size.y) - y * m_render_size.y * (2.0f / m_real_size.y);
+	float dx = 2 * (x - 0.5f);
+	float dy = 2 * (-y + 0.5f);
+
+	if (m_real_size.x > m_real_size.y)
+		dx *= ((aspect * float(m_real_size.y)) / m_real_size.x) * 2;
+	else
+		dy *= ((float(m_real_size.x) / aspect) / m_real_size.y) / 2;
+
+// 	x /= m_cursor_w / m_real_size.x;
+// 	y /= m_cursor_h / m_real_size.y;
+
+	// upper triangle
+	dst->p = GSVector4(dx, dy    , 0.0f, 1.0f);
+	dst->t = GSVector2(g.tx + g.tw / 2, 0.0f);
+	dst->c = color;
+	++dst;
+	dst->p = GSVector4(dx + size_x    , dy + size_y, 0.0f, 1.0f);
+	dst->t = GSVector2(g.tx + g.tw / 2       , g.ty);
+	dst->c = color;
+	++dst;
+	dst->p = GSVector4(dx - size_x, dy + size_y, 0.0f, 1.0f);
+	dst->t = GSVector2(g.tx + g.tw / 2, g.ty);
+	dst->c = color;
+	++dst;
+
+	// bottom triangle
+	dst->p = GSVector4(dx - size_x    , dy - size_y    , 0.0f, 1.0f);
+	dst->t = GSVector2(g.tx       , 0.0f);
+	dst->c = color;
+	++dst;
+	dst->p = GSVector4(dx + size_x,  dy - size_y    , 0.0f, 1.0f);
+	dst->t = GSVector2(g.tx + g.tw / 2, 0.0f);
+	dst->c = color;
+	++dst;
+	dst->p = GSVector4(dx    , dy, 0.0f, 1.0f);
+	dst->t = GSVector2(g.tx + g.tw / 2       , g.ty);
+	dst->c = color;
+	++dst;
+}
+
 void GSOsdManager::RenderString(GSVertexPT1* dst, const std::u32string msg, float x, float y, uint32 color)
 {
 	char32_t p = 0;
@@ -376,6 +437,7 @@ size_t GSOsdManager::Size()
 		}
 	}
 
+	sum += 6;//cursor
 	return sum * 6;
 }
 
@@ -491,5 +553,8 @@ size_t GSOsdManager::GeneratePrimitives(GSVertexPT1* dst, size_t count)
 		}
 	}
 
+    RenderCursor(dst, m_cursor_x, m_cursor_y, m_color);
+    //dst += 6;
+    drawn += 6;
 	return drawn;
 }

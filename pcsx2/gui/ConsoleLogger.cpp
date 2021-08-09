@@ -1276,3 +1276,7 @@ void OSDmonitor(ConsoleColors color, const std::string key, const std::string va
 	GSosdMonitor(wxString(key).utf8_str(), wxString(value).utf8_str(), wxGetApp().GetProgramLog()->GetRGBA(color));
 }
 
+void OSDCursorPos(float x, float y, float w, float h)
+{
+	GSosdCursorPos(x, y, w, h);
+}

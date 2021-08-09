@@ -64,6 +64,7 @@ class GSOsdManager
 	void AddGlyph(char32_t codepoint);
 	void RenderGlyph(GSVertexPT1* dst, const glyph_info g, float x, float y, uint32 color);
 	void RenderString(GSVertexPT1* dst, const std::u32string msg, float x, float y, uint32 color);
+	void RenderCursor(GSVertexPT1* dst, float x, float y, uint32 color);
 	float StringSize(const std::u32string msg);
 
 	bool m_log_enabled;
@@ -72,6 +73,7 @@ class GSOsdManager
 	int m_opacity;
 	uint32 m_color;
 	int m_max_onscreen_messages;
+    float m_cursor_x, m_cursor_y, m_cursor_w, m_cursor_h;
 
 public:
 	GSOsdManager();
@@ -87,8 +89,15 @@ public:
 
 	void Log(const char* utf8);
 	void Monitor(const char* key, const char* value);
+    void SetCursorPos(float x, float y, float w, float h)
+    {
+        m_cursor_x = x;
+        m_cursor_y = y;
+		m_cursor_w = w;
+		m_cursor_h = h;
+    }
 
-	GSVector2i m_real_size;
+	GSVector2i m_real_size, m_render_size;
 	size_t Size();
 	size_t GeneratePrimitives(GSVertexPT1* dst, size_t count);
 

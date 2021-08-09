@@ -505,6 +505,7 @@ void GSRenderer::VSync(int field)
 	GSVector4i window_size = m_wnd->GetClientRect();
 	m_dev->m_osd.m_real_size.x = window_size.v[2];
 	m_dev->m_osd.m_real_size.y = window_size.v[3];
+	m_dev->m_osd.m_render_size = GetInternalResolution();
 
 	m_dev->Present(ComputeDrawRectangle(window_size.z, window_size.w), m_shader);
 

@@ -245,4 +245,4 @@ void OSDlog(ConsoleColors color, bool console, const std::string& format, Args .
 }
 
 void OSDmonitor(ConsoleColors color, const std::string key, const std::string value);
-
+void OSDCursorPos(float x, float y, float w, float h);

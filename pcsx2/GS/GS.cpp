@@ -363,6 +363,12 @@ int _GSopen(void** dsp, const char* title, GSRendererType renderer, int threads 
 	return 0;
 }
 
+void GSosdCursorPos(float x, float y, float w, float h)
+{
+	if (s_gs && s_gs->m_dev)
+		s_gs->m_dev->m_osd.SetCursorPos(x, y, w, h);
+}
+
 void GSosdLog(const char* utf8, uint32 color)
 {
 	if (s_gs && s_gs->m_dev)
