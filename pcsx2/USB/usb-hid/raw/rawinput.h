@@ -47,7 +47,7 @@ namespace usb_hid
 				return TEXT("Raw Input");
 			}
 
-			static int Configure(int port, const char* dev_type, HIDType, void* data);
+			static int Configure(int port, const char* dev_type, int, void* data);
 		};
 
 	} // namespace raw

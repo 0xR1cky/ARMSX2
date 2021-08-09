@@ -253,18 +253,7 @@ s32 USBopen(void* pDsp)
 	}
 
 #if _WIN32
-
-	HWND hWnd = 0;
-	if (IsWindow((HWND)pDsp))
-	{
-		hWnd = (HWND)pDsp;
-	}
-	else if (pDsp && !IsBadReadPtr(pDsp, 4) && IsWindow(*(HWND*)pDsp))
-	{
-		hWnd = *(HWND*)pDsp;
-	}
-
-	gsWnd = hWnd;
+	gsWnd = *(HWND*)pDsp;
 	pDsp = gsWnd;
 #elif defined(__linux__)
 

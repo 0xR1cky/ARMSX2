@@ -27,7 +27,7 @@ namespace shared
 	void Initialize(void* ptr)
 	{
 #ifdef _WIN32
-		if (!shared::rawinput::Initialize(ptr))
+		if (!shared::rawinput::Initialize((HWND)ptr))
 			throw std::runtime_error("Failed to initialize raw input!");
 #endif
 	}

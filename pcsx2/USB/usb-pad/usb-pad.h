@@ -157,6 +157,29 @@ namespace usb_pad
 		}
 	};
 
+	class Guncon2Device
+	{
+	public:
+		virtual ~Guncon2Device() {}
+		static USBDevice* CreateDevice(int port);
+		static const TCHAR* Name()
+		{
+			return TEXT("Guncon2");
+		}
+		static const char* TypeName()
+		{
+			return "guncon2";
+		}
+		static std::vector<std::string> ListAPIs();
+		static const TCHAR* LongAPIName(const std::string& name);
+		static int Configure(int port, const std::string& api, void* data);
+		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
+		static std::vector<std::string> SubTypes()
+		{
+			return {};
+		}
+	};
+
 // Most likely as seen on https://github.com/matlo/GIMX
 #define CMD_DOWNLOAD 0x00
 #define CMD_DOWNLOAD_AND_PLAY 0x01
@@ -207,6 +230,7 @@ namespace usb_pad
 		WT_BUZZ_CONTROLLER,
 		WT_SEGA_SEAMIC,
 		WT_KEYBOARDMANIA_CONTROLLER,
+		WT_GUNCON2,
 	};
 
 	inline int range_max(PS2WheelTypes type)

@@ -557,7 +557,7 @@ namespace usb_hid
 		HIDState* hs = &us->f.hid;
 		int ret;
 
-		DevCon.WriteLn("usb-hid: req %04X val: %04X idx: %04X len: %d\n", request, value, index, length);
+		DevCon.WriteLn("usb-hid: req %04X val: %04X idx: %04X len: %d", request, value, index, length);
 		ret = usb_desc_handle_control(dev, p, request, value, index, length, data);
 		if (ret >= 0)
 		{

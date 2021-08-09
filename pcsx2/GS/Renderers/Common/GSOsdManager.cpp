@@ -311,32 +311,32 @@ void GSOsdManager::RenderGlyph(GSVertexPT1* dst, const glyph_info g, float x, fl
 
 void GSOsdManager::RenderCursor(GSVertexPT1* dst, float x, float y, uint32 color)
 {
-	float aspect = m_render_size.x / m_render_size.y;
-	float taspect = m_real_size.x / m_real_size.y;
+	const float render_aspect = float(m_render_size.x) / m_render_size.y;
+	const float window_aspect = float(m_real_size.x) / m_real_size.y;
 
 	const glyph_info g = m_char_info['I'];
 	float size_x = 10.f, size_y = 10.f;
 
-	if (m_real_size.x > m_real_size.y)
-	{
-		size_x = 10 * (2.0f / m_real_size.x);
-		size_y = 10 * (2.0f / (m_real_size.y * aspect));
-	}
-	else
-	{
-		size_x = 10 * (2.0f / (m_real_size.y * aspect));
-		size_y = 10 * (2.0f / m_real_size.y);
-	}
+	// TODO probably all kinds of wrong
+	float scale = (float(m_real_size.x) / m_render_size.x);
+	if (render_aspect < window_aspect)
+		scale = (float(m_real_size.y) / m_render_size.y);
+	size_x = 10 * (2.0f / m_real_size.x) * scale;
+	size_y = 10 * (2.0f / m_real_size.y) * scale;
 
- 	//float dx = -(float(m_render_size.x) / m_real_size.x) + x * m_render_size.x * (2.0f / m_real_size.x);
- 	//float dy = (float(m_render_size.y) / m_real_size.y) - y * m_render_size.y * (2.0f / m_real_size.y);
 	float dx = 2 * (x - 0.5f);
-	float dy = 2 * (-y + 0.5f);
+	float dy = 2 * (0.5f - y);
 
-	if (m_real_size.x > m_real_size.y)
-		dx *= ((aspect * float(m_real_size.y)) / m_real_size.x) * 2;
+	if (render_aspect < window_aspect)
+	{
+		const float new_render_x = render_aspect * m_real_size.y;
+		dx *= (new_render_x / m_real_size.x);
+	}
 	else
-		dy *= ((float(m_real_size.x) / aspect) / m_real_size.y) / 2;
+	{
+		const float new_render_y = m_real_size.x / render_aspect;
+		dy *= (new_render_y / m_real_size.y);
+	}
 
 // 	x /= m_cursor_w / m_real_size.x;
 // 	y /= m_cursor_h / m_real_size.y;

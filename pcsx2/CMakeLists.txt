@@ -413,10 +413,13 @@ set(pcsx2USBSources
 	USB/qemu-usb/hid.cpp
 	USB/qemu-usb/input-keymap-qcode-to-qnum.cpp
 	USB/usb-msd/usb-msd.cpp
+	USB/usb-pad/padconfig.cpp
 	USB/usb-pad/usb-pad.cpp
 	USB/usb-pad/usb-pad-ff.cpp
 	USB/usb-pad/lg/lg_ff.cpp
 	USB/usb-pad/usb-seamic.cpp
+	USB/usb-pad/usb-guncon2.cpp
+	USB/usb-pad/usb-guncon2-wx.cpp
 	USB/usb-mic/usb-mic-singstar.cpp
 	USB/usb-mic/usb-mic-logitech.cpp
 	USB/usb-mic/usb-headset.cpp

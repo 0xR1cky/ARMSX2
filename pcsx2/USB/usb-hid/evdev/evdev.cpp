@@ -42,8 +42,9 @@ namespace usb_hid
 			mHandle = -1;
 
 			std::string path;
-			if (!LoadSetting(mDevType, mPort, APINAME, N_DEVICE, path))
+			if (!LoadSetting(mDevType.c_str(), mPort, APINAME, N_DEVICE, path))
 			{
+				Console.WriteLn(Color_Red, "Failed to load setting '" N_DEVICE "' from [%s %s %d] ", mDevType.c_str(), APINAME, mPort);
 				return 1;
 			}
 
@@ -236,12 +237,12 @@ namespace usb_hid
 								}
 							}
 							break;
-							case EV_SYN: //TODO useful?
+							case EV_SYN:
 							{
 								switch (event.code)
 								{
 									case SYN_REPORT:
-										if (mHIDState->ptr.eh_sync) //TODO sync here?
+										if (mHIDState->ptr.eh_sync)
 											mHIDState->ptr.eh_sync(mHIDState);
 										break;
 									case SYN_DROPPED:

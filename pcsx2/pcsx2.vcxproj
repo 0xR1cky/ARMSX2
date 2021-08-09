@@ -426,8 +426,11 @@
     <ClCompile Include="USB\usb-pad\dx\dinput.cpp" />
     <ClCompile Include="USB\usb-pad\dx\usb-pad-dx.cpp" />
     <ClCompile Include="USB\usb-pad\lg\lg_ff.cpp" />
+    <ClCompile Include="USB\usb-pad\padconfig.cpp" />
     <ClCompile Include="USB\usb-pad\raw\raw-config.cpp" />
     <ClCompile Include="USB\usb-pad\raw\usb-pad-raw.cpp" />
+    <ClCompile Include="USB\usb-pad\usb-guncon2-wx.cpp" />
+    <ClCompile Include="USB\usb-pad\usb-guncon2.cpp" />
     <ClCompile Include="USB\usb-pad\usb-pad-ff.cpp" />
     <ClCompile Include="USB\usb-pad\usb-pad.cpp" />
     <ClCompile Include="USB\usb-pad\usb-seamic.cpp" />
@@ -926,9 +929,11 @@
     <ClInclude Include="USB\usb-pad\dx\usb-pad-dx.h" />
     <ClInclude Include="USB\usb-pad\dx\versionproxy.h" />
     <ClInclude Include="USB\usb-pad\lg\lg_ff.h" />
+    <ClInclude Include="USB\usb-pad\padconfig.h" />
     <ClInclude Include="USB\usb-pad\padproxy.h" />
     <ClInclude Include="USB\usb-pad\raw\raw-config-res.h" />
     <ClInclude Include="USB\usb-pad\raw\usb-pad-raw.h" />
+    <ClInclude Include="USB\usb-pad\usb-guncon2-wx.h" />
     <ClInclude Include="USB\usb-pad\usb-pad.h" />
     <ClInclude Include="USB\USB.h" />
     <ClInclude Include="USB\Win32\Config_usb.h" />

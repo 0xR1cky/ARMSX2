@@ -239,14 +239,14 @@ namespace usb_hid
 
 			if (m.usFlags & MOUSE_MOVE_ABSOLUTE)
 			{
-				/*ev.type = INPUT_EVENT_KIND_ABS;
+				ev.type = INPUT_EVENT_KIND_ABS;
 				ev.u.abs.axis = INPUT_AXIS_X;
 				ev.u.abs.value = m.lLastX;
 				SendPointerEvent(ev, hs);
 
 				ev.u.abs.axis = INPUT_AXIS_Y;
 				ev.u.abs.value = m.lLastY;
-				SendPointerEvent(ev, hs);*/
+				SendPointerEvent(ev, hs);
 			}
 			else
 			{
@@ -289,7 +289,7 @@ namespace usb_hid
 			return 0;
 		}
 
-		int RawInput::Configure(int port, const char* dev_type, HIDType type, void* data)
+		int RawInput::Configure(int port, const char* dev_type, int type, void* data)
 		{
 			Win32Handles* h = (Win32Handles*)data;
 			INT_PTR res = RESULT_CANCELED;

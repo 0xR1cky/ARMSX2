@@ -356,6 +356,7 @@ static void hid_pointer_event(HIDState* hs, InputEvent* evt)
 			{
 				e->ydy += move->value;
 			}
+			e->kind = INPUT_EVENT_KIND_REL;
 			break;
 
 		case INPUT_EVENT_KIND_ABS:
@@ -368,6 +369,7 @@ static void hid_pointer_event(HIDState* hs, InputEvent* evt)
 			{
 				e->ydy = move->value;
 			}
+			e->kind = INPUT_EVENT_KIND_ABS;
 			break;
 
 		case INPUT_EVENT_KIND_BTN:
@@ -383,6 +385,7 @@ static void hid_pointer_event(HIDState* hs, InputEvent* evt)
 				{
 					e->dz++;
 				}
+				e->kind = INPUT_EVENT_KIND_BTN;
 			}
 			else
 			{

@@ -44,7 +44,7 @@ namespace usb_hid
 	protected:
 		int mPort;
 		HIDState* mHIDState;
-		const char* mDevType;
+		std::string mDevType;
 	};
 
 	class HIDKbdDevice
