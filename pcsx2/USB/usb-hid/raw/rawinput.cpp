@@ -228,7 +228,7 @@ namespace usb_hid
 			if (z != 0)
 			{
 				ev.u.btn.button = (z < 0) ? INPUT_BUTTON_WHEEL_DOWN : INPUT_BUTTON_WHEEL_UP;
-				for (int i = 0; i < z; i++)
+				for (int i = 0; i < abs(z); i++)
 				{
 					ev.u.btn.down = true;
 					SendPointerEvent(ev, hs);

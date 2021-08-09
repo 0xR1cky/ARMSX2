@@ -22,13 +22,6 @@
 
 namespace usb_hid
 {
-
-	enum HIDType
-	{
-		HIDTYPE_KBD,
-		HIDTYPE_MOUSE,
-	};
-
 	class UsbHID
 	{
 	public:
@@ -47,12 +40,10 @@ namespace usb_hid
 		virtual int Port() { return mPort; }
 		virtual void Port(int port) { mPort = port; }
 		virtual void SetHIDState(HIDState* hs) { mHIDState = hs; }
-		virtual void SetHIDType(HIDType t) { mHIDType = t; }
 
 	protected:
 		int mPort;
 		HIDState* mHIDState;
-		HIDType mHIDType;
 		const char* mDevType;
 	};
 

@@ -777,7 +777,6 @@ namespace usb_hid
 		s->intr = usb_ep_get(&s->dev, USB_TOKEN_IN, 1);
 		hid_init(&s->f.hid, HID_KEYBOARD, usb_hid_changed);
 		s->usbhid->SetHIDState(&s->f.hid);
-		s->usbhid->SetHIDType(HIDTYPE_KBD);
 
 		usb_hid_handle_reset((USBDevice*)s);
 
@@ -791,7 +790,7 @@ namespace usb_hid
 	{
 		auto proxy = RegisterUsbHID::instance().Proxy(api);
 		if (proxy)
-			return proxy->Configure(port, TypeName(), HIDTYPE_KBD, data);
+			return proxy->Configure(port, TypeName(), HID_KEYBOARD, data);
 		return RESULT_CANCELED;
 	}
 
@@ -876,7 +875,6 @@ namespace usb_hid
 		s->intr = usb_ep_get(&s->dev, USB_TOKEN_IN, 1);
 		hid_init(&s->f.hid, HID_MOUSE, usb_hid_changed);
 		s->usbhid->SetHIDState(&s->f.hid);
-		s->usbhid->SetHIDType(HIDTYPE_MOUSE);
 
 		usb_hid_handle_reset((USBDevice*)s);
 
@@ -890,7 +888,7 @@ namespace usb_hid
 	{
 		auto proxy = RegisterUsbHID::instance().Proxy(api);
 		if (proxy)
-			return proxy->Configure(port, TypeName(), HIDTYPE_MOUSE, data);
+			return proxy->Configure(port, TypeName(), HID_MOUSE, data);
 		return RESULT_CANCELED;
 	}
 
@@ -979,7 +977,6 @@ namespace usb_hid
 		hid_init(&s->f.hid, HID_KEYBOARD, usb_hid_changed);
 		s->f.hid.sub_kind = HID_SUBKIND_BEATMANIA;
 		s->usbhid->SetHIDState(&s->f.hid);
-		s->usbhid->SetHIDType(HIDTYPE_KBD);
 
 		usb_hid_handle_reset((USBDevice*)s);
 
@@ -993,7 +990,7 @@ namespace usb_hid
 	{
 		auto proxy = RegisterUsbHID::instance().Proxy(api);
 		if (proxy)
-			return proxy->Configure(port, TypeName(), HIDTYPE_KBD, data);
+			return proxy->Configure(port, TypeName(), HID_KEYBOARD, data);
 		return RESULT_CANCELED;
 	}
 

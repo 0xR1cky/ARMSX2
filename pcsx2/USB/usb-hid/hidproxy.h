@@ -47,7 +47,7 @@ namespace usb_hid
 		virtual UsbHID* CreateObject(int port, const char* dev_type) const = 0;
 		// ProxyBase::Configure is ignored
 		virtual int Configure(int port, const char* dev_type, void* data) { return RESULT_CANCELED; }
-		virtual int Configure(int port, const char* dev_type, HIDType hid_type, void* data) = 0;
+		virtual int Configure(int port, const char* dev_type, int hid_type, void* data) = 0;
 	};
 
 	template <class T>
@@ -77,7 +77,7 @@ namespace usb_hid
 		{
 			return T::Name();
 		}
-		virtual int Configure(int port, const char* dev_type, HIDType hid_type, void* data)
+		virtual int Configure(int port, const char* dev_type, int hid_type, void* data)
 		{
 			return T::Configure(port, dev_type, hid_type, data);
 		}

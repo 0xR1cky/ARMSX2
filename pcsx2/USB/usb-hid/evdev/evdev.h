@@ -52,7 +52,7 @@ namespace usb_hid
 				return TEXT("Evdev");
 			}
 
-			static int Configure(int port, const char* dev_type, HIDType hid_type, void* data);
+			static int Configure(int port, const char* dev_type, int hid_type, void* data);
 
 		protected:
 			void ReaderThread();

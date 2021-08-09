@@ -35,11 +35,15 @@ namespace usb_hid
 			devs_t::const_iterator iter;
 		};
 
-		static void PopulateHIDs(ConfigData& cfg, HIDType hid_type)
+		static void PopulateHIDs(ConfigData& cfg, int hid_type)
 		{
+			if (hid_type <= 0 || hid_type > 3)
+				return;
+			hid_type--;
+
 			std::stringstream str;
 			struct dirent* dp;
-			const char* devstr[] = {"event-kbd", "event-mouse"};
+			const char* devstr[] = {"event-mouse", "event-kbd", "event-mouse"};
 
 			cfg.devs.clear();
 			cfg.devs.push_back(std::make_pair("None", ""));
@@ -100,11 +104,9 @@ namespace usb_hid
 			}
 		}
 
-		int GtkHidConfigure(int port, const char* dev_type, HIDType hid_type, GtkWindow* parent)
+		int GtkHidConfigure(int port, const char* dev_type, int hid_type, GtkWindow* parent)
 		{
 			GtkWidget *main_hbox, *right_vbox, *rs_cb;
-
-			assert((int)HIDTYPE_MOUSE == 1); //make sure there is atleast two types so we won't go beyond array length
 
 			ConfigData cfg;
 			cfg.port = port;
@@ -180,7 +182,7 @@ namespace usb_hid
 			return ret;
 		}
 
-		int EvDev::Configure(int port, const char* dev_type, HIDType hid_type, void* data)
+		int EvDev::Configure(int port, const char* dev_type, int hid_type, void* data)
 		{
 			return GtkHidConfigure(port, dev_type, hid_type, GTK_WINDOW(data));
 		}

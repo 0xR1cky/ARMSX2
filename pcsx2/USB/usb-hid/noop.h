@@ -42,7 +42,7 @@ namespace usb_hid
 				return TEXT("NOOP");
 			}
 
-			static int Configure(int port, const char* dev_type, HIDType type, void* data)
+			static int Configure(int port, const char* dev_type, int type, void* data)
 			{
 				return RESULT_CANCELED;
 			}

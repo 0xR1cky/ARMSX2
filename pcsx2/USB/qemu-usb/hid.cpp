@@ -336,7 +336,7 @@ static void hid_pointer_event(HIDState* hs, InputEvent* evt)
 		/*[INPUT_BUTTON_LEFT] =*/0x01,
 		/*[INPUT_BUTTON_MIDDLE] =*/0x04,
 		/*[INPUT_BUTTON_RIGHT] =*/0x02,
-		0, 0, 0, 0};
+		0, 0, 0x08, 0x10};
 	HIDPointerEvent* e;
 	InputMoveEvent* move;
 	InputBtnEvent* btn;

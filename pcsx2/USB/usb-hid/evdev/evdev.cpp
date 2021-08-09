@@ -30,64 +30,6 @@ namespace usb_hid
 {
 	namespace evdev
 	{
-
-#define test_bit(nr, addr) \
-	(((1UL << ((nr) % (sizeof(long) * 8))) & ((addr)[(nr) / (sizeof(long) * 8)])) != 0)
-#define NBITS(x) ((((x)-1) / (sizeof(long) * 8)) + 1)
-
-		bool FindHid(const std::string& evphys, std::string& hid_dev)
-		{
-			int fd;
-			char buf[256];
-
-			std::stringstream str;
-			struct dirent* dp;
-
-			DIR* dirp = opendir("/dev/input/");
-			if (dirp == NULL)
-			{
-				Console.Warning("Error opening /dev/input/");
-				return false;
-			}
-
-			while ((dp = readdir(dirp)) != NULL)
-			{
-				if (strncmp(dp->d_name, "hidraw", 6) == 0)
-				{
-
-					str.clear();
-					str.str("");
-					str << "/dev/input/" << dp->d_name;
-					fd = open(str.str().c_str(), O_RDWR | O_NONBLOCK);
-
-					if (fd < 0)
-					{
-						Console.Warning("Evdev: Unable to open device: %s", str.str().c_str());
-						continue;
-					}
-
-					memset(buf, 0x0, sizeof(buf));
-					//res = ioctl(fd, HIDIOCGRAWNAME(256), buf);
-
-					/*			res = ioctl(fd, HIDIOCGRAWPHYS(256), buf);
-			if (res < 0)
-				Console.Warning("HIDIOCGRAWPHYS");
-			else
-			*/
-					close(fd);
-					if (evphys == buf)
-					{
-						closedir(dirp);
-						hid_dev = str.str();
-						return true;
-					}
-				}
-			}
-		//quit:
-			closedir(dirp);
-			return false;
-		}
-
 		int EvDev::TokenOut(const uint8_t* data, int len)
 		{
 			return len;
@@ -95,8 +37,6 @@ namespace usb_hid
 
 		int EvDev::Open()
 		{
-			// Make sure there is atleast two types so we won't go beyond array length
-			assert((int)HIDTYPE_MOUSE == 1);
 			std::stringstream name;
 
 			mHandle = -1;
@@ -149,16 +89,15 @@ namespace usb_hid
 				//Non-blocking read sets len to -1 and errno to EAGAIN if no new data
 				while ((len = read(mHandle, &events, sizeof(events))) > -1)
 				{
-					InputEvent ev{};
 					len /= sizeof(events[0]);
 					for (int i = 0; i < len; i++)
 					{
+						InputEvent ev{};
 						input_event& event = events[i];
 						switch (event.type)
 						{
 							case EV_ABS:
 							{
-
 								if (mHIDState->kind == HID_MOUSE || mHIDState->kind == HID_KEYBOARD) // usually mouse position is expected to be relative
 									continue;
 
@@ -178,6 +117,15 @@ namespace usb_hid
 									ev.u.abs.value = event.value;
 									mHIDState->ptr.eh_entry(mHIDState, &ev);
 								}
+								else if (event.code == ABS_WHEEL)
+								{
+									ev.type = INPUT_EVENT_KIND_BTN;
+									ev.u.btn.button = event.value > 0 ? INPUT_BUTTON_WHEEL_UP : INPUT_BUTTON_WHEEL_DOWN;
+									ev.u.btn.down = true;
+									mHIDState->ptr.eh_entry(mHIDState, &ev);
+									ev.u.btn.down =false;
+									mHIDState->ptr.eh_entry(mHIDState, &ev);
+								}
 							}
 							break;
 							case EV_REL:
@@ -195,6 +143,15 @@ namespace usb_hid
 								else if (event.code == ABS_Y)
 								{
 									ev.u.rel.axis = INPUT_AXIS_Y;
+									mHIDState->ptr.eh_entry(mHIDState, &ev);
+								}
+								else if (event.code == ABS_WHEEL)
+								{
+									ev.type = INPUT_EVENT_KIND_BTN;
+									ev.u.btn.button = event.value > 0 ? INPUT_BUTTON_WHEEL_UP : INPUT_BUTTON_WHEEL_DOWN;
+									ev.u.btn.down = true;
+									mHIDState->ptr.eh_entry(mHIDState, &ev);
+									ev.u.btn.down =false;
 									mHIDState->ptr.eh_entry(mHIDState, &ev);
 								}
 							}
@@ -228,7 +185,6 @@ namespace usb_hid
 
 								if (mHIDState->kind == HID_KEYBOARD && mHIDState->kbd.eh_entry)
 								{
-
 									QKeyCode qcode = Q_KEY_CODE_UNMAPPED;
 									if (event.code < (uint16_t)qemu_input_map_linux_to_qcode_len)
 										qcode = qemu_input_map_linux_to_qcode[event.code];
@@ -261,6 +217,16 @@ namespace usb_hid
 											break;
 										case BTN_MIDDLE:
 											ev.u.btn.button = INPUT_BUTTON_MIDDLE;
+											ev.u.btn.down = (event.value == 1);
+											mHIDState->ptr.eh_entry(mHIDState, &ev);
+											break;
+										case BTN_SIDE:
+											ev.u.btn.button = INPUT_BUTTON_SIDE;
+											ev.u.btn.down = (event.value == 1);
+											mHIDState->ptr.eh_entry(mHIDState, &ev);
+											break;
+										case BTN_EXTRA:
+											ev.u.btn.button = INPUT_BUTTON_EXTRA;
 											ev.u.btn.down = (event.value == 1);
 											mHIDState->ptr.eh_entry(mHIDState, &ev);
 											break;

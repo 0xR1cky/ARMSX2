@@ -29,8 +29,8 @@
 #define QEMU_CAPS_LOCK_LED (1 << 2)
 
 #define HID_MOUSE 1
-#define HID_TABLET 2
-#define HID_KEYBOARD 3
+#define HID_KEYBOARD 2
+#define HID_TABLET 3
 // idk
 #define HID_SUBKIND_BEATMANIA 1
 
