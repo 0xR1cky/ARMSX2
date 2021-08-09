@@ -32,9 +32,9 @@ namespace usb_msd
 		{
 			return TEXT("Mass storage device");
 		}
-		static std::list<std::string> ListAPIs()
+		static std::vector<std::string> ListAPIs()
 		{
-			return std::list<std::string>{APINAME};
+			return {APINAME};
 		}
 		static const TCHAR* LongAPIName(const std::string& name)
 		{

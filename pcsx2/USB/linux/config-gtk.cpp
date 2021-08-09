@@ -141,18 +141,16 @@ static void apiChanged(GtkComboBox* widget, gpointer data)
 	if (dev)
 	{
 		auto apis = dev->ListAPIs();
-		auto it = apis.begin();
-		std::advance(it, active);
-		if (it != apis.end())
+		if (active >= 0 && active < (gint)apis.size())
 		{
 			auto pair = std::make_pair(port, name);
 			auto itAPI = changedAPIs.find(pair);
 
 			if (itAPI != changedAPIs.end())
-				itAPI->second = *it;
+				itAPI->second = apis[active];
 			else
-				changedAPIs[pair] = *it;
-			settingsCB->api = *it;
+				changedAPIs[pair] = apis[active];
+			settingsCB->api = apis[active];
 		}
 	}
 }

@@ -88,7 +88,7 @@ namespace usb_mic
 		USBDescDevice desc_dev;
 	} HeadsetState;
 
-	std::list<std::string> HeadsetDevice::ListAPIs()
+	std::vector<std::string> HeadsetDevice::ListAPIs()
 	{
 		return RegisterAudioDevice::instance().Names();
 	}

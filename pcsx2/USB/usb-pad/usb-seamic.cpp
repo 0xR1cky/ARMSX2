@@ -234,7 +234,7 @@ namespace usb_pad
 		// 134 bytes
 	};
 
-	std::list<std::string> SeamicDevice::ListAPIs()
+	std::vector<std::string> SeamicDevice::ListAPIs()
 	{
 		return RegisterPad::instance().Names();
 	}

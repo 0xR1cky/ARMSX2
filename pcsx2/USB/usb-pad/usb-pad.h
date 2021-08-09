@@ -55,7 +55,7 @@ namespace usb_pad
 		{
 			return "pad";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
@@ -78,7 +78,7 @@ namespace usb_pad
 		{
 			return "rbdrumkit";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
@@ -101,7 +101,7 @@ namespace usb_pad
 		{
 			return "buzz_device";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
@@ -124,7 +124,7 @@ namespace usb_pad
 		{
 			return "seamic";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
@@ -147,7 +147,7 @@ namespace usb_pad
 		{
 			return "keyboardmania";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);

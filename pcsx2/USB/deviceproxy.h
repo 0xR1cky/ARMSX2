@@ -19,7 +19,7 @@
 #include <memory>
 #include <string>
 #include <map>
-#include <list>
+#include <vector>
 #include <algorithm>
 #include <iterator>
 //#include <memory>
@@ -78,14 +78,14 @@ public:
 	virtual const TCHAR* Name() const = 0;
 	virtual const char* TypeName() const = 0;
 	virtual int Configure(int port, const std::string& api, void* data) = 0;
-	virtual std::list<std::string> ListAPIs() = 0;
+	virtual std::vector<std::string> ListAPIs() = 0;
 	virtual const TCHAR* LongAPIName(const std::string& name) = 0;
 	virtual int Freeze(FreezeAction mode, USBDevice* dev, void* data) = 0;
 	virtual std::vector<std::string> SubTypes() = 0;
 
 	virtual bool IsValidAPI(const std::string& api)
 	{
-		const std::list<std::string>& apis = ListAPIs();
+		const auto& apis = ListAPIs();
 		auto it = std::find(apis.begin(), apis.end(), api);
 		if (it != apis.end())
 			return true;
@@ -117,7 +117,7 @@ public:
 	{
 		return T::Configure(port, api, data);
 	}
-	virtual std::list<std::string> ListAPIs()
+	virtual std::vector<std::string> ListAPIs()
 	{
 		return T::ListAPIs();
 	}
@@ -169,9 +169,9 @@ public:
 		return registerProxyMap[name].get();
 	}
 
-	std::list<std::string> Names() const
+	std::vector<std::string> Names() const
 	{
-		std::list<std::string> nameList;
+		std::vector<std::string> nameList;
 		std::transform(
 			registerProxyMap.begin(), registerProxyMap.end(),
 			std::back_inserter(nameList),
@@ -241,8 +241,7 @@ public:
 
 	DeviceProxyBase* Device(int index)
 	{
-		auto it = registerDeviceMap.begin();
-		std::advance(it, index);
+		auto it = registerDeviceMap.find(static_cast<DeviceType>(index));
 		if (it != registerDeviceMap.end())
 			return it->second.get();
 		return nullptr;
@@ -272,8 +271,7 @@ public:
 
 	std::string Name(int index) const
 	{
-		auto it = registerDeviceMap.begin();
-		std::advance(it, index);
+		auto it = registerDeviceMap.find(static_cast<DeviceType>(index));
 		if (it != registerDeviceMap.end())
 			return it->second->TypeName();
 		return std::string();

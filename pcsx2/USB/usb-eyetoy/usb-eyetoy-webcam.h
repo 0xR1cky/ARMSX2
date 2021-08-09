@@ -39,7 +39,7 @@ namespace usb_eyetoy
 		{
 			return "eyetoy";
 		}
-		static std::list<std::string> ListAPIs()
+		static auto ListAPIs()
 		{
 			return RegisterVideoDevice::instance().Names();
 		}

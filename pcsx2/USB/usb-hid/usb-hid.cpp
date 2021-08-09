@@ -53,7 +53,7 @@ namespace usb_hid
 
 	} UsbHIDState;
 
-	std::list<std::string> HIDKbdDevice::ListAPIs()
+	std::vector<std::string> HIDKbdDevice::ListAPIs()
 	{
 		return RegisterUsbHID::instance().Names();
 	}
@@ -66,7 +66,7 @@ namespace usb_hid
 		return nullptr;
 	}
 
-	std::list<std::string> BeatManiaDevice::ListAPIs()
+	std::vector<std::string> BeatManiaDevice::ListAPIs()
 	{
 		return RegisterUsbHID::instance().Names();
 	}
@@ -78,7 +78,8 @@ namespace usb_hid
 			return proxy->Name();
 		return nullptr;
 	}
-	std::list<std::string> HIDMouseDevice::ListAPIs()
+
+	std::vector<std::string> HIDMouseDevice::ListAPIs()
 	{
 		return RegisterUsbHID::instance().Names();
 	}

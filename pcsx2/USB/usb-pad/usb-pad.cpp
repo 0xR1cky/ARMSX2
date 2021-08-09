@@ -59,7 +59,7 @@ namespace usb_pad
 		"",
 		"KONAMI"};
 
-	std::list<std::string> PadDevice::ListAPIs()
+	std::vector<std::string> PadDevice::ListAPIs()
 	{
 		return RegisterPad::instance().Names();
 	}
@@ -72,7 +72,7 @@ namespace usb_pad
 		return nullptr;
 	}
 
-	std::list<std::string> RBDrumKitDevice::ListAPIs()
+	std::vector<std::string> RBDrumKitDevice::ListAPIs()
 	{
 		return PadDevice::ListAPIs();
 	}
@@ -82,7 +82,7 @@ namespace usb_pad
 		return PadDevice::LongAPIName(name);
 	}
 
-	std::list<std::string> BuzzDevice::ListAPIs()
+	std::vector<std::string> BuzzDevice::ListAPIs()
 	{
 		return PadDevice::ListAPIs();
 	}
@@ -92,7 +92,7 @@ namespace usb_pad
 		return PadDevice::LongAPIName(name);
 	}
 
-	std::list<std::string> KeyboardmaniaDevice::ListAPIs()
+	std::vector<std::string> KeyboardmaniaDevice::ListAPIs()
 	{
 		return PadDevice::ListAPIs();
 	}

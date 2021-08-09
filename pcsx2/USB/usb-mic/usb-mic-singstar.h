@@ -36,7 +36,7 @@ namespace usb_mic
 		{
 			return "singstar";
 		}
-		static std::list<std::string> ListAPIs()
+		static auto ListAPIs()
 		{
 			return RegisterAudioDevice::instance().Names();
 		}

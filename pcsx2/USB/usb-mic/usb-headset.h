@@ -33,7 +33,7 @@ namespace usb_mic
 		{
 			return TEXT("Logitech USB Headset");
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);

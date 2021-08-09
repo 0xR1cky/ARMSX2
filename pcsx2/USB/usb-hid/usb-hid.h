@@ -69,7 +69,7 @@ namespace usb_hid
 		{
 			return "hidkbd";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
@@ -92,7 +92,7 @@ namespace usb_hid
 		{
 			return "hidmouse";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
@@ -115,7 +115,7 @@ namespace usb_hid
 		{
 			return "beatmania";
 		}
-		static std::list<std::string> ListAPIs();
+		static std::vector<std::string> ListAPIs();
 		static const TCHAR* LongAPIName(const std::string& name);
 		static int Configure(int port, const std::string& api, void* data);
 		static int Freeze(FreezeAction mode, USBDevice* dev, void* data);
