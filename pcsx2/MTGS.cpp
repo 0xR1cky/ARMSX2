@@ -486,9 +486,9 @@ void SysMtgsThread::ExecuteTaskInThread()
 							if (m_VsyncSignalListener.exchange(false))
 								m_sem_Vsync.Post();
 
-							busy.Release();
-							StateCheckInThread();
-							busy.Acquire();
+							// Do not StateCheckInThread() here
+							// Otherwise we could pause while there's still data in the queue
+							// Which could make the MTVU thread wait forever for it to empty
 						}
 						break;
 
@@ -501,7 +501,7 @@ void SysMtgsThread::ExecuteTaskInThread()
 						{
 							MTGS_FreezeData* data = (MTGS_FreezeData*)tag.pointer;
 							int mode = tag.data[0];
-							data->retval = GSfreeze(mode, (freezeData*)data->fdata);
+							data->retval = GSfreeze((FreezeAction)mode, (freezeData*)data->fdata);
 						}
 						break;
 
@@ -619,6 +619,8 @@ void SysMtgsThread::OnResumeInThread(bool isSuspended)
 void SysMtgsThread::OnCleanupInThread()
 {
 	CloseGS();
+	// Unblock any threads in WaitGS in case MTGS gets cancelled while still processing work
+	m_ReadPos.store(m_WritePos.load(std::memory_order_acquire), std::memory_order_relaxed);
 	_parent::OnCleanupInThread();
 }
 
@@ -925,10 +927,10 @@ void SysMtgsThread::WaitForOpen()
 	RethrowException();
 }
 
-void SysMtgsThread::Freeze(int mode, MTGS_FreezeData& data)
+void SysMtgsThread::Freeze(FreezeAction mode, MTGS_FreezeData& data)
 {
 	pxAssertDev(!IsSelf(), "This method is only allowed from threads *not* named MTGS.");
-	SendPointerPacket(GS_RINGTYPE_FREEZE, mode, &data);
+	SendPointerPacket(GS_RINGTYPE_FREEZE, (int)mode, &data);
 	// make sure MTGS is processing the packet we send it
 	Resume();
 	// we are forced to wait for the semaphore to be released, otherwise

@@ -1,55 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Win32">
-      <Configuration>Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug AVX2|Win32">
-      <Configuration>Debug AVX2</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug AVX2|x64">
-      <Configuration>Debug AVX2</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Devel|Win32">
-      <Configuration>Devel</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Devel|x64">
-      <Configuration>Devel</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Devel AVX2|Win32">
-      <Configuration>Devel AVX2</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Devel AVX2|x64">
-      <Configuration>Devel AVX2</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|Win32">
-      <Configuration>Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release AVX2|Win32">
-      <Configuration>Release AVX2</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release AVX2|x64">
-      <Configuration>Release AVX2</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-  </ItemGroup>
+  <Import Project="$(SolutionDir)common\vsprops\BaseProjectConfig.props" />
+  <Import Project="$(SolutionDir)common\vsprops\ProjectConfigAVX2.props" />
   <Import Project="$(SolutionDir)common\vsprops\WinSDK.props" />
   <PropertyGroup Label="Globals">
     <ProjectGuid>{1CEFD830-2B76-4596-A4EE-BCD7280A60BD}</ProjectGuid>
@@ -113,10 +65,23 @@
     <Link>
       <LargeAddressAware>Yes</LargeAddressAware>
       <AdditionalDependencies>comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;iphlpapi.lib;dsound.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies>dxguid.lib;dinput8.lib;hid.lib;d3dcompiler.lib;d3d11.lib;dxgi.lib;strmiids.lib;opengl32.lib;comsuppw.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>dxguid.lib;dinput8.lib;hid.lib;PowrProf.lib;d3dcompiler.lib;d3d11.lib;dxgi.lib;strmiids.lib;opengl32.lib;comsuppw.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <None Include="GS\res\glsl\common_header.glsl" />
+    <None Include="GS\res\glsl\convert.glsl" />
+    <None Include="GS\res\glsl\interlace.glsl" />
+    <None Include="GS\res\glsl\merge.glsl" />
+    <None Include="GS\res\glsl\shadeboost.glsl" />
+    <None Include="GS\res\glsl\tfx_fs.glsl" />
+    <None Include="GS\res\glsl\tfx_vgs.glsl" />
+    <None Include="GS\res\convert.fx" />
+    <None Include="GS\res\fxaa.fx" />
+    <None Include="GS\res\interlace.fx" />
+    <None Include="GS\res\merge.fx" />
+    <None Include="GS\res\shadeboost.fx" />
+    <None Include="GS\res\tfx.fx" />
     <None Include="PAD\Windows\Default.ini" />
     <None Include="Utilities\folderdesc.txt" />
     <None Include="Docs\License.txt" />
@@ -282,6 +247,7 @@
     <ClCompile Include="CDVD\CsoFileReader.cpp" />
     <ClCompile Include="CDVD\GzippedFileReader.cpp" />
     <ClCompile Include="CDVD\OutputIsoFile.cpp" />
+    <ClCompile Include="CDVD\ThreadedFileReader.cpp" />
     <ClCompile Include="CDVD\Linux\DriveUtility.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
@@ -374,14 +340,10 @@
     <ClCompile Include="SPU2\RegLog.cpp" />
     <ClCompile Include="SPU2\SndOut_Portaudio.cpp" />
     <ClCompile Include="SPU2\wavedump_wav.cpp" />
-    <ClCompile Include="SPU2\Lowpass.cpp" />
     <ClCompile Include="SPU2\SndOut.cpp" />
     <ClCompile Include="SPU2\Timestretcher.cpp" />
     <ClCompile Include="SPU2\Windows\SndOut_waveOut.cpp" />
     <ClCompile Include="SPU2\Windows\SndOut_XAudio2.cpp" />
-    <ClCompile Include="SPU2\Linux\Alsa.cpp">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="SPU2\dma.cpp" />
     <ClCompile Include="SPU2\RegTable.cpp" />
     <ClCompile Include="SPU2\spu2freeze.cpp" />
@@ -450,7 +412,6 @@
     <ClCompile Include="USB\usb-eyetoy\api_init_win32_eyetoy.cpp" />
     <ClCompile Include="USB\usb-eyetoy\cam-windows.cpp" />
     <ClCompile Include="USB\usb-eyetoy\jo_mpeg.cpp" />
-    <ClCompile Include="USB\usb-eyetoy\jpgd\jpgd.cpp" />
     <ClCompile Include="USB\usb-eyetoy\usb-eyetoy-webcam.cpp" />
     <ClCompile Include="USB\usb-hid\api_init_win32_hid.cpp" />
     <ClCompile Include="USB\usb-hid\raw\rawinput.cpp" />
@@ -543,12 +504,18 @@
     <ClCompile Include="GS\Renderers\Common\GSVertexTrace.cpp" />
     <ClCompile Include="GS\Window\GSWnd.cpp" />
     <ClCompile Include="GS\Window\GSWndDX.cpp" />
+    <ClCompile Include="GS\Window\GSWndEGL.cpp">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="GS\Window\GSWndWGL.cpp" />
     <ClCompile Include="Utilities\FileUtils.cpp" />
     <ClCompile Include="Dump.cpp" />
     <ClCompile Include="x86\iMisc.cpp" />
     <ClCompile Include="Pcsx2Config.cpp" />
     <ClCompile Include="windows\FlatFileReaderWindows.cpp" />
+    <ClCompile Include="Darwin\DarwinFlatFileReader.cpp">
+      <ExcludedFromBuild>true</ExcludedFromBuild>
+    </ClCompile>
     <ClCompile Include="SaveState.cpp" />
     <ClCompile Include="SourceLog.cpp" />
     <ClCompile Include="System\SysCoreThread.cpp" />
@@ -719,6 +686,7 @@
     <ClCompile Include="gui\Panels\VideoPanel.cpp" />
     <ClCompile Include="windows\WinCompressNTFS.cpp" />
     <ClCompile Include="windows\WinConsolePipe.cpp" />
+    <ClCompile Include="windows\WinPowerProfile.cpp" />
     <ClCompile Include="Linux\LnxKeyCodes.cpp">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ClCompile>
@@ -735,7 +703,9 @@
     <ClInclude Include="CDVD\CompressedFileReader.h" />
     <ClInclude Include="CDVD\CompressedFileReaderUtils.h" />
     <ClInclude Include="CDVD\CsoFileReader.h" />
+    <ClInclude Include="CDVD\ChdFileReader.h" />
     <ClInclude Include="CDVD\GzippedFileReader.h" />
+    <ClInclude Include="CDVD\ThreadedFileReader.h" />
     <ClInclude Include="CDVD\zlib_indexed.h" />
     <ClInclude Include="DebugTools\Breakpoints.h" />
     <ClInclude Include="DebugTools\DebugInterface.h" />
@@ -775,6 +745,7 @@
     <ClInclude Include="GameDatabase.h" />
     <ClInclude Include="Gif_Unit.h" />
     <ClInclude Include="gui\AppGameDatabase.h" />
+    <ClInclude Include="gui\i18n.h" />
     <ClInclude Include="gui\DriveList.h" />
     <ClInclude Include="gui\Saveslots.h" />
     <ClInclude Include="gui\Debugger\BreakpointWindow.h" />
@@ -811,9 +782,7 @@
     <ClInclude Include="SPU2\Config.h" />
     <ClInclude Include="SPU2\Global.h" />
     <ClInclude Include="SPU2\interpolate_table.h" />
-    <ClInclude Include="SPU2\Lowpass.h" />
     <ClInclude Include="SPU2\SndOut.h" />
-    <ClInclude Include="SPU2\Linux\Alsa.h" />
     <ClInclude Include="SPU2\spdif.h" />
     <ClInclude Include="SPU2\defs.h" />
     <ClInclude Include="SPU2\Dma.h" />
@@ -830,6 +799,8 @@
     <ClInclude Include="GS\Renderers\OpenGL\GLLoader.h" />
     <ClInclude Include="GS\Renderers\OpenGL\GLState.h" />
     <ClInclude Include="GS\GS.h" />
+    <ClInclude Include="GS\GS_codegen.h" />
+    <ClInclude Include="GS\GS_types.h" />
     <ClInclude Include="GS\GSAlignedClass.h" />
     <ClInclude Include="GS\GSBlock.h" />
     <ClInclude Include="GS\GSCapture.h" />
@@ -895,12 +866,14 @@
     <ClInclude Include="GS\Renderers\Common\GSVertexTrace.h" />
     <ClInclude Include="GS\Window\GSWnd.h" />
     <ClInclude Include="GS\Window\GSWndDX.h" />
+    <ClInclude Include="GS\Window\GSWndEGL.h" />
     <ClInclude Include="GS\Window\GSWndWGL.h" />
     <ClInclude Include="GS\resource.h" />
     <ClInclude Include="IPU\IPUdma.h" />
     <ClInclude Include="Mdec.h" />
     <ClInclude Include="Patch.h" />
     <ClInclude Include="PrecompiledHeader.h" />
+    <ClInclude Include="sio_internal.h" />
     <ClInclude Include="ps2\pgif.h" />
     <ClInclude Include="Recording\InputRecording.h" />
     <ClInclude Include="Recording\InputRecordingControls.h" />
@@ -935,7 +908,6 @@
     <ClInclude Include="USB\shared\shared_usb.h" />
     <ClInclude Include="USB\usb-eyetoy\cam-windows.h" />
     <ClInclude Include="USB\usb-eyetoy\jo_mpeg.h" />
-    <ClInclude Include="USB\usb-eyetoy\jpgd\jpgd.h" />
     <ClInclude Include="USB\usb-eyetoy\ov519.h" />
     <ClInclude Include="USB\usb-eyetoy\usb-eyetoy-webcam.h" />
     <ClInclude Include="USB\usb-eyetoy\videodev.h" />
@@ -973,10 +945,12 @@
     <ClInclude Include="SaveState.h" />
     <ClInclude Include="System.h" />
     <ClInclude Include="System\SysThreads.h" />
+    <ClInclude Include="System\RecTypes.h" />
     <ClInclude Include="Counters.h" />
     <ClInclude Include="Dmac.h" />
     <ClInclude Include="Hardware.h" />
     <ClInclude Include="Hw.h" />
+    <ClInclude Include="ps2\HwInternal.h" />
     <ClInclude Include="Cache.h" />
     <ClInclude Include="Memory.h" />
     <ClInclude Include="vtlb.h" />
@@ -1003,6 +977,7 @@
     <ClInclude Include="R5900.h" />
     <ClInclude Include="R5900Exceptions.h" />
     <ClInclude Include="R5900OpcodeTables.h" />
+    <ClInclude Include="COP0.h" />
     <ClInclude Include="x86\iCOP0.h" />
     <ClInclude Include="x86\iFPU.h" />
     <ClInclude Include="x86\iMMI.h" />
@@ -1063,6 +1038,7 @@
     </CustomBuildStep>
     <ClInclude Include="x86\BaseblockEx.h" />
     <ClInclude Include="ps2\BiosTools.h" />
+    <ClInclude Include="MemoryTypes.h" />
     <ClInclude Include="x86\iCore.h" />
     <ClInclude Include="CDVD\IsoFS\IsoDirectory.h" />
     <ClInclude Include="CDVD\IsoFS\IsoFile.h" />
@@ -1080,6 +1056,7 @@
     <ClInclude Include="gui\App.h" />
     <ClInclude Include="gui\AppCommon.h" />
     <ClInclude Include="gui\AppConfig.h" />
+    <ClInclude Include="gui\AppAccelerators.h" />
     <ClInclude Include="gui\AppCoreThread.h" />
     <ClInclude Include="gui\AppEventListeners.h" />
     <ClInclude Include="gui\AppForwardDefs.h" />
@@ -1090,9 +1067,14 @@
     <ClInclude Include="gui\GSFrame.h" />
     <ClInclude Include="gui\IsoDropTarget.h" />
     <ClInclude Include="gui\MainFrame.h" />
+    <ClInclude Include="gui\MemoryCardFile.h" />
+    <ClInclude Include="gui\MemoryCardFolder.h" />
     <ClInclude Include="gui\pxEventThread.h" />
     <ClInclude Include="gui\RecentIsoList.h" />
+    <ClInclude Include="PathDefs.h" />
+    <ClInclude Include="SysForwardDefs.h" />
     <ClInclude Include="ZipTools\ThreadedZipTools.h" />
+    <ClInclude Include="cheatscpp.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="$(SolutionDir)3rdparty\wxwidgets3.0\include\wx\msw\wx.rc">
@@ -1169,6 +1151,9 @@
     <ProjectReference Include="$(SolutionDir)tools\bin2cpp\bin2c.vcxproj">
       <Project>{677b7d11-d5e1-40b3-88b1-9a4df83d2213}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
+    <ProjectReference Include="$(SolutionDir)3rdparty\jpgd\jpgd.vcxproj">
+      <Project>{ed2f21fd-0a36-4a8f-9b90-e7d92a2acb63}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

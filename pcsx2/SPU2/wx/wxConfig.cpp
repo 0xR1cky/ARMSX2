@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2020  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -30,17 +30,14 @@ MixerTab::MixerTab(wxWindow* parent)
 	top_box->Add(new wxStaticText(this, wxID_ANY, "Interpolation"), wxSizerFlags().Centre());
 
 	wxArrayString interpolation_entries;
-	interpolation_entries.Add("Nearest (Fastest/bad quality)");
-	interpolation_entries.Add("Linear (Simple/okay sound)");
-	interpolation_entries.Add("Cubic (Artificial highs)");
-	interpolation_entries.Add("Hermite (Better highs)");
-	interpolation_entries.Add("Catmull-Rom (PS2-like/slow)");
-	interpolation_entries.Add("Gaussian (SPU native)");
+	interpolation_entries.Add("Nearest (Fastest / worst quality)");
+	interpolation_entries.Add("Linear (Simple / okay sound)");
+	interpolation_entries.Add("Cubic (Fake highs / okay sound)");
+	interpolation_entries.Add("Hermite (Better highs / okay sound)");
+	interpolation_entries.Add("Catmull-Rom (PS2-like / good sound)");
+	interpolation_entries.Add("Gaussian (PS2-like / great sound)");
 
 	m_inter_select = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, interpolation_entries);
-
-	effect_check = new wxCheckBox(this, wxID_ANY, "Disable Effects Processing (Speedup)");
-	dealias_check = new wxCheckBox(this, wxID_ANY, "Use the de-alias filter (Overemphasizes the highs) ");
 
 	// Latency Slider
 	const int min_latency = SynchMode == 0 ? LATENCY_MIN_TIMESTRETCH : LATENCY_MIN;
@@ -66,8 +63,6 @@ MixerTab::MixerTab(wxWindow* parent)
 	m_audio_box->Add(m_audio_select, wxSizerFlags().Expand());
 
 	top_box->Add(m_inter_select, wxSizerFlags().Centre());
-	top_box->Add(effect_check, wxSizerFlags().Centre());
-	top_box->Add(dealias_check, wxSizerFlags().Centre());
 	top_box->Add(m_latency_box, wxSizerFlags().Expand());
 	top_box->Add(m_volume_box, wxSizerFlags().Expand());
 	top_box->Add(m_audio_box, wxSizerFlags().Expand());
@@ -79,8 +74,6 @@ void MixerTab::Load()
 {
 	m_inter_select->SetSelection(Interpolation);
 
-	effect_check->SetValue(EffectsDisabled);
-	dealias_check->SetValue(postprocess_filter_dealias);
 	m_audio_select->SetSelection(numSpeakers);
 
 	m_volume_slider->SetValue(FinalVolume * 100);
@@ -90,8 +83,6 @@ void MixerTab::Load()
 void MixerTab::Save()
 {
 	Interpolation = m_inter_select->GetSelection();
-	EffectsDisabled = effect_check->GetValue();
-	postprocess_filter_dealias = dealias_check->GetValue();
 
 	numSpeakers = m_audio_select->GetSelection();
 
@@ -393,7 +384,7 @@ Dialog::Dialog()
 	m_sdl_text = new wxStaticText(this, wxID_ANY, "SDL API");
 	m_sdl_box->Add(m_sdl_text, wxSizerFlags().Centre());
 
-	wxArrayString  sdl_entries;
+	wxArrayString sdl_entries;
 	for (int i = 0; i < SDL_GetNumAudioDrivers(); ++i)
 		sdl_entries.Add(SDL_GetAudioDriver(i));
 

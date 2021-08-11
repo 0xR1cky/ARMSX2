@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2020  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -31,25 +31,31 @@ using namespace Threading;
 
 MutexRecursive mtx_SPU2Status;
 
-#include "svnrev.h"
-
-#ifdef _MSC_VER
-#define snprintf sprintf_s
-#endif
 int SampleRate = 48000;
 
 static bool IsOpened = false;
 static bool IsInitialized = false;
 
-static u32 pClocks = 0;
-
 u32 lClocks = 0;
-//static bool cpu_detected = false;
 
 void SPU2configure()
 {
 	ScopedCoreThreadPause paused_core;
+
+	SndBuffer::Cleanup();
+
 	configure();
+
+	try
+	{
+		Console.Warning("SPU2: Sound output module reset");
+		SndBuffer::Init();
+	}
+	catch (std::exception& ex)
+	{
+		fprintf(stderr, "SPU2 Error: Could not initialize device, or something.\nReason: %s", ex.what());
+		SPU2close();
+	}
 	paused_core.AllowResume();
 }
 
@@ -57,12 +63,6 @@ void SPU2configure()
 //  DMA 4/7 Callbacks from Core Emulator
 // --------------------------------------------------------------------------------------
 
-u16* DMABaseAddr;
-
-void SPU2setDMABaseAddr(uptr baseaddr)
-{
-	DMABaseAddr = (u16*)baseaddr;
-}
 
 void SPU2setSettingsDir(const char* dir)
 {
@@ -94,7 +94,7 @@ void SPU2writeDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 void SPU2interruptDMA4()
 {
 	FileLog("[%10d] SPU2 interruptDMA4\n", Cycles);
-	if(Cores[0].DmaMode)
+	if (Cores[0].DmaMode)
 		Cores[0].Regs.STATX |= 0x80;
 	Cores[0].Regs.STATX &= ~0x400;
 	Cores[0].TSA = Cores[0].ActiveTSA;
@@ -126,13 +126,27 @@ void SPU2writeDMA7Mem(u16* pMem, u32 size)
 	Cores[1].DoDMAwrite(pMem, size);
 }
 
-s32 SPU2reset()
+s32 SPU2reset(PS2Modes isRunningPSXMode)
 {
-	if (SndBuffer::Test() == 0 && SampleRate != 48000)
-	{
-		SampleRate = 48000;
-		SndBuffer::Cleanup();
+	u32 requiredSampleRate = (isRunningPSXMode == PS2Modes::PSX) ? 44100 : 48000;
 
+	if (isRunningPSXMode == PS2Modes::PS2)
+	{
+		memset(spu2regs, 0, 0x010000);
+		memset(_spu2mem, 0, 0x200000);
+		memset(_spu2mem + 0x2800, 7, 0x10); // from BIOS reversal. Locks the voices so they don't run free.
+		memset(_spu2mem + 0xe870, 7, 0x10); // Loop which gets left over by the BIOS, Megaman X7 relies on it being there.
+
+		Spdif.Info = 0; // Reset IRQ Status if it got set in a previously run game
+
+		Cores[0].Init(0);
+		Cores[1].Init(1);
+	}
+
+	if (SampleRate != requiredSampleRate)
+	{
+		SampleRate = requiredSampleRate;
+		SndBuffer::Cleanup();
 		try
 		{
 			SndBuffer::Init();
@@ -144,48 +158,6 @@ s32 SPU2reset()
 			return -1;
 		}
 	}
-	else
-		SampleRate = 48000;
-
-	memset(spu2regs, 0, 0x010000);
-	memset(_spu2mem, 0, 0x200000);
-	memset(_spu2mem + 0x2800, 7, 0x10); // from BIOS reversal. Locks the voices so they don't run free.
-
-	Spdif.Info = 0; // Reset IRQ Status if it got set in a previously run game
-
-	Cores[0].Init(0);
-	Cores[1].Init(1);
-	return 0;
-}
-
-s32 SPU2ps1reset()
-{
-	printf("RESET PS1 \n");
-
-	if (SndBuffer::Test() == 0 && SampleRate != 44100)
-	{
-		SampleRate = 44100;
-		SndBuffer::Cleanup();
-
-		try
-		{
-			SndBuffer::Init();
-		}
-		catch (std::exception& ex)
-		{
-			fprintf(stderr, "SPU2 Error: Could not initialize device, or something.\nReason: %s", ex.what());
-			SPU2close();
-			return -1;
-		}
-	}
-	else
-		SampleRate = 44100;
-
-	/* memset(spu2regs, 0, 0x010000);
-    memset(_spu2mem, 0, 0x200000);
-    memset(_spu2mem + 0x2800, 7, 0x10); // from BIOS reversal. Locks the voices so they don't run free.
-    Cores[0].Init(0);
-    Cores[1].Init(1);*/
 	return 0;
 }
 
@@ -241,7 +213,7 @@ s32 SPU2init()
 		}
 	}
 
-	SPU2reset();
+	SPU2reset(PS2Modes::PS2);
 
 	DMALogOpen();
 	InitADSR();
@@ -341,7 +313,6 @@ s32 SPU2open(void* pDsp)
 		SPU2close();
 		return -1;
 	}
-	SPU2setDMABaseAddr((uptr)iopMem->Main);
 	return 0;
 }
 
@@ -422,12 +393,6 @@ void SPU2async(u32 cycles)
 			if ((cState[i] && !lState[i]) && i != 5)
 				Interpolation = i;
 
-			if ((cState[i] && !lState[i]) && i == 5)
-			{
-				postprocess_filter_enabled = !postprocess_filter_enabled;
-				printf("Post process filters %s \n", postprocess_filter_enabled ? "enabled" : "disabled");
-			}
-
 			lState[i] = cState[i];
 		}
 
@@ -450,6 +415,9 @@ void SPU2async(u32 cycles)
 					break;
 				case 4:
 					printf(" - Catmull-Rom.\n");
+					break;
+				case 5:
+					printf(" - Gaussian.\n");
 					break;
 				default:
 					printf(" (unknown).\n");
@@ -538,7 +506,7 @@ void SPU2endRecording()
 		RecordStop();
 }
 
-s32 SPU2freeze(int mode, freezeData* data)
+s32 SPU2freeze(FreezeAction mode, freezeData* data)
 {
 	pxAssume(data != nullptr);
 	if (!data)
@@ -547,13 +515,13 @@ s32 SPU2freeze(int mode, freezeData* data)
 		return -1;
 	}
 
-	if (mode == FREEZE_SIZE)
+	if (mode == FreezeAction::Size)
 	{
 		data->size = SPU2Savestate::SizeIt();
 		return 0;
 	}
 
-	pxAssume(mode == FREEZE_LOAD || mode == FREEZE_SAVE);
+	pxAssume(mode == FreezeAction::Load || mode == FreezeAction::Save);
 
 	if (data->data == nullptr)
 	{
@@ -561,13 +529,13 @@ s32 SPU2freeze(int mode, freezeData* data)
 		return -1;
 	}
 
-	SPU2Savestate::DataBlock& spud = (SPU2Savestate::DataBlock&)*(data->data);
+	auto& spud = (SPU2Savestate::DataBlock&)*(data->data);
 
 	switch (mode)
 	{
-		case FREEZE_LOAD:
+		case FreezeAction::Load:
 			return SPU2Savestate::ThawIt(spud);
-		case FREEZE_SAVE:
+		case FreezeAction::Save:
 			return SPU2Savestate::FreezeIt(spud);
 
 			jNO_DEFAULT;

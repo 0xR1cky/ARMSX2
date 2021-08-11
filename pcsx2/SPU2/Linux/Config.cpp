@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2020  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -31,17 +31,17 @@ int AutoDMAPlayRate[2] = {0, 0};
 // MIXING
 int Interpolation = 5;
 /* values:
-		0: no interpolation (use nearest)
-		1. linear interpolation
-		2. cubic interpolation
-		3. hermite interpolation
-		4. catmull-rom interpolation
+		0: No interpolation (uses nearest)
+		1. Linear interpolation
+		2. Cubic interpolation
+		3. Hermite interpolation
+		4. Catmull-Rom interpolation
+		5. Gaussian interpolation
 */
 
-bool EffectsDisabled = false;
 float FinalVolume; // global
 bool AdvancedVolumeControl;
-float VolumeAdjustFLdb; // decibels settings, cos audiophiles love that
+float VolumeAdjustFLdb; // Decibels settings, because audiophiles love that.
 float VolumeAdjustCdb;
 float VolumeAdjustFRdb;
 float VolumeAdjustBLdb;
@@ -49,7 +49,7 @@ float VolumeAdjustBRdb;
 float VolumeAdjustSLdb;
 float VolumeAdjustSRdb;
 float VolumeAdjustLFEdb;
-float VolumeAdjustFL; // linear coefs calculated from decibels,
+float VolumeAdjustFL; // Linear coefficients calculated from decibels,
 float VolumeAdjustC;
 float VolumeAdjustFR;
 float VolumeAdjustBL;
@@ -58,14 +58,12 @@ float VolumeAdjustSL;
 float VolumeAdjustSR;
 float VolumeAdjustLFE;
 
-bool postprocess_filter_enabled = true;
-bool postprocess_filter_dealias = false;
-bool _visual_debug_enabled = false; // windows only feature
+bool _visual_debug_enabled = false; // Windows-only feature
 
 // OUTPUT
 u32 OutputModule = 0;
 int SndOutLatencyMS = 100;
-int SynchMode = 0; // Time Stretch, Async or Disabled
+int SynchMode = 0; // Time Stretch, Async or Disabled.
 #ifdef SPU2X_PORTAUDIO
 u32 OutputAPI = 0;
 #endif
@@ -80,13 +78,11 @@ bool temp_debug_state;
 void ReadSettings()
 {
 	// For some reason this can be called before we know what ini file we're writing to.
-	// Lets not try to read it if that happens.
+	// Let's not try to read it if that happens.
 	if (!pathSet)
 		initIni();
 
 	Interpolation = CfgReadInt(L"MIXING", L"Interpolation", 5);
-	EffectsDisabled = CfgReadBool(L"MIXING", L"Disable_Effects", false);
-	postprocess_filter_dealias = CfgReadBool(L"MIXING", L"DealiasFilter", false);
 	FinalVolume = ((float)CfgReadInt(L"MIXING", L"FinalVolume", 100)) / 100;
 	if (FinalVolume > 1.0f)
 		FinalVolume = 1.0f;
@@ -116,9 +112,9 @@ void ReadSettings()
 #else
 	CfgReadStr(L"OUTPUT", L"Output_Module", temp, PortaudioOut->GetIdent());
 #endif
-	OutputModule = FindOutputModuleById(temp.c_str()); // find the driver index of this module
+	OutputModule = FindOutputModuleById(temp.c_str()); // Find the driver index of this module...
 
-// find current API
+// Find current API.
 #ifdef SPU2X_PORTAUDIO
 #ifdef __linux__
 	CfgReadStr(L"PORTAUDIO", L"HostApi", temp, L"ALSA");
@@ -138,7 +134,7 @@ void ReadSettings()
 	CfgReadStr(L"SDL", L"HostApi", temp, L"pulseaudio");
 	SdlOutputAPI = 0;
 #if SDL_MAJOR_VERSION >= 2
-	// YES It sucks ...
+	// Yes, it sucks ...
 	for (int i = 0; i < SDL_GetNumAudioDrivers(); ++i)
 	{
 		if (!temp.Cmp(wxString(SDL_GetAudioDriver(i), wxConvUTF8)))
@@ -187,8 +183,6 @@ void WriteSettings()
 	}
 
 	CfgWriteInt(L"MIXING", L"Interpolation", Interpolation);
-	CfgWriteBool(L"MIXING", L"Disable_Effects", EffectsDisabled);
-	CfgWriteBool(L"MIXING", L"DealiasFilter", postprocess_filter_dealias);
 	CfgWriteInt(L"MIXING", L"FinalVolume", (int)(FinalVolume * 100 + 0.5f));
 
 	CfgWriteBool(L"MIXING", L"AdvancedVolumeControl", AdvancedVolumeControl);

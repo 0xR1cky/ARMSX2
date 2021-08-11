@@ -65,12 +65,9 @@ void hwReset()
 	psHu32(DMAC_ENABLEW) = 0x1201;
 	psHu32(DMAC_ENABLER) = 0x1201;
 
-	if ((psxHu32(HW_ICFG) & (1 << 3)))
-	{
-		SPU2ps1reset();
-	}
-
-	SPU2reset();
+	// Sets SPU2 sample rate to PS2 standard (48KHz) whenever emulator is reset.
+	// For PSX mode sample rate setting, see HwWrite.cpp
+	SPU2reset(PS2Modes::PS2);
 
 	sifReset();
 
@@ -216,12 +213,6 @@ __ri void hwMFIFOResume(u32 transferred) {
 				CPU_INT(DMAC_MFIFO_GIF, transferred * BIAS);
 				gif.gifstate = GIF_STATE_READY;
 			}
-			if (!CHECK_GIFFIFOHACK)
-			{
-				gifRegs.stat.FQC = 16;
-				//GIF FIFO
-				clearFIFOstuff(true);
-			}			
 			break;
 		}
 		default:

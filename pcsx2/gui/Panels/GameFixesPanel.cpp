@@ -53,10 +53,6 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			wxEmptyString
 		},
 		{
-			_("FFX videos fix - Fixes bad graphics overlay in FFX videos."),
-			wxEmptyString
-		},
-		{
 			_("EE timing hack - Multi purpose hack. Try if all else fails."),
 			pxEt( L"Known to affect following games:\n * Digital Devil Saga (Fixes FMV and crashes)\n * SSX (Fixes bad graphics and crashes)\n * Resident Evil: Dead Aim (Causes garbled textures)"
 			)
@@ -85,7 +81,7 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			wxEmptyString
 		},
 		{
-			_("Enable the GIF FIFO (slower but needed for Hotwheels, Wallace and Gromit, DJ Hero)"),
+			_("Force GIF PATH3 transfers through FIFO (Fifa Street 2)"),
 			wxEmptyString
 		},
 		{
@@ -93,15 +89,11 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			wxEmptyString
 		},
 		{
-			_("VU I bit Hack avoid constant recompilation (Scarface The World Is Yours)"),
+			_("VU I bit Hack avoid constant recompilation in some games (Scarface The World Is Yours, Crash Tag Team Racing)"),
 			wxEmptyString
 		},
 		{
-			_("VU I bit Hack avoid constant recompilation (Crash Tag Team Racing)"),
-			wxEmptyString
-		},
-		{
-			_("VU0 Kickstart to avoid sync problems with VU1"),
+			_("VU Kickstart (Run ahead) to avoid sync problems when reading or writing VU registers"),
 			wxEmptyString
 		}
 	};

@@ -15,15 +15,19 @@
 
 #pragma once
 
-#include "Pcsx2Defs.h"
 #include "Utilities/Threading.h"
 #include "SaveState.h"
 
 extern Threading::MutexRecursive mtx_SPU2Status;
 
+enum class PS2Modes
+{
+	PS2,
+	PSX,
+};
+
 s32 SPU2init();
-s32 SPU2reset();
-s32 SPU2ps1reset();
+s32 SPU2reset(PS2Modes isRunningPSXMode);
 s32 SPU2open(void* pDsp);
 void SPU2close();
 void SPU2shutdown();
@@ -36,11 +40,9 @@ bool SPU2setupRecording(const std::string* filename);
 void SPU2endRecording();
 
 void SPU2async(u32 cycles);
-s32 SPU2freeze(int mode, freezeData* data);
+s32 SPU2freeze(FreezeAction mode, freezeData* data);
 void SPU2configure();
 
-
-void SPU2setDMABaseAddr(uptr baseaddr);
 void SPU2setSettingsDir(const char* dir);
 void SPU2setLogDir(const char* dir);
 void SPU2readDMA4Mem(u16* pMem, u32 size);
@@ -57,7 +59,5 @@ extern u32 lClocks;
 extern void SPU2writeLog(const char* action, u32 rmem, u16 value);
 extern void TimeUpdate(u32 cClocks);
 extern void SPU2_FastWrite(u32 rmem, u16 value);
-
-extern void LowPassFilterInit();
 
 //#define PCM24_S1_INTERLEAVE

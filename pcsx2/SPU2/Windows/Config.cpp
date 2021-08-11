@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2020  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -16,8 +16,6 @@
 #include "PrecompiledHeader.h"
 #include "SPU2/Global.h"
 #include "Dialogs.h"
-#include "Config.h"
-#include <math.h>
 
 #ifdef PCSX2_DEVBUILD
 static const int LATENCY_MAX = 3000;
@@ -31,18 +29,17 @@ static const int LATENCY_MIN_TS = 15;
 // MIXING
 int Interpolation = 5;
 /* values:
-		0: no interpolation (use nearest)
-		1. linear interpolation
-		2. cubic interpolation
-		3. hermite interpolation
-		4. catmull-rom interpolation
+		0: No interpolation (uses nearest)
+		1. Linear interpolation
+		2. Cubic interpolation
+		3. Hermite interpolation
+		4. Catmull-Rom interpolation
+		5. Gaussian interpolation
 */
-
-bool EffectsDisabled = false;
 
 float FinalVolume; // Global
 bool AdvancedVolumeControl;
-float VolumeAdjustFLdb; // decibels settings, cos audiophiles love that
+float VolumeAdjustFLdb; // Decibels settings, because audiophiles love that.
 float VolumeAdjustCdb;
 float VolumeAdjustFRdb;
 float VolumeAdjustBLdb;
@@ -50,7 +47,7 @@ float VolumeAdjustBRdb;
 float VolumeAdjustSLdb;
 float VolumeAdjustSRdb;
 float VolumeAdjustLFEdb;
-float VolumeAdjustFL; // linear coefs calcualted from decibels,
+float VolumeAdjustFL; // Linear coefficients calculated from decibels,
 float VolumeAdjustC;
 float VolumeAdjustFR;
 float VolumeAdjustBL;
@@ -59,12 +56,9 @@ float VolumeAdjustSL;
 float VolumeAdjustSR;
 float VolumeAdjustLFE;
 
-bool postprocess_filter_enabled = 1;
-bool postprocess_filter_dealias = false;
-
 // OUTPUT
 int SndOutLatencyMS = 100;
-int SynchMode = 0; // Time Stretch, Async or Disabled
+int SynchMode = 0; // Time Stretch, Async or Disabled.
 
 u32 OutputModule = 0;
 
@@ -86,8 +80,6 @@ void ReadSettings()
 {
 	Interpolation = CfgReadInt(L"MIXING", L"Interpolation", 5);
 
-	EffectsDisabled = CfgReadBool(L"MIXING", L"Disable_Effects", false);
-	postprocess_filter_dealias = CfgReadBool(L"MIXING", L"DealiasFilter", false);
 	FinalVolume = ((float)CfgReadInt(L"MIXING", L"FinalVolume", 100)) / 100;
 	if (FinalVolume > 1.0f)
 		FinalVolume = 1.0f;
@@ -115,20 +107,20 @@ void ReadSettings()
 	dplLevel = CfgReadInt(L"OUTPUT", L"DplDecodingLevel", 0);
 	SndOutLatencyMS = CfgReadInt(L"OUTPUT", L"Latency", 100);
 
-	if ((SynchMode == 0) && (SndOutLatencyMS < LATENCY_MIN_TS)) // can't use low-latency with timestretcher atm
+	if ((SynchMode == 0) && (SndOutLatencyMS < LATENCY_MIN_TS)) // Can't use low-latency with timestretcher at the moment.
 		SndOutLatencyMS = LATENCY_MIN_TS;
 	else if (SndOutLatencyMS < LATENCY_MIN)
 		SndOutLatencyMS = LATENCY_MIN;
 
 	wchar_t omodid[128];
 
-	// portaudio occasionally has issues selecting the proper default audio device.
-	// let's use xaudio2 until this is sorted (rama)
+	// Portaudio occasionally has issues selecting the proper default audio device.
+	// Let's use xaudio2 until this is sorted (rama).
 
 	//	CfgReadStr(L"OUTPUT", L"Output_Module", omodid, 127, PortaudioOut->GetIdent());
 	CfgReadStr(L"OUTPUT", L"Output_Module", omodid, 127, XAudio2Out->GetIdent());
 
-	// find the driver index of this module:
+	// Find the driver index of this module:
 	OutputModule = FindOutputModuleById(omodid);
 
 	CfgReadStr(L"DSP PLUGIN", L"Filename", dspPlugin, 255, L"");
@@ -164,8 +156,6 @@ void WriteSettings()
 {
 	CfgWriteInt(L"MIXING", L"Interpolation", Interpolation);
 
-	CfgWriteBool(L"MIXING", L"Disable_Effects", EffectsDisabled);
-	CfgWriteBool(L"MIXING", L"DealiasFilter", postprocess_filter_dealias);
 	CfgWriteInt(L"MIXING", L"FinalVolume", (int)(FinalVolume * 100 + 0.5f));
 
 	CfgWriteBool(L"MIXING", L"AdvancedVolumeControl", AdvancedVolumeControl);
@@ -227,12 +217,12 @@ BOOL CALLBACK ConfigProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		case WM_INITDIALOG:
 		{
 			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_RESETCONTENT, 0, 0);
-			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"0 - Nearest (Fastest/bad quality)");
-			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"1 - Linear (Simple/okay sound)");
-			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"2 - Cubic (Artificial highs)");
-			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"3 - Hermite (Better highs)");
-			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"4 - Catmull-Rom (PS2-like/slow)");
-			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"5 - Gaussian (SPU native)");
+			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"0 - Nearest (Fastest / worst quality)");
+			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"1 - Linear (Simple / okay sound)");
+			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"2 - Cubic (Fake highs / okay sound)");
+			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"3 - Hermite (Better highs / okay sound)");
+			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"4 - Catmull-Rom (PS2-like / good sound)");
+			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_ADDSTRING, 0, (LPARAM)L"5 - Gaussian (PS2-like / great sound)");
 			SendDialogMsg(hWnd, IDC_INTERPOLATE, CB_SETCURSEL, Interpolation, 0);
 
 			SendDialogMsg(hWnd, IDC_SYNCHMODE, CB_RESETCONTENT, 0, 0);
@@ -280,8 +270,6 @@ BOOL CALLBACK ConfigProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			EnableWindow(GetDlgItem(hWnd, IDC_OPEN_CONFIG_SOUNDTOUCH), (SynchMode == 0));
 			EnableWindow(GetDlgItem(hWnd, IDC_OPEN_CONFIG_DEBUG), DebugEnabled);
 
-			SET_CHECK(IDC_EFFECTS_DISABLE, EffectsDisabled);
-			SET_CHECK(IDC_DEALIASFILTER, postprocess_filter_dealias);
 			SET_CHECK(IDC_DEBUG_ENABLE, DebugEnabled);
 			SET_CHECK(IDC_DSP_ENABLE, dspPluginEnabled);
 		}
@@ -366,8 +354,6 @@ BOOL CALLBACK ConfigProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 					SoundtouchCfg::OpenDialog(hWnd);
 					break;
 
-					HANDLE_CHECK(IDC_EFFECTS_DISABLE, EffectsDisabled);
-					HANDLE_CHECK(IDC_DEALIASFILTER, postprocess_filter_dealias);
 					HANDLE_CHECK(IDC_DSP_ENABLE, dspPluginEnabled);
 					HANDLE_CHECKNB(IDC_DEBUG_ENABLE, DebugEnabled);
 					DebugConfig::EnableControls(hWnd);

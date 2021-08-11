@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2014  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -19,7 +19,7 @@
 #include "DebugTools/DebugInterface.h"
 #include "DebugTools/DisassemblyManager.h"
 
-class CtrlRegisterList: public wxScrolledWindow
+class CtrlRegisterList : public wxScrolledWindow
 {
 public:
 	CtrlRegisterList(wxWindow* parent, DebugInterface* _cpu);
@@ -38,15 +38,21 @@ public:
 		if (GetWindowStyle() & wxVSCROLL)
 			optimalSize.x += wxSystemSettings::GetMetric(wxSYS_VSCROLL_X);
 
-		return wxSize(optimalSize.x,0);
+		return wxSize(optimalSize.x, 0);
 	}
 
 	virtual wxSize DoGetBestClientSize() const
 	{
 		return GetMinClientSize();
 	}
+
 private:
-	enum RegisterChangeMode { LOWER64, UPPER64, CHANGE32 };
+	enum RegisterChangeMode
+	{
+		LOWER64,
+		UPPER64,
+		CHANGE32
+	};
 
 	void OnDraw(wxDC& dc);
 	void refreshChangedRegs();
@@ -69,9 +75,10 @@ private:
 	std::vector<int> currentRows;
 
 	DebugInterface* cpu;
-	int rowHeight,charWidth;
+	int rowHeight, charWidth;
 	u32 lastPc;
 	int category;
 	int maxBits;
 	bool resolvePointerStrings;
+	bool displayVU0FAsFloat;
 };

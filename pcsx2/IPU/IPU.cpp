@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -41,7 +41,7 @@ void IPUWorker();
 
 // Quantization matrix
 static rgb16_t vqclut[16];			//clut conversion table
-static u8 s_thresh[2];				//thresholds for color conversions
+static u16 s_thresh[2];				//thresholds for color conversions
 int coded_block_pattern = 0;
 
 alignas(16) static u8 indx4[16*16/2];
@@ -659,9 +659,9 @@ static __ri bool ipuPACK(tIPU_CMD_CSC csc)
 
 static void ipuSETTH(u32 val)
 {
-	s_thresh[0] = (val & 0xff);
-	s_thresh[1] = ((val >> 16) & 0xff);
-	IPU_LOG("SETTH (Set threshold value)command %x.", val&0xff00ff);
+	s_thresh[0] = (val & 0x1ff);
+	s_thresh[1] = ((val >> 16) & 0x1ff);
+	IPU_LOG("SETTH (Set threshold value)command %x.", val&0x1ff01ff);
 }
 
 // --------------------------------------------------------------------------------------

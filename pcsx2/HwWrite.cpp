@@ -26,6 +26,8 @@
 #include "SPU2/spu2.h"
 #include "R3000A.h"
 
+#include "ConsoleLogger.h"
+
 using namespace R5900;
 
 // Shift the middle 8 bits (bits 4-12) into the lower 8 bits.
@@ -111,9 +113,8 @@ void __fastcall _hwWrite32( u32 mem, u32 value )
 				icase(GIF_MODE)
 				{
 					gifRegs.mode.write(value);
-
 					//Need to kickstart the GIF if the M3R mask comes off
-					if (gifRegs.stat.M3R == 1 && gifRegs.mode.M3R == 0 && gifch.chcr.STR)
+					if (gifRegs.stat.M3R == 1 && gifRegs.mode.M3R == 0 && (gifch.chcr.STR || gif_fifo.fifoSize))
 					{
 						DevCon.Warning("GIF Mode cancelling P3 Disable");
 						CPU_INT(DMAC_GIF, 8);
@@ -184,7 +185,7 @@ void __fastcall _hwWrite32( u32 mem, u32 value )
 						//pgifInit();
 						psxReset();
 						PSXCLK =  33868800;
-						SPU2ps1reset();
+						SPU2reset(PS2Modes::PSX);
 						setPs1CDVDSpeed(cdvd.Speed);
 						psxHu32(0x1f801450) = 0x8;
 						psxHu32(0x1f801078) = 1;
@@ -253,6 +254,8 @@ void __fastcall _hwWrite32( u32 mem, u32 value )
 				default:
 					// TODO: psx add the real address in a sbus mcase
 					if (((mem & 0x1FFFFFFF) >= EEMemoryMap::SBUS_PS1_Start) && ((mem & 0x1FFFFFFF) < EEMemoryMap::SBUS_PS1_End)) {
+						// Tharr be console spam here! Need to figure out how to print what mode
+						//pgifConLog(L"Pgif DMA: set mode");.
 						PGIFw((mem & 0x1FFFFFFF), value);
 						return;
 					}
