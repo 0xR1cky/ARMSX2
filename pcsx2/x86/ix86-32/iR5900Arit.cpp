@@ -24,8 +24,7 @@ using namespace x86Emitter;
 
 namespace R5900 {
 namespace Dynarec {
-namespace OpcodeImpl
-{
+namespace OpcodeImpl {
 
 /*********************************************************
 * Register arithmetic                                    *
@@ -38,20 +37,20 @@ namespace OpcodeImpl
 
 namespace Interp = R5900::Interpreter::OpcodeImpl;
 
-REC_FUNC_DEL(ADD, _Rd_);
-REC_FUNC_DEL(ADDU, _Rd_);
-REC_FUNC_DEL(DADD, _Rd_);
+REC_FUNC_DEL(ADD,   _Rd_);
+REC_FUNC_DEL(ADDU,  _Rd_);
+REC_FUNC_DEL(DADD,  _Rd_);
 REC_FUNC_DEL(DADDU, _Rd_);
-REC_FUNC_DEL(SUB, _Rd_);
-REC_FUNC_DEL(SUBU, _Rd_);
-REC_FUNC_DEL(DSUB, _Rd_);
+REC_FUNC_DEL(SUB,   _Rd_);
+REC_FUNC_DEL(SUBU,  _Rd_);
+REC_FUNC_DEL(DSUB,  _Rd_);
 REC_FUNC_DEL(DSUBU, _Rd_);
-REC_FUNC_DEL(AND, _Rd_);
-REC_FUNC_DEL(OR, _Rd_);
-REC_FUNC_DEL(XOR, _Rd_);
-REC_FUNC_DEL(NOR, _Rd_);
-REC_FUNC_DEL(SLT, _Rd_);
-REC_FUNC_DEL(SLTU, _Rd_);
+REC_FUNC_DEL(AND,   _Rd_);
+REC_FUNC_DEL(OR,    _Rd_);
+REC_FUNC_DEL(XOR,   _Rd_);
+REC_FUNC_DEL(NOR,   _Rd_);
+REC_FUNC_DEL(SLT,   _Rd_);
+REC_FUNC_DEL(SLTU,  _Rd_);
 
 #else
 
@@ -63,7 +62,7 @@ void recADD_const()
 
 void recADD_constv(int info, int creg, u32 vreg)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	s32 cval = g_cpuConstRegs[creg].SL[0];
 
@@ -88,7 +87,7 @@ void recADD_constt(int info)
 // nothing is constant
 void recADD_(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	xMOV(eax, ptr32[&cpuRegs.GPR.r[_Rs_].SL[0]]);
 	if (_Rs_ == _Rt_)
@@ -98,7 +97,7 @@ void recADD_(int info)
 	eeSignExtendTo(_Rd_);
 }
 
-EERECOMPILE_CODE0(ADD, XMMINFO_WRITED|XMMINFO_READS|XMMINFO_READT);
+EERECOMPILE_CODE0(ADD, XMMINFO_WRITED | XMMINFO_READS | XMMINFO_READT);
 
 //// ADDU
 void recADDU(void)
@@ -114,25 +113,51 @@ void recDADD_const(void)
 
 void recDADD_constv(int info, int creg, u32 vreg)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	GPR_reg64 cval = g_cpuConstRegs[creg];
 
-	if (_Rd_ == vreg) {
+#ifdef __M_X86_64
+	if (_Rd_ == vreg)
+	{
+		if (!cval.SD[0])
+			return; // no-op
+		xImm64Op(xADD, ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], rax, cval.SD[0]);
+	}
+	else
+	{
+		if (cval.SD[0])
+		{
+			xMOV64(rax, cval.SD[0]);
+			xADD(rax, ptr64[&cpuRegs.GPR.r[vreg].SD[0]]);
+		}
+		else
+		{
+			xMOV(rax, ptr64[&cpuRegs.GPR.r[vreg].SD[0]]);
+		}
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], rax);
+	}
+#else
+	if (_Rd_ == vreg)
+	{
 		if (!cval.SD[0])
 			return; // no-op
 		xADD(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], cval.SL[0]);
 		xADC(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], cval.SL[1]);
-	} else {
+	}
+	else
+	{
 		xMOV(eax, ptr32[&cpuRegs.GPR.r[vreg].SL[0]]);
 		xMOV(edx, ptr32[&cpuRegs.GPR.r[vreg].SL[1]]);
-		if (cval.SD[0]) {
+		if (cval.SD[0])
+		{
 			xADD(eax, cval.SL[0]);
 			xADC(edx, cval.SL[1]);
 		}
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
 	}
+#endif
 }
 
 void recDADD_consts(int info)
@@ -147,15 +172,41 @@ void recDADD_constt(int info)
 
 void recDADD_(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	u32 rs = _Rs_, rt = _Rt_;
 	if (_Rd_ == _Rt_)
 		rs = _Rt_, rt = _Rs_;
 
+#ifdef __M_X86_64
+	if (_Rd_ == _Rs_ && _Rs_ == _Rt_)
+	{
+		xSHL(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], 1);
+		return;
+	}
+
+	xMOV(rax, ptr64[&cpuRegs.GPR.r[rt].SD[0]]);
+
+	if (_Rd_ == rs)
+	{
+		xADD(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], rax);
+		return;
+	}
+	else if (rs == rt)
+	{
+		xADD(rax, rax);
+	}
+	else
+	{
+		xADD(rax, ptr32[&cpuRegs.GPR.r[rs].SD[0]]);
+	}
+
+	xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], rax);
+#else
 	xMOV(eax, ptr32[&cpuRegs.GPR.r[rt].SL[0]]);
 
-	if (_Rd_ == _Rs_ && _Rs_ == _Rt_) {
+	if (_Rd_ == _Rs_ && _Rs_ == _Rt_)
+	{
 		xSHLD(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], eax, 1);
 		xSHL(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], 1);
 		return;
@@ -163,23 +214,29 @@ void recDADD_(int info)
 
 	xMOV(edx, ptr32[&cpuRegs.GPR.r[rt].SL[1]]);
 
-	if (_Rd_ == rs) {
+	if (_Rd_ == rs)
+	{
 		xADD(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 		xADC(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
 		return;
-	} else if (rs == rt) {
+	}
+	else if (rs == rt)
+	{
 		xADD(eax, eax);
 		xADC(edx, edx);
-	} else {
+	}
+	else
+	{
 		xADD(eax, ptr32[&cpuRegs.GPR.r[rs].SL[0]]);
 		xADC(edx, ptr32[&cpuRegs.GPR.r[rs].SL[1]]);
 	}
 
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
+#endif
 }
 
-EERECOMPILE_CODE0(DADD, XMMINFO_WRITED|XMMINFO_READS|XMMINFO_READT);
+EERECOMPILE_CODE0(DADD, XMMINFO_WRITED | XMMINFO_READS | XMMINFO_READT);
 
 //// DADDU
 void recDADDU(void)
@@ -196,7 +253,7 @@ void recSUB_const()
 
 void recSUB_consts(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	s32 sval = g_cpuConstRegs[_Rs_].SL[0];
 
@@ -207,7 +264,7 @@ void recSUB_consts(int info)
 
 void recSUB_constt(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	s32 tval = g_cpuConstRegs[_Rt_].SL[0];
 
@@ -219,11 +276,16 @@ void recSUB_constt(int info)
 
 void recSUB_(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
-	if (_Rs_ == _Rt_) {
+	if (_Rs_ == _Rt_)
+	{
+#ifdef __M_X86_64
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], 0);
+#else
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], 0);
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], 0);
+#endif
 		return;
 	}
 
@@ -232,7 +294,7 @@ void recSUB_(int info)
 	eeSignExtendTo(_Rd_);
 }
 
-EERECOMPILE_CODE0(SUB, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(SUB, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 //// SUBU
 void recSUBU(void)
@@ -248,11 +310,26 @@ void recDSUB_const()
 
 void recDSUB_consts(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	GPR_reg64 sval = g_cpuConstRegs[_Rs_];
 
-	if (!sval.SD[0] && _Rd_ == _Rt_) {
+#ifdef __M_X86_64
+	if (!sval.SD[0] && _Rd_ == _Rt_)
+	{
+		xNEG(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]]);
+		return;
+	}
+	else
+	{
+		xMOV64(rax, sval.SD[0]);
+	}
+
+	xSUB(rax, ptr32[&cpuRegs.GPR.r[_Rt_].SD[0]]);
+	xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SL[0]], rax);
+#else
+	if (!sval.SD[0] && _Rd_ == _Rt_)
+	{
 		/* To understand this 64-bit negate, consider that a negate in 2's complement
 		 * is a NOT then an ADD 1.  The upper word should only have the NOT stage unless
 		 * the ADD overflows.  The ADD only overflows if the lower word is 0.
@@ -263,7 +340,9 @@ void recDSUB_consts(int info)
 		xADC(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], 0);
 		xNEG(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]]);
 		return;
-	} else {
+	}
+	else
+	{
 		xMOV(eax, sval.SL[0]);
 		xMOV(edx, sval.SL[1]);
 	}
@@ -272,42 +351,85 @@ void recDSUB_consts(int info)
 	xSBB(edx, ptr32[&cpuRegs.GPR.r[_Rt_].SL[1]]);
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
+#endif
 }
 
 void recDSUB_constt(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	GPR_reg64 tval = g_cpuConstRegs[_Rt_];
 
-	if (_Rd_ == _Rs_) {
+#ifdef __M_X86_64
+	if (_Rd_ == _Rs_)
+	{
+		xImm64Op(xSUB, ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], rax, tval.SD[0]);
+	}
+	else
+	{
+		xMOV(rax, ptr64[&cpuRegs.GPR.r[_Rs_].SD[0]]);
+		if (tval.SD[0])
+		{
+			xImm64Op(xSUB, rax, rdx, tval.SD[0]);
+		}
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SL[0]], rax);
+	}
+#else
+	if (_Rd_ == _Rs_)
+	{
 		xSUB(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], tval.SL[0]);
 		xSBB(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], tval.SL[1]);
-	} else {
+	}
+	else
+	{
 		xMOV(eax, ptr32[&cpuRegs.GPR.r[_Rs_].SL[0]]);
 		xMOV(edx, ptr32[&cpuRegs.GPR.r[_Rs_].SL[1]]);
-		if (tval.SD[0]) {
+		if (tval.SD[0])
+		{
 			xSUB(eax, tval.SL[0]);
 			xSBB(edx, tval.SL[1]);
 		}
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
 	}
+#endif
 }
 
 void recDSUB_(int info)
 {
-	pxAssert( !(info&PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
-	if (_Rs_ == _Rt_) {
+#ifdef __M_X86_64
+	if (_Rs_ == _Rt_)
+	{
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], 0);
+	}
+	else if (_Rd_ == _Rs_)
+	{
+		xMOV(rax, ptr64[&cpuRegs.GPR.r[_Rt_].SD[0]]);
+		xSUB(ptr64[&cpuRegs.GPR.r[_Rd_].SD[0]], rax);
+	}
+	else
+	{
+		xMOV(rax, ptr64[&cpuRegs.GPR.r[_Rs_].SD[0]]);
+		xSUB(rax, ptr64[&cpuRegs.GPR.r[_Rt_].SD[0]]);
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].SL[0]], rax);
+	}
+#else
+	if (_Rs_ == _Rt_)
+	{
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], 0);
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], 0);
-	} else if (_Rd_ == _Rs_) {
+	}
+	else if (_Rd_ == _Rs_)
+	{
 		xMOV(eax, ptr32[&cpuRegs.GPR.r[_Rt_].SL[0]]);
 		xMOV(edx, ptr32[&cpuRegs.GPR.r[_Rt_].SL[1]]);
 		xSUB(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 		xSBB(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
-	} else {
+	}
+	else
+	{
 		xMOV(eax, ptr32[&cpuRegs.GPR.r[_Rs_].SL[0]]);
 		xMOV(edx, ptr32[&cpuRegs.GPR.r[_Rs_].SL[1]]);
 		xSUB(eax, ptr32[&cpuRegs.GPR.r[_Rt_].SL[0]]);
@@ -315,14 +437,183 @@ void recDSUB_(int info)
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[0]], eax);
 		xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].SL[1]], edx);
 	}
+#endif
 }
 
-EERECOMPILE_CODE0(DSUB, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(DSUB, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 //// DSUBU
 void recDSUBU(void)
 {
 	recDSUB();
+}
+
+enum class LogicalOp
+{
+	AND,
+	OR,
+	XOR,
+	NOR
+};
+
+static void recLogicalOp_constv(LogicalOp op, int info, int creg, u32 vreg)
+{
+	pxAssert(!(info & PROCESS_EE_XMM));
+
+	xImpl_G1Logic bad{};
+	const xImpl_G1Logic& xOP = op == LogicalOp::AND ? xAND
+	                         : op == LogicalOp::OR  ? xOR
+	                         : op == LogicalOp::XOR ? xXOR
+	                         : op == LogicalOp::NOR ? xOR : bad;
+	s64 fixedInput, fixedOutput, identityInput;
+	bool hasFixed = true;
+	switch (op)
+	{
+		case LogicalOp::AND:
+			fixedInput = 0;
+			fixedOutput = 0;
+			identityInput = -1;
+			break;
+		case LogicalOp::OR:
+			fixedInput = -1;
+			fixedOutput = -1;
+			identityInput = 0;
+			break;
+		case LogicalOp::XOR:
+			hasFixed = false;
+			identityInput = 0;
+			break;
+		case LogicalOp::NOR:
+			fixedInput = -1;
+			fixedOutput = 0;
+			identityInput = 0;
+			break;
+		default:
+			pxAssert(0);
+	}
+
+	GPR_reg64 cval = g_cpuConstRegs[creg];
+#ifdef __M_X86_64
+	if (hasFixed && cval.SD[0] == fixedInput)
+	{
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], fixedOutput);
+	}
+	else if (_Rd_ == vreg)
+	{
+		if (cval.SD[0] != identityInput)
+			xImm64Op(xOP, ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], rax, cval.UD[0]);
+		if (op == LogicalOp::NOR)
+			xNOT(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]]);
+	}
+	else
+	{
+		if (cval.SD[0] != identityInput)
+		{
+			xMOV64(rax, cval.SD[0]);
+			xOP(rax, ptr32[&cpuRegs.GPR.r[vreg].UD[0]]);
+		}
+		else
+		{
+			xMOV(rax, ptr32[&cpuRegs.GPR.r[vreg].UD[0]]);
+		}
+		if (op == LogicalOp::NOR)
+			xNOT(rax);
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], rax);
+	}
+#else
+	for (int i = 0; i < 2; i++)
+	{
+		if (hasFixed && cval.SL[i] == (s32)fixedInput)
+		{
+			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], (s32)fixedOutput);
+		}
+		else if (_Rd_ == vreg)
+		{
+			if (cval.SL[i] != identityInput)
+				xOP(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], cval.UL[i]);
+			if (op == LogicalOp::NOR)
+				xNOT(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]]);
+		}
+		else
+		{
+			xMOV(eax, ptr32[&cpuRegs.GPR.r[vreg].UL[i]]);
+			if (cval.SL[i] != identityInput)
+				xOP(eax, cval.UL[i]);
+			if (op == LogicalOp::NOR)
+				xNOT(eax);
+			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
+		}
+	}
+#endif
+}
+
+static void recLogicalOp(LogicalOp op, int info)
+{
+	pxAssert(!(info & PROCESS_EE_XMM));
+
+	xImpl_G1Logic bad{};
+	const xImpl_G1Logic& xOP = op == LogicalOp::AND ? xAND
+	                         : op == LogicalOp::OR  ? xOR
+	                         : op == LogicalOp::XOR ? xXOR
+	                         : op == LogicalOp::NOR ? xOR : bad;
+	pxAssert(&xOP != &bad);
+
+	u32 rs = _Rs_, rt = _Rt_;
+	if (_Rd_ == _Rt_)
+		rs = _Rt_, rt = _Rs_;
+
+#ifdef __M_X86_64
+	if (op == LogicalOp::XOR && rs == rt)
+	{
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], 0);
+	}
+	else if (_Rd_ == rs)
+	{
+		if (rs != rt)
+		{
+			xMOV(rax, ptr64[&cpuRegs.GPR.r[rt].UD[0]]);
+			xOP(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], rax);
+		}
+		if (op == LogicalOp::NOR)
+			xNOT(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]]);
+	}
+	else
+	{
+		xMOV(rax, ptr64[&cpuRegs.GPR.r[rs].UD[0]]);
+		if (rs != rt)
+			xOP(rax, ptr64[&cpuRegs.GPR.r[rt].UD[0]]);
+		if (op == LogicalOp::NOR)
+			xNOT(rax);
+		xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], rax);
+	}
+#else
+	for (int i = 0; i < 2; i++)
+	{
+		if (op == LogicalOp::XOR && rs == rt)
+		{
+			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], 0);
+		}
+		else if (_Rd_ == rs)
+		{
+			if (rs != rt)
+			{
+				xMOV(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
+				xOP(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
+			}
+			if (op == LogicalOp::NOR)
+				xNOT(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]]);
+		}
+		else
+		{
+			xMOV(eax, ptr32[&cpuRegs.GPR.r[rs].UL[i]]);
+			if (rs != rt)
+				xOP(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
+			if (op == LogicalOp::NOR)
+				xNOT(eax);
+			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
+		}
+	}
+#endif
 }
 
 //// AND
@@ -331,61 +622,22 @@ void recAND_const()
 	g_cpuConstRegs[_Rd_].UD[0] = g_cpuConstRegs[_Rs_].UD[0] & g_cpuConstRegs[_Rt_].UD[0];
 }
 
-void recAND_constv(int info, int creg, u32 vreg)
-{
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	GPR_reg64 cval = g_cpuConstRegs[creg];
-
-	for (int i = 0; i < 2; i++) {
-		if (!cval.UL[i]) {
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], 0);
-		} else if (_Rd_ == vreg) {
-			if (cval.SL[i] != -1)
-				xAND(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], cval.UL[i]);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[vreg].UL[i]]);
-			if (cval.SL[i] != -1)
-				xAND(eax, cval.UL[i]);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
-}
-
 void recAND_consts(int info)
 {
-	recAND_constv(info, _Rs_, _Rt_);
+	recLogicalOp_constv(LogicalOp::AND, info, _Rs_, _Rt_);
 }
 
 void recAND_constt(int info)
 {
-	recAND_constv(info, _Rt_, _Rs_);
+	recLogicalOp_constv(LogicalOp::AND, info, _Rt_, _Rs_);
 }
 
 void recAND_(int info)
 {
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	u32 rs = _Rs_, rt = _Rt_;
-	if (_Rd_ == _Rt_)
-		rs = _Rt_, rt = _Rs_;
-
-	for (int i = 0; i < 2; i++) {
-		if (_Rd_ == rs) {
-			if (rs == rt)
-				continue;
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xAND(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rs].UL[i]]);
-			if (rs != rt)
-				xAND(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
+	recLogicalOp(LogicalOp::AND, info);
 }
 
-EERECOMPILE_CODE0(AND, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(AND, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 //// OR
 void recOR_const()
@@ -393,61 +645,22 @@ void recOR_const()
 	g_cpuConstRegs[_Rd_].UD[0] = g_cpuConstRegs[_Rs_].UD[0] | g_cpuConstRegs[_Rt_].UD[0];
 }
 
-void recOR_constv(int info, int creg, u32 vreg)
-{
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	GPR_reg64 cval = g_cpuConstRegs[creg];
-
-	for (int i = 0; i < 2; i++) {
-		if (cval.SL[i] == -1) {
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], -1);
-		} else if (_Rd_ == vreg) {
-			if (cval.UL[i])
-				xOR(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], cval.UL[i]);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[vreg].UL[i]]);
-			if (cval.UL[i])
-				xOR(eax, cval.UL[i]);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
-}
-
 void recOR_consts(int info)
 {
-	recOR_constv(info, _Rs_, _Rt_);
+	recLogicalOp_constv(LogicalOp::OR, info, _Rs_, _Rt_);
 }
 
 void recOR_constt(int info)
 {
-	recOR_constv(info, _Rt_, _Rs_);
+	recLogicalOp_constv(LogicalOp::OR, info, _Rt_, _Rs_);
 }
 
 void recOR_(int info)
 {
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	u32 rs = _Rs_, rt = _Rt_;
-	if (_Rd_ == _Rt_)
-		rs = _Rt_, rt = _Rs_;
-
-	for (int i = 0; i < 2; i++) {
-		if (_Rd_ == rs) {
-			if (rs == rt)
-				continue;
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xOR(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rs].UL[i]]);
-			if (rs != rt)
-				xOR(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
+	recLogicalOp(LogicalOp::OR, info);
 }
 
-EERECOMPILE_CODE0(OR, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(OR, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 //// XOR
 void recXOR_const()
@@ -455,124 +668,45 @@ void recXOR_const()
 	g_cpuConstRegs[_Rd_].UD[0] = g_cpuConstRegs[_Rs_].UD[0] ^ g_cpuConstRegs[_Rt_].UD[0];
 }
 
-void recXOR_constv(int info, int creg, u32 vreg)
-{
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	GPR_reg64 cval = g_cpuConstRegs[creg];
-
-	for (int i = 0; i < 2; i++) {
-		if (_Rd_ == vreg) {
-			if (cval.UL[i])
-				xXOR(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], cval.UL[i]);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[vreg].UL[i]]);
-			if (cval.UL[i])
-				xXOR(eax, cval.UL[i]);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
-}
-
 void recXOR_consts(int info)
 {
-	recXOR_constv(info, _Rs_, _Rt_);
+	recLogicalOp_constv(LogicalOp::XOR, info, _Rs_, _Rt_);
 }
 
 void recXOR_constt(int info)
 {
-	recXOR_constv(info, _Rt_, _Rs_);
+	recLogicalOp_constv(LogicalOp::XOR, info, _Rt_, _Rs_);
 }
 
 void recXOR_(int info)
 {
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	u32 rs = _Rs_, rt = _Rt_;
-	if (_Rd_ == _Rt_)
-		rs = _Rt_, rt = _Rs_;
-
-	for (int i = 0; i < 2; i++) {
-		if (rs == rt) {
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], 0);
-		} else if (_Rd_ == rs) {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xXOR(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rs].UL[i]]);
-			xXOR(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
+	recLogicalOp(LogicalOp::XOR, info);
 }
 
-EERECOMPILE_CODE0(XOR, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(XOR, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 //// NOR
 void recNOR_const()
 {
-	g_cpuConstRegs[_Rd_].UD[0] =~(g_cpuConstRegs[_Rs_].UD[0] | g_cpuConstRegs[_Rt_].UD[0]);
-}
-
-void recNOR_constv(int info, int creg, u32 vreg)
-{
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	GPR_reg64 cval = g_cpuConstRegs[creg];
-
-	for (int i = 0; i < 2; i++) {
-		if (_Rd_ == vreg) {
-			if (cval.UL[i])
-				xOR(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], cval.UL[i]);
-			xNOT(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]]);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[vreg].UL[i]]);
-			if (cval.UL[i])
-				xOR(eax, cval.UL[i]);
-			xNOT(eax);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
+	g_cpuConstRegs[_Rd_].UD[0] = ~(g_cpuConstRegs[_Rs_].UD[0] | g_cpuConstRegs[_Rt_].UD[0]);
 }
 
 void recNOR_consts(int info)
 {
-	recNOR_constv(info, _Rs_, _Rt_);
+	recLogicalOp_constv(LogicalOp::NOR, info, _Rs_, _Rt_);
 }
 
 void recNOR_constt(int info)
 {
-	recNOR_constv(info, _Rt_, _Rs_);
+	recLogicalOp_constv(LogicalOp::NOR, info, _Rt_, _Rs_);
 }
 
 void recNOR_(int info)
 {
-	pxAssert( !(info & PROCESS_EE_XMM) );
-
-	u32 rs = _Rs_, rt = _Rt_;
-	if (_Rd_ == _Rt_)
-		rs = _Rt_, rt = _Rs_;
-
-	for (int i = 0; i < 2; i++) {
-		if (_Rd_ == rs) {
-			if (rs == rt) {
-				xNOT(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]]);
-				continue;
-			}
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xOR(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-			xNOT(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]]);
-		} else {
-			xMOV(eax, ptr32[&cpuRegs.GPR.r[rs].UL[i]]);
-			if (rs != rt)
-				xOR(eax, ptr32[&cpuRegs.GPR.r[rt].UL[i]]);
-			xNOT(eax);
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[i]], eax);
-		}
-	}
+	recLogicalOp(LogicalOp::NOR, info);
 }
 
-EERECOMPILE_CODE0(NOR, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(NOR, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 //// SLT - test with silent hill, lemans
 void recSLT_const()
@@ -582,10 +716,18 @@ void recSLT_const()
 
 void recSLTs_const(int info, int sign, int st)
 {
-	pxAssert( !(info & PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
 
 	GPR_reg64 cval = g_cpuConstRegs[st ? _Rt_ : _Rs_];
 
+#ifdef __M_X86_64
+	const xImpl_Set& SET = st ? (sign ? xSETL : xSETB) : (sign ? xSETG : xSETA);
+
+	xXOR(eax, eax);
+	xImm64Op(xCMP, ptr64[&cpuRegs.GPR.r[st ? _Rs_ : _Rt_].UD[0]], rdx, cval.UD[0]);
+	SET(al);
+	xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], rax);
+#else
 	xMOV(eax, 1);
 
 	xCMP(ptr32[&cpuRegs.GPR.r[st ? _Rs_ : _Rt_].UL[1]], cval.UL[1]);
@@ -603,12 +745,21 @@ void recSLTs_const(int info, int sign, int st)
 
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[0]], eax);
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[1]], 0);
+#endif
 }
 
 void recSLTs_(int info, int sign)
 {
-	pxAssert( !(info & PROCESS_EE_XMM) );
+	pxAssert(!(info & PROCESS_EE_XMM));
+#ifdef __M_X86_64
+	const xImpl_Set& SET = sign ? xSETL : xSETB;
 
+	xXOR(eax, eax);
+	xMOV(rdx, ptr64[&cpuRegs.GPR.r[_Rs_].UD[0]]);
+	xCMP(rdx, ptr64[&cpuRegs.GPR.r[_Rt_].UD[0]]);
+	SET(al);
+	xMOV(ptr64[&cpuRegs.GPR.r[_Rd_].UD[0]], rax);
+#else
 	xMOV(eax, 1);
 
 	xMOV(edx, ptr32[&cpuRegs.GPR.r[_Rs_].UL[1]]);
@@ -628,6 +779,7 @@ void recSLTs_(int info, int sign)
 
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[0]], eax);
 	xMOV(ptr32[&cpuRegs.GPR.r[_Rd_].UL[1]], 0);
+#endif
 }
 
 void recSLT_consts(int info)
@@ -645,7 +797,7 @@ void recSLT_(int info)
 	recSLTs_(info, 1);
 }
 
-EERECOMPILE_CODE0(SLT, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(SLT, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 // SLTU - test with silent hill, lemans
 void recSLTU_const()
@@ -668,8 +820,10 @@ void recSLTU_(int info)
 	recSLTs_(info, 0);
 }
 
-EERECOMPILE_CODE0(SLTU, XMMINFO_READS|XMMINFO_READT|XMMINFO_WRITED);
+EERECOMPILE_CODE0(SLTU, XMMINFO_READS | XMMINFO_READT | XMMINFO_WRITED);
 
 #endif
 
-} } }
+} // namespace OpcodeImpl
+} // namespace Dynarec
+} // namespace R5900

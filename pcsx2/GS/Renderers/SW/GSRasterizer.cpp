@@ -17,6 +17,7 @@
 
 #include "PrecompiledHeader.h"
 #include "GSRasterizer.h"
+#include "common/General.h"
 
 int GSRasterizerData::s_counter = 0;
 
@@ -41,6 +42,7 @@ GSRasterizer::GSRasterizer(IDrawScanline* ds, int id, int threads, GSPerfMon* pe
 	, m_threads(threads)
 {
 	memset(&m_pixels, 0, sizeof(m_pixels));
+	m_primcount = 0;
 
 	m_thread_height = compute_best_thread_height(threads);
 
@@ -137,6 +139,7 @@ void GSRasterizer::Draw(GSRasterizerData* data)
 
 	m_pixels.actual = 0;
 	m_pixels.total = 0;
+	m_primcount = 0;
 
 	data->start = __rdtsc();
 
@@ -248,12 +251,14 @@ void GSRasterizer::Draw(GSRasterizerData* data)
 
 	m_pixels.sum += m_pixels.actual;
 
-	m_ds->EndDraw(data->frame, ticks, m_pixels.actual, m_pixels.total);
+	m_ds->EndDraw(data->frame, ticks, m_pixels.actual, m_pixels.total, m_primcount);
 }
 
 template <bool scissor_test>
 void GSRasterizer::DrawPoint(const GSVertexSW* vertex, int vertex_count, const uint32* index, int index_count)
 {
+	m_primcount++;
+
 	if (index != NULL)
 	{
 		for (int i = 0; i < index_count; i++, index++)
@@ -298,6 +303,8 @@ void GSRasterizer::DrawPoint(const GSVertexSW* vertex, int vertex_count, const u
 
 void GSRasterizer::DrawLine(const GSVertexSW* vertex, const uint32* index)
 {
+	m_primcount++;
+
 	const GSVertexSW& v0 = vertex[index[0]];
 	const GSVertexSW& v1 = vertex[index[1]];
 
@@ -414,6 +421,8 @@ static const uint8 s_ysort[8][4] =
 
 void GSRasterizer::DrawTriangle(const GSVertexSW* vertex, const uint32* index)
 {
+	m_primcount++;
+
 	GSVertexSW2 dv[3];
 	GSVertexSW2 edge;
 	GSVertexSW2 dedge;
@@ -605,6 +614,8 @@ void GSRasterizer::DrawTriangleSection(int top, int bottom, GSVertexSW2& edge, c
 
 void GSRasterizer::DrawTriangle(const GSVertexSW* vertex, const uint32* index)
 {
+	m_primcount++;
+
 	GSVertexSW dv[3];
 	GSVertexSW edge;
 	GSVertexSW dedge;
@@ -798,6 +809,8 @@ void GSRasterizer::DrawTriangleSection(int top, int bottom, GSVertexSW& edge, co
 
 void GSRasterizer::DrawSprite(const GSVertexSW* vertex, const uint32* index)
 {
+	m_primcount++;
+
 	const GSVertexSW& v0 = vertex[index[0]];
 	const GSVertexSW& v1 = vertex[index[1]];
 
@@ -1146,7 +1159,7 @@ void GSRasterizer::Flush(const GSVertexSW* vertex, const uint32* index, const GS
 void GSRasterizer::DrawScanline(int pixels, int left, int top, const GSVertexSW& scan)
 {
 	m_pixels.actual += pixels;
-	m_pixels.total += ((left + pixels + (PIXELS_PER_LOOP - 1)) & ~(PIXELS_PER_LOOP - 1)) - (left & (PIXELS_PER_LOOP - 1));
+	m_pixels.total += ((left + pixels + (PIXELS_PER_LOOP - 1)) & ~(PIXELS_PER_LOOP - 1)) - (left & ~(PIXELS_PER_LOOP - 1));
 	//m_pixels.total += ((left + pixels + (PIXELS_PER_LOOP - 1)) & ~(PIXELS_PER_LOOP - 1)) - left;
 
 	ASSERT(m_pixels.actual <= m_pixels.total);

@@ -28,13 +28,9 @@
 #include "DualShock3.h"
 #include "PAD.h"
 
-#include <Shlwapi.h>
-
 // Needed to know if raw input is available.  It requires XP or higher.
 #include "PADRawInput.h"
-#include <commdlg.h>
-#include <timeapi.h>
-#include "AppConfig.h"
+#include "Config.h"
 
 //max len 24 wchar_t
 const wchar_t* padTypes[] = {
@@ -68,7 +64,6 @@ struct GeneralSettingsBool
 // Ties together config data structure, config files, and general config
 // dialog.
 const GeneralSettingsBool BoolOptionsInfo[] = {
-	{L"Force Cursor Hide", IDC_FORCE_HIDE, 0},
 	{L"Mouse Unfocus", IDC_MOUSE_UNFOCUS, 1},
 	{L"Background", IDC_BACKGROUND, 1},
 	{L"Multiple Bindings", IDC_MULTIPLE_BINDING, 0},
@@ -342,7 +337,7 @@ void PADsetSettingsDir(const char* dir)
 
 	//uint targlen = MultiByteToWideChar(CP_ACP, 0, dir, -1, NULL, 0);
 	wxString iniName = "PAD.ini";
-	MultiByteToWideChar(CP_UTF8, 0, std::string(GetSettingsFolder().Combine(iniName).GetFullPath()).c_str(), -1, iniFileUSB, MAX_PATH * 2);
+	MultiByteToWideChar(CP_UTF8, 0, std::string(EmuFolders::Settings.Combine(iniName).GetFullPath()).c_str(), -1, iniFileUSB, MAX_PATH * 2);
 
 	createIniDir = false;
 
@@ -2678,7 +2673,6 @@ INT_PTR CALLBACK GeneralDialogProc(HWND hWnd, unsigned int msg, WPARAM wParam, L
 
 			AddTooltip(IDC_M_WM, hWnd);
 			AddTooltip(IDC_M_RAW, hWnd);
-			AddTooltip(IDC_M_DI, hWnd);
 			AddTooltip(IDC_MOUSE_UNFOCUS, hWnd);
 			AddTooltip(IDC_MULTIPLE_BINDING, hWnd);
 			AddTooltip(IDC_PAD_LIST, hWnd);

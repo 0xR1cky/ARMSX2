@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -14,9 +14,9 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "App.h"
-#include "AppAccelerators.h"
-#include "Dialogs/ConfigurationDialog.h"
+#include "gui/App.h"
+#include "gui/AppAccelerators.h"
+#include "gui/Dialogs/ConfigurationDialog.h"
 #include "ConfigurationPanels.h"
 
 #include <wx/spinctrl.h>
@@ -108,60 +108,52 @@ void Panels::FramelimiterPanel::AppStatusEvent_OnSettingsApplied()
 
 void Panels::FramelimiterPanel::ApplyConfigToGui( AppConfig& configToApply, int flags )
 {
-	const AppConfig::FramerateOptions& appfps( configToApply.Framerate );
+	const Pcsx2Config::FramerateOptions& appfps( configToApply.EmuOptions.Framerate );
 	const Pcsx2Config::GSOptions& gsconf( configToApply.EmuOptions.GS );
 
-	if( ! (flags & AppConfig::APPLY_FLAG_FROM_PRESET) ){	//Presets don't control these: only change if config doesn't come from preset.
+	if( ! (flags & AppConfig::APPLY_FLAG_FROM_PRESET) )
+	{	//Presets don't control these: only change if config doesn't come from preset.
 	
-		m_check_LimiterDisable->SetValue( !gsconf.FrameLimitEnable );
+		m_check_LimiterDisable->SetValue(!gsconf.FrameLimitEnable);
 
-		m_spin_TurboPct		->SetValue( appfps.TurboScalar.Raw );
-		m_spin_SlomoPct		->SetValue( appfps.SlomoScalar.Raw );
+		m_spin_TurboPct->SetValue(appfps.TurboScalar * 100.0);
+		m_spin_SlomoPct->SetValue(appfps.SlomoScalar * 100.0);
 
-		m_spin_TurboPct		->Enable( 1 );
-		m_spin_SlomoPct		->Enable( 1 );
+		m_spin_TurboPct->Enable(true);
+		m_spin_SlomoPct->Enable(true);
 	}
 
-	m_text_BaseNtsc		->ChangeValue( gsconf.FramerateNTSC.ToString() );
-	m_text_BasePal		->ChangeValue( gsconf.FrameratePAL.ToString() );
+	m_text_BaseNtsc->ChangeValue(wxString::FromDouble(gsconf.FramerateNTSC, 2));
+	m_text_BasePal->ChangeValue(wxString::FromDouble(gsconf.FrameratePAL, 2));
 
-	m_spin_NominalPct	->SetValue( appfps.NominalScalar.Raw );
-	m_spin_NominalPct	->Enable(!configToApply.EnablePresets);
+	m_spin_NominalPct->SetValue(appfps.NominalScalar * 100.0);
+	m_spin_NominalPct->Enable(!configToApply.EnablePresets);
 
-	// Vsync timing controls only on devel builds / via manual ini editing
-#ifdef PCSX2_DEVBUILD
-	m_text_BaseNtsc		->Enable(!configToApply.EnablePresets);
-	m_text_BasePal		->Enable(!configToApply.EnablePresets);
-#else
-	m_text_BaseNtsc		->Enable( 0 );
-	m_text_BasePal		->Enable( 0 );
-#endif
+	m_text_BaseNtsc->Enable(!configToApply.EnablePresets);
+	m_text_BasePal->Enable(!configToApply.EnablePresets);
 }
 
 void Panels::FramelimiterPanel::Apply()
 {
-	AppConfig::FramerateOptions& appfps( g_Conf->Framerate );
+	Pcsx2Config::FramerateOptions& appfps( g_Conf->EmuOptions.Framerate );
 	Pcsx2Config::GSOptions& gsconf( g_Conf->EmuOptions.GS );
 
 	gsconf.FrameLimitEnable	= !m_check_LimiterDisable->GetValue();
 
-	appfps.NominalScalar.Raw	= m_spin_NominalPct	->GetValue();
-	appfps.TurboScalar.Raw		= m_spin_TurboPct	->GetValue();
-	appfps.SlomoScalar.Raw		= m_spin_SlomoPct	->GetValue();
+	appfps.NominalScalar = static_cast<double>(m_spin_NominalPct->GetValue()) / 100.0;
+	appfps.TurboScalar = static_cast<double>(m_spin_TurboPct->GetValue()) / 100.0;
+	appfps.SlomoScalar = static_cast<double>(m_spin_SlomoPct->GetValue()) / 100.0;
 
-	try {
-		gsconf.FramerateNTSC	= Fixed100::FromString( m_text_BaseNtsc->GetValue() );
-		gsconf.FrameratePAL		= Fixed100::FromString( m_text_BasePal->GetValue() );
-	}
-	catch( Exception::ParseError& )
-	{
-		throw Exception::CannotApplySettings( this )
-			.SetDiagMsg(pxsFmt(
-				L"Error while parsing either NTSC or PAL framerate settings.\n\tNTSC Input = %s\n\tPAL Input  = %s",
-				WX_STR(m_text_BaseNtsc->GetValue()), WX_STR(m_text_BasePal->GetValue())
-			) )
-			.SetUserMsg(_t("Error while parsing either NTSC or PAL framerate settings.  Settings must be valid floating point numerics."));
-	}
+	wxString ntsc_framerate_string = m_text_BaseNtsc->GetValue();
+	wxString pal_framerate_string = m_text_BasePal->GetValue();
+
+	double framerate = 0.0;
+
+	if (ntsc_framerate_string.ToDouble(&framerate))
+		gsconf.FramerateNTSC = framerate;
+
+	if (pal_framerate_string.ToDouble(&framerate))
+		gsconf.FrameratePAL = framerate;
 
 	appfps.SanityCheck();
 
@@ -238,7 +230,7 @@ void Panels::FrameSkipPanel::AppStatusEvent_OnSettingsApplied()
 
 void Panels::FrameSkipPanel::ApplyConfigToGui( AppConfig& configToApply, int flags )
 {
-	const AppConfig::FramerateOptions& appfps( configToApply.Framerate );
+	const Pcsx2Config::FramerateOptions& appfps( configToApply.EmuOptions.Framerate );
 	const Pcsx2Config::GSOptions& gsconf( configToApply.EmuOptions.GS );
 
 	m_radio_SkipMode->SetSelection( appfps.SkipOnLimit ? 2 : (appfps.SkipOnTurbo ? 1 : 0) );
@@ -254,7 +246,7 @@ void Panels::FrameSkipPanel::ApplyConfigToGui( AppConfig& configToApply, int fla
 
 void Panels::FrameSkipPanel::Apply()
 {
-	AppConfig::FramerateOptions& appfps( g_Conf->Framerate );
+	Pcsx2Config::FramerateOptions& appfps( g_Conf->EmuOptions.Framerate );
 	Pcsx2Config::GSOptions& gsconf( g_Conf->EmuOptions.GS );
 
 	gsconf.FramesToDraw = m_spin_FramesToDraw->GetValue();
@@ -293,10 +285,11 @@ Panels::VideoPanel::VideoPanel( wxWindow* parent ) :
 {
 	wxPanelWithHelpers* left	= new wxPanelWithHelpers( this, wxVERTICAL );
 	wxPanelWithHelpers* right	= new wxPanelWithHelpers( this, wxVERTICAL );
-
+#ifdef  PCSX2_DEVBUILD
 	m_check_SynchronousGS = new pxCheckBox( left, _("Use Synchronized MTGS"),
 		_t("For troubleshooting potential bugs in the MTGS only, as it is potentially very slow.")
 	);
+#endif 
 
 	m_spinner_VsyncQueue = new wxSpinCtrl(left);
 	m_spinner_VsyncQueue->SetRange(0, 3);
@@ -304,7 +297,9 @@ Panels::VideoPanel::VideoPanel( wxWindow* parent ) :
 	m_restore_defaults = new wxButton(right, wxID_DEFAULT, _("Restore Defaults"));
 
 	m_spinner_VsyncQueue->SetToolTip( pxEt(L"Setting this to a lower value improves input lag, a value around 2 or 3 will slightly improve framerates. (Default is 2)"));
+#ifdef  PCSX2_DEVBUILD 
 	m_check_SynchronousGS->SetToolTip( pxEt( L"Enable this if you think MTGS thread sync is causing crashes or graphical errors. For debugging to see if GS is running at the correct speed."));
+#endif 
 
 	//GSWindowSettingsPanel* winpan = new GSWindowSettingsPanel( left );
 	//winpan->AddFrame(_("Display/Window"));
@@ -330,8 +325,10 @@ Panels::VideoPanel::VideoPanel( wxWindow* parent ) :
 	*s_vsyncs	+= Label(_("Vsyncs in MTGS Queue:")) | StdExpand();
 	*s_vsyncs	+= m_spinner_VsyncQueue | pxBorder(wxTOP, -2).Right();
 	*left		+= s_vsyncs | StdExpand();
+#ifdef  PCSX2_DEVBUILD 
 	*left		+= 2;
 	*left		+= m_check_SynchronousGS | StdExpand();
+#endif 
 
 	*s_table	+= left		| StdExpand();
 	*s_table	+= right	| StdExpand();
@@ -346,7 +343,7 @@ void Panels::VideoPanel::Defaults_Click(wxCommandEvent& evt)
 {
 	AppConfig config = *g_Conf;
 	config.EmuOptions.GS = Pcsx2Config::GSOptions();
-	config.Framerate = AppConfig::FramerateOptions();
+	config.EmuOptions.Framerate = Pcsx2Config::FramerateOptions();
 	VideoPanel::ApplyConfigToGui(config);
 	m_fpan->ApplyConfigToGui(config);
 	m_span->ApplyConfigToGui(config);
@@ -355,14 +352,16 @@ void Panels::VideoPanel::Defaults_Click(wxCommandEvent& evt)
 
 void Panels::VideoPanel::OnOpenWindowSettings( wxCommandEvent& evt )
 {
-	AppOpenDialog<Dialogs::ComponentsConfigDialog>( this );
+	AppOpenDialog<Dialogs::SysConfigDialog>( this );
 
 	// don't evt.skip, this prevents the Apply button from being activated. :)
 }
 
 void Panels::VideoPanel::Apply()
 {
+#ifdef  PCSX2_DEVBUILD 
 	g_Conf->EmuOptions.GS.SynchronousMTGS	= m_check_SynchronousGS->GetValue();
+#endif 
 	g_Conf->EmuOptions.GS.VsyncQueueSize = m_spinner_VsyncQueue->GetValue();
 }
 
@@ -372,10 +371,12 @@ void Panels::VideoPanel::AppStatusEvent_OnSettingsApplied()
 }
 
 void Panels::VideoPanel::ApplyConfigToGui( AppConfig& configToApply, int flags ){
-	
+
+#ifdef  PCSX2_DEVBUILD 
 	m_check_SynchronousGS->SetValue( configToApply.EmuOptions.GS.SynchronousMTGS );
-	m_spinner_VsyncQueue->SetValue( configToApply.EmuOptions.GS.VsyncQueueSize );
 	m_check_SynchronousGS->Enable(!configToApply.EnablePresets);
+#endif 
+	m_spinner_VsyncQueue->SetValue( configToApply.EmuOptions.GS.VsyncQueueSize );
 
 	if( flags & AppConfig::APPLY_FLAG_MANUALLY_PROPAGATE )
 	{

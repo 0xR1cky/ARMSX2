@@ -16,17 +16,15 @@
 #include "PrecompiledHeader.h"
 #include "Global.h"
 
-// For escape timer, so as not to break GS.
-#include <time.h>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
+
 #include "resource_pad.h"
 #include "InputManager.h"
 #include "PADConfig.h"
 #include "PAD.h"
-
-#define PADdefs
+#include "Host.h"
 
 #include "DeviceEnumerator.h"
 #ifdef _MSC_VER
@@ -34,12 +32,9 @@
 #include "HidDevice.h"
 #endif
 #include "KeyboardQueue.h"
-#include "svnrev.h"
 #include "DualShock3.h"
-#include "AppConfig.h"
-#include <timeapi.h>
-#include "Utilities/pxStreams.h"
-#include "AppCoreThread.h"
+
+#include "gui/AppCoreThread.h"
 
 #define WMA_FORCE_UPDATE (WM_APP + 0x537)
 #define FORCE_UPDATE_WPARAM ((WPARAM)0x74328943)
@@ -230,9 +225,9 @@ u8 Cap(int i)
 
 inline void ReleaseModifierKeys()
 {
-	QueueKeyEvent(VK_SHIFT, KEYRELEASE);
-	QueueKeyEvent(VK_MENU, KEYRELEASE);
-	QueueKeyEvent(VK_CONTROL, KEYRELEASE);
+	QueueKeyEvent(VK_SHIFT, HostKeyEvent::Type::KeyReleased);
+	QueueKeyEvent(VK_MENU, HostKeyEvent::Type::KeyReleased);
+	QueueKeyEvent(VK_CONTROL, HostKeyEvent::Type::KeyReleased);
 }
 
 // RefreshEnabledDevices() enables everything that can potentially
@@ -395,7 +390,7 @@ void ProcessButtonBinding(Binding* b, ButtonSum* sum, int value)
 		unsigned int t = timeGetTime();
 		if (t - LastCheck < 300)
 			return;
-		QueueKeyEvent(VK_TAB, KEYPRESS);
+		QueueKeyEvent(VK_TAB, HostKeyEvent::Type::KeyPressed);
 		LastCheck = t;
 	}
 
@@ -849,11 +844,6 @@ s32 PADinit()
 	}
 	int port = (flags & 3);
 
-#if defined(PCSX2_DEBUG) && defined(_MSC_VER)
-	int tmpFlag = _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG);
-	tmpFlag |= _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF;
-	_CrtSetDbgFlag(tmpFlag);
-#endif
 	for (int i = 2; i > 0; i--)
 	{
 		port = i;
@@ -958,7 +948,7 @@ ExtraWndProcResult StatusWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 			PrepareActivityState(LOWORD(wParam) != WA_INACTIVE);
 			break;
 		case WM_DESTROY:
-			QueueKeyEvent(VK_ESCAPE, KEYPRESS);
+			QueueKeyEvent(VK_ESCAPE, HostKeyEvent::Type::KeyPressed);
 			break;
 		case WM_KILLFOCUS:
 			PrepareActivityState(false);
@@ -971,27 +961,13 @@ ExtraWndProcResult StatusWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 	}
 	return CONTINUE_BLISSFULLY;
 }
-
-// All that's needed to force hiding the cursor in the proper thread.
-// Could have a special case elsewhere, but this make sure it's called
-// only once, rather than repeatedly.
-ExtraWndProcResult HideCursorProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam, LRESULT* output)
-{
-	ShowCursor(0);
-	return CONTINUE_BLISSFULLY_AND_RELEASE_PROC;
-}
-
 #endif
 
 void PADconfigure()
 {
-	HWND tmp = hWnd;
-	PADclose();
-	ScopedCoreThreadPause paused_core;
+	ScopedCoreThreadPause paused_core(SystemsMask::System_PAD);
 	Configure();
 	paused_core.AllowResume();
-	if(tmp != nullptr)
-		PADopen(tmp);
 }
 
 s32 PADopen(void* pDsp)
@@ -1043,11 +1019,6 @@ s32 PADopen(void* pDsp)
 				openCount = 0;
 				return -1;
 			}
-		}
-
-		if (config.forceHide)
-		{
-			hWndGSProc.Eat(HideCursorProc, 0);
 		}
 
 		windowThreadId = GetWindowThreadProcessId(hWndTop, 0);
@@ -1495,7 +1466,7 @@ u8 PADpoll(u8 value)
 	}
 }
 
-keyEvent* PADkeyEvent()
+HostKeyEvent* PADkeyEvent()
 {
 	// If running both pads, ignore every other call.  So if two keys pressed in same interval...
 	static char eventCount = 0;
@@ -1507,7 +1478,7 @@ keyEvent* PADkeyEvent()
 	eventCount = 0;
 
 	Update(2, 0);
-	static keyEvent ev;
+	static HostKeyEvent ev;
 	if (!GetQueuedKeyEvent(&ev))
 		return 0;
 
@@ -1517,7 +1488,7 @@ keyEvent* PADkeyEvent()
 	if (!activeWindow)
 		altDown = shiftDown = 0;
 
-	if (miceEnabled && (ev.key == VK_ESCAPE || (int)ev.key == -2) && ev.evt == KEYPRESS)
+	if (miceEnabled && (ev.key == VK_ESCAPE || (int)ev.key == -2) && ev.type == HostKeyEvent::Type::KeyPressed)
 	{
 		// Disable mouse/KB hooks on escape (before going into paused mode).
 		// This is a hack, since PADclose (which is called on pause) should enevtually also deactivate the
@@ -1539,7 +1510,7 @@ keyEvent* PADkeyEvent()
 	if (ev.key == VK_LSHIFT || ev.key == VK_RSHIFT || ev.key == VK_SHIFT)
 	{
 		ev.key = VK_SHIFT;
-		shiftDown = (ev.evt == KEYPRESS);
+		shiftDown = (ev.type == HostKeyEvent::Type::KeyReleased);
 	}
 	else if (ev.key == VK_LCONTROL || ev.key == VK_RCONTROL)
 	{
@@ -1548,7 +1519,7 @@ keyEvent* PADkeyEvent()
 	else if (ev.key == VK_LMENU || ev.key == VK_RMENU || ev.key == VK_SHIFT)
 	{
 		ev.key = VK_MENU;
-		altDown = (ev.evt == KEYPRESS);
+		altDown = (ev.type == HostKeyEvent::Type::KeyPressed);
 	}
 #endif
 	return &ev;

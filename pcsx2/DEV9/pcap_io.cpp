@@ -70,7 +70,7 @@ bool PCAPGetWin32Adapter(const char* name, PIP_ADAPTER_ADDRESSES adapter, std::u
 
 	DWORD dwStatus = GetAdaptersAddresses(
 		AF_UNSPEC,
-		GAA_FLAG_INCLUDE_PREFIX,
+		GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_GATEWAYS,
 		NULL,
 		AdapterInfo.get(),
 		&dwBufLen);
@@ -85,7 +85,7 @@ bool PCAPGetWin32Adapter(const char* name, PIP_ADAPTER_ADDRESSES adapter, std::u
 
 		DWORD dwStatus = GetAdaptersAddresses(
 			AF_UNSPEC,
-			GAA_FLAG_INCLUDE_PREFIX,
+			GAA_FLAG_INCLUDE_PREFIX | GAA_FLAG_INCLUDE_GATEWAYS,
 			NULL,
 			AdapterInfo.get(),
 			&dwBufLen);
@@ -298,7 +298,7 @@ int pcap_io_recv(void* packet, int max_len)
 
 	if ((pcap_next_ex(adhandle, &header, &pkt_data1)) > 0)
 	{
-		if (header->len > max_len)
+		if ((int)header->len > max_len)
 			return -1;
 
 		memcpy(packet, pkt_data1, header->len);
@@ -376,7 +376,10 @@ PCAPAdapter::PCAPAdapter()
 	if (PCAPGetWin32Adapter(config.Eth, &adapter, &buffer))
 		InitInternalServer(&adapter);
 	else
+	{
+		Console.Error("DEV9: Failed to get adapter information");
 		InitInternalServer(nullptr);
+	}
 #elif defined(__POSIX__)
 	ifaddrs adapter;
 	ifaddrs* buffer;
@@ -386,7 +389,10 @@ PCAPAdapter::PCAPAdapter()
 		freeifaddrs(buffer);
 	}
 	else
+	{
+		Console.Error("DEV9: Failed to get adapter information");
 		InitInternalServer(nullptr);
+	}
 #endif
 
 	if (pcap_io_init(config.Eth, config.EthApi == NetApi::PCAP_Switched, newMAC) == -1)
@@ -406,18 +412,18 @@ bool PCAPAdapter::isInitialised()
 bool PCAPAdapter::recv(NetPacket* pkt)
 {
 	int size = pcap_io_recv(pkt->buffer, sizeof(pkt->buffer));
-	if (size <= 0)
+	if (size > 0 && VerifyPkt(pkt, size))
 	{
-		return false;
+		InspectRecv(pkt);
+		return true;
 	}
 	else
-	{
-		return VerifyPkt(pkt, size);
-	}
+		return false;
 }
 //sends the packet .rv :true success
 bool PCAPAdapter::send(NetPacket* pkt)
 {
+	InspectSend(pkt);
 	if (NetAdapter::send(pkt))
 		return true;
 

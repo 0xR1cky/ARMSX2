@@ -15,7 +15,8 @@
 
 #pragma once
 
-#include "Utilities/TraceLog.h"
+#include "common/TraceLog.h"
+#include "Config.h"
 #include "Memory.h"
 
 extern FILE *emuLog;

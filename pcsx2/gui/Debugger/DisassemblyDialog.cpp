@@ -15,8 +15,8 @@
 
 #include "PrecompiledHeader.h"
 
-#include "App.h"
-#include "MainFrame.h"
+#include "gui/App.h"
+#include "gui/MainFrame.h"
 #include "DisassemblyDialog.h"
 #include "DebugTools/DebugInterface.h"
 #include "DebugTools/DisassemblyManager.h"
@@ -152,7 +152,7 @@ void CpuTabPage::reloadSymbolMap()
 		for (size_t i = 0; i < funcs.size(); i++)
 		{
 			wxString name = wxString(funcs[i].name.c_str(), wxConvUTF8);
-			functionList->Append(name, (void*)funcs[i].address);
+			functionList->Append(name, reinterpret_cast<void*>(static_cast<uintptr_t>(funcs[i].address)));
 		}
 	}
 }

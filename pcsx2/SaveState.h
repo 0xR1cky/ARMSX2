@@ -16,7 +16,7 @@
 #pragma once
 
 #include "System.h"
-#include "Utilities/Exceptions.h"
+#include "common/Exceptions.h"
 
 enum class FreezeAction
 {
@@ -31,7 +31,7 @@ enum class FreezeAction
 //  the lower 16 bit value.  IF the change is breaking of all compatibility with old
 //  states, increment the upper 16 bit value, and clear the lower 16 bits to 0.
 
-static const u32 g_SaveVersion = (0x9A22 << 16) | 0x0000;
+static const u32 g_SaveVersion = (0x9A25 << 16) | 0x0000;
 
 // the freezing data between submodules and core
 // an interesting thing to note is that this dates back from before plugin
@@ -39,15 +39,19 @@ static const u32 g_SaveVersion = (0x9A22 << 16) | 0x0000;
 // struct was system dependant as the size of int differs between systems, thus
 // subsystems making use of freezeData, like GSDump and save states aren't
 // necessarily portable; we might want to investigate this in the future -- govanify
-typedef struct
+struct freezeData
 {
     int size;
-    s8 *data;
-} freezeData;
+    u8 *data;
+};
 
-// this function is meant to be used in the place of GSfreeze, and provides a safe layer
-// between the GS saving function and the MTGS's needs. :)
-extern s32 CALLBACK gsSafeFreeze( int mode, freezeData *data );
+class ArchiveEntryList;
+
+// Wrappers to generate a save state compatible across all frontends.
+// These functions assume that the caller has paused the core thread.
+extern void SaveState_DownloadState(ArchiveEntryList* destlist);
+extern void SaveState_ZipToDisk(ArchiveEntryList* srclist, const wxString& filename);
+extern void SaveState_UnzipFromDisk(const wxString& filename);
 
 // --------------------------------------------------------------------------------------
 //  SaveStateBase class
@@ -173,6 +177,124 @@ protected:
 	// internal emulation frame count than what it was at the beginning of the
 	// original recording
 	void InputRecordingFreeze();
+};
+
+// --------------------------------------------------------------------------------------
+//  ArchiveEntry
+// --------------------------------------------------------------------------------------
+class ArchiveEntry
+{
+protected:
+	wxString	m_filename;
+	uptr		m_dataidx;
+	size_t		m_datasize;
+
+public:
+	ArchiveEntry(const wxString& filename = wxEmptyString)
+		: m_filename(filename)
+	{
+		m_dataidx = 0;
+		m_datasize = 0;
+	}
+
+	virtual ~ArchiveEntry() = default;
+
+	ArchiveEntry& SetDataIndex(uptr idx)
+	{
+		m_dataidx = idx;
+		return *this;
+	}
+
+	ArchiveEntry& SetDataSize(size_t size)
+	{
+		m_datasize = size;
+		return *this;
+	}
+
+	wxString GetFilename() const
+	{
+		return m_filename;
+	}
+
+	uptr GetDataIndex() const
+	{
+		return m_dataidx;
+	}
+
+	uint GetDataSize() const
+	{
+		return m_datasize;
+	}
+};
+
+typedef SafeArray< u8 > ArchiveDataBuffer;
+
+// --------------------------------------------------------------------------------------
+//  ArchiveEntryList
+// --------------------------------------------------------------------------------------
+class ArchiveEntryList
+{
+	DeclareNoncopyableObject(ArchiveEntryList);
+
+protected:
+	std::vector<ArchiveEntry> m_list;
+	std::unique_ptr<ArchiveDataBuffer> m_data;
+
+public:
+	virtual ~ArchiveEntryList() = default;
+
+	ArchiveEntryList() {}
+
+	ArchiveEntryList(ArchiveDataBuffer* data)
+		: m_data(data)
+	{
+	}
+
+	ArchiveEntryList(ArchiveDataBuffer& data)
+		: m_data(&data)
+	{
+	}
+
+	const VmStateBuffer* GetBuffer() const
+	{
+		return m_data.get();
+	}
+
+	VmStateBuffer* GetBuffer()
+	{
+		return m_data.get();
+	}
+
+	u8* GetPtr(uint idx)
+	{
+		return &(*m_data)[idx];
+	}
+
+	const u8* GetPtr(uint idx) const
+	{
+		return &(*m_data)[idx];
+	}
+
+	ArchiveEntryList& Add(const ArchiveEntry& src)
+	{
+		m_list.push_back(src);
+		return *this;
+	}
+
+	size_t GetLength() const
+	{
+		return m_list.size();
+	}
+
+	ArchiveEntry& operator[](uint idx)
+	{
+		return m_list[idx];
+	}
+
+	const ArchiveEntry& operator[](uint idx) const
+	{
+		return m_list[idx];
+	}
 };
 
 // --------------------------------------------------------------------------------------

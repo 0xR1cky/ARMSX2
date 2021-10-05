@@ -15,17 +15,19 @@
 
 #include "PrecompiledHeader.h"
 
-#include "AppSaveStates.h"
+#include "gui/AppSaveStates.h"
 #include "Counters.h"
 
 #ifndef DISABLE_RECORDING
 
-#include "AppGameDatabase.h"
+#include "gui/AppGameDatabase.h"
 #include "DebugTools/Debug.h"
 
 #include "InputRecording.h"
 #include "InputRecordingControls.h"
 #include "Utilities/InputRecordingLogger.h"
+
+#include <fmt/format.h>
 
 #endif
 
@@ -372,7 +374,7 @@ bool InputRecording::Play(wxWindow* parent, wxString filename)
 	// Either load the savestate, or restart the game
 	if (inputRecordingData.FromSaveState())
 	{
-		if (!CoreThread.IsOpen())
+		if (!GetCoreThread().IsOpen())
 		{
 			inputRec::consoleLog("Game is not open, aborting playing input recording which starts on a save-state.");
 			inputRecordingData.Close();

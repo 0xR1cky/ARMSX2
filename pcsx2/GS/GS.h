@@ -19,7 +19,7 @@
 // clang-format off
 
 #include "config.h"
-#include "Pcsx2Types.h"
+#include "common/Pcsx2Types.h"
 #include "GS_types.h"
 #include "Window/GSSetting.h"
 #include "SaveState.h"
@@ -33,8 +33,6 @@
 #include <d3dcompiler.h>
 #include <d3d11_1.h>
 #include <dxgi1_3.h>
-#include <comutil.h>
-#include <atlcomcli.h>
 
 #else
 
@@ -1713,16 +1711,6 @@ struct GSPrivRegSet
 
 #pragma pack(pop)
 
-enum
-{
-	KEYPRESS   = 1,
-	KEYRELEASE = 2
-};
-struct GSKeyEventData
-{
-	uint32 key, type;
-};
-
 // ST_WRITE is defined in libc, avoid this
 enum stateType
 {
@@ -1776,6 +1764,8 @@ enum class CRCHackLevel : int8
 	Aggressive
 };
 
+struct HostKeyEvent;
+
 #ifdef ENABLE_ACCURATE_BUFFER_EMULATION
 const GSVector2i default_rt_size(2048, 2048);
 #else
@@ -1804,7 +1794,7 @@ void GSgifTransfer2(uint8* mem, uint32 size);
 void GSgifTransfer3(uint8* mem, uint32 size);
 void GSvsync(int field);
 uint32 GSmakeSnapshot(char* path);
-void GSkeyEvent(GSKeyEventData* e);
+void GSkeyEvent(const HostKeyEvent& e);
 int GSfreeze(FreezeAction mode, freezeData* data);
 void GSconfigure();
 int GStest();
@@ -1817,8 +1807,6 @@ void GSgetTitleInfo2(char* dest, size_t length);
 void GSsetFrameSkip(int frameskip);
 void GSsetVsync(int vsync);
 void GSsetExclusive(int enabled);
-bool GSGetFMVSwitch();
-void GSSetFMVSwitch(bool enabled);
 
 class GSApp
 {

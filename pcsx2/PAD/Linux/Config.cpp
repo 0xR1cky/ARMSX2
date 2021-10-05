@@ -13,10 +13,10 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "pcsx2/Config.h"
 #include "Global.h"
 #include "Device.h"
 #include "keyboard.h"
-#include "AppConfig.h"
 #ifdef __APPLE__
 #include <Carbon/Carbon.h>
 #endif
@@ -61,7 +61,7 @@ void PADSaveConfig()
 	FILE* f;
 
 	wxString iniName(L"PAD.ini");
-	const std::string iniFile = std::string(GetSettingsFolder().Combine(iniName).GetFullPath()); // default path, just in case
+	const std::string iniFile = std::string(EmuFolders::Settings.Combine(iniName).GetFullPath()); // default path, just in case
 	f = fopen(iniFile.c_str(), "w");
 	if (f == NULL)
 	{
@@ -96,7 +96,7 @@ void PADLoadConfig()
 
 
 	wxString iniName(L"PAD.ini");
-	const std::string iniFile = std::string(GetSettingsFolder().Combine(iniName).GetFullPath()); // default path, just in case
+	const std::string iniFile = std::string(EmuFolders::Settings.Combine(iniName).GetFullPath()); // default path, just in case
 	f = fopen(iniFile.c_str(), "r");
 	if (f == nullptr)
 	{

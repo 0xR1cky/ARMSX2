@@ -29,7 +29,6 @@ SERIAL-12345: # !required! Serial number for the game, this is how games are loo
     - FpuMulHack
     - FpuNegDivHack
     - XGKickHack
-    - IPUWaitHack
     - EETimingHack
     - SkipMPEGHack
     - OPHFlagHack
@@ -38,9 +37,9 @@ SERIAL-12345: # !required! Serial number for the game, this is how games are loo
     - VIF1StallHack
     - GIFFIFOHack
     - GoemonTlbHack
-    - ScarfaceIbitHack
-    - CrashTagTeamRacingIbitHack
-    - VU0KickstartHack
+    - IbitHack
+    - VUKickstartHack
+    - VUOverflowHack
   # The value of the speedhacks is assumed to be an integer,
   # but at the time of writing speedhacks are effectively booleans (0/1)
   speedHacks:
@@ -108,15 +107,22 @@ These modes can be specified either on the **EE** (`eeRoundMode`) or **VU** (`vu
 
 The clamp modes are also numerically based.
 
-*   `eeClampMode` refers to the EE's FPU co-processor
-*   `vuClampMode` refers to the VU's and COP2 (VU0 Macro-mode)
+*   `eeClampMode` refers to the EE's FPU co-processor and COP2
+*   `vuClampMode` refers to the VU's in micro mode
 
-### Options for clamping
+### eeClampMode
+
+*   `0` = **Disables** clamping completely
+*   `1` = Clamp **Normally** (only clamp results)
+*   `2` = Clamp **Extra+Preserve Sign** (clamp results as well as operands)
+*   `3` = **Full Clamping** for FPU
+
+### vuClampMode
 
 *   `0` = **Disables** clamping completely
 *   `1` = Clamp **Normally** (only clamp results)
 *   `2` = Clamp **Extra** (clamp results as well as operands)
-*   `3` = **Full Clamping** for FPU / Extra+Preserve Sign Clamping for VU
+*   `3` = Clamp **Extra+Preserve Sign**
 
 ## Game Fixes
 
@@ -134,10 +140,7 @@ These values are case-sensitive so take care.  If you incorrectly specify a Game
     *   Gundam games messed up camera-view. Dakar 2's sky showing over 3D. Others...
 
 *   `XGKickHack`
-    *   Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace.
-
-*   `IPUWaitHack`
-    *   FFX FMV, makes GIF flush before doing IPU work. Fixes bad graphics overlay.
+    *   Use accurate timing for VU XGKicks (Slower). Fixes graphical errors on WRC, Erementar Gerad, Tennis Court Smash and others.
 
 *   `EETimingHack`
     *   General purpose timing hack.
@@ -163,14 +166,14 @@ These values are case-sensitive so take care.  If you incorrectly specify a Game
 *   `GoemonTlbHack`
     *   Preload TLB hack to avoid tlb miss on Goemon.
 
-*   `ScarfaceIbitHack`
-    *   VU I bit Hack avoid constant recompilation (Scarface The World Is Yours).
+*   `IbitHack`
+    *   VU I bit Hack avoid constant recompilation in some games (Scarface The World Is Yours, Crash Tag Team Racing).
 
-*   `CrashTagTeamRacingIbitHack`
-    *   VU I bit Hack avoid constant recompilation (Crash Tag Team Racing).
+*   `VUKickstartHack`
+    *   Let the VU's both run ahead of the EE to fix some timing issues.
 
-*   `VU0KickstartHack`
-    *   Let VU0 run ahead to fix some timing issues
+*   `VUOverflowHack`
+    *   VU Overflow hack to check for possible float overflows (Superman Returns).
 
 ## SpeedHacks
 

@@ -19,6 +19,7 @@
 #include "GS/GSCodeBuffer.h"
 
 #include "GS/Renderers/SW/GSScanlineEnvironment.h"
+#include "common/emitter/tools.h"
 
 #include <xbyak/xbyak_util.h>
 
@@ -28,12 +29,11 @@ class GSFunctionMap
 protected:
 	struct ActivePtr
 	{
-		uint64 frame, frames;
+		uint64 frame, frames, prims;
 		uint64 ticks, actual, total;
 		VALUE f;
 	};
 
-	std::unordered_map<KEY, VALUE> m_map;
 	std::unordered_map<KEY, ActivePtr*> m_map_active;
 
 	ActivePtr* m_active;
@@ -64,15 +64,13 @@ public:
 		}
 		else
 		{
-			auto i = m_map.find(key);
-
 			ActivePtr* p = new ActivePtr();
 
 			memset(p, 0, sizeof(*p));
 
 			p->frame = (uint64)-1;
 
-			p->f = i != m_map.end() ? i->second : GetDefaultFunction(key);
+			p->f = GetDefaultFunction(key);
 
 			m_map_active[key] = p;
 
@@ -82,7 +80,7 @@ public:
 		return m_active->f;
 	}
 
-	void UpdateStats(uint64 frame, uint64 ticks, int actual, int total)
+	void UpdateStats(uint64 frame, uint64 ticks, int actual, int total, int prims)
 	{
 		if (m_active)
 		{
@@ -92,6 +90,7 @@ public:
 				m_active->frames++;
 			}
 
+			m_active->prims += prims;
 			m_active->ticks += ticks;
 			m_active->actual += actual;
 			m_active->total += total;
@@ -102,37 +101,45 @@ public:
 
 	virtual void PrintStats()
 	{
-		uint64 ttpf = 0;
+		uint64 totalTicks = 0;
 
 		for (const auto& i : m_map_active)
 		{
 			ActivePtr* p = i.second;
-
-			if (p->frames)
-			{
-				ttpf += p->ticks / p->frames;
-			}
+			totalTicks += p->ticks;
 		}
+
+		double tick_us = 1.0 / x86capabilities::CachedMHz();
+		double tick_ms = tick_us / 1000;
+		double tick_ns = tick_us * 1000;
 
 		printf("GS stats\n");
 
-		for (const auto& i : m_map_active)
+		printf("       key       | frames | prims |       runtime       |          pixels\n");
+		printf("                 |        |  #/f  |   pct   ms/f  ns/px |    #/f   #/prim overdraw\n");
+
+		std::vector<std::pair<KEY, ActivePtr*>> sorted(std::begin(m_map_active), std::end(m_map_active));
+		std::sort(std::begin(sorted), std::end(sorted), [](const auto& l, const auto& r){ return l.second->ticks > r.second->ticks; });
+
+		for (const auto& i : sorted)
 		{
 			KEY key = i.first;
 			ActivePtr* p = i.second;
 
-			if (p->frames && ttpf)
+			if (p->frames && p->actual)
 			{
-				uint64 tpp = p->actual > 0 ? p->ticks / p->actual : 0;
-				uint64 tpf = p->frames > 0 ? p->ticks / p->frames : 0;
-				uint64 ppf = p->frames > 0 ? p->actual / p->frames : 0;
+				uint64 tpf = p->ticks / p->frames;
 
-				printf("[%014llx]%c %6.2f%% %5.2f%% f %4llu t %12llu p %12llu w %12lld tpp %4llu tpf %9llu ppf %9llu\n",
-					(uint64)key, m_map.find(key) == m_map.end() ? '*' : ' ',
-					(float)(tpf * 10000 / 34000000) / 100,
-					(float)(tpf * 10000 / ttpf) / 100,
-					p->frames, p->ticks, p->actual, p->total - p->actual,
-					tpp, tpf, ppf);
+				printf("%016llx | %6llu | %5llu | %5.2f%% %5.1f %6.1f | %8llu %6llu %5.2f%%\n",
+					(uint64)key,
+					p->frames,
+					p->prims / p->frames,
+					(double)(p->ticks * 100) / totalTicks,
+					tpf * tick_ms,
+					(p->ticks * tick_ns) / p->actual,
+					p->actual / p->frames,
+					p->actual / (p->prims ? p->prims : 1),
+					(double)((p->total - p->actual) * 100) / p->total);
 			}
 		}
 	}

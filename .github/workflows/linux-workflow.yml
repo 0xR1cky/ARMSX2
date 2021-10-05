@@ -70,11 +70,13 @@ jobs:
           - os: ubuntu-18.04
             platform: x86
             compiler: gcc
+            cmakeflags: -DLTO_PCSX2_CORE=ON
             appimage: true
             experimental: false
           - os: ubuntu-18.04
             platform: x64
             compiler: gcc
+            cmakeflags: -DLTO_PCSX2_CORE=ON
             appimage: true
             experimental: false
           - os: ubuntu-18.04
@@ -103,6 +105,13 @@ jobs:
     continue-on-error: ${{ matrix.experimental }}
     # Set some sort of timeout in the event of run-away builds.  We are limited on concurrent jobs so, get rid of them.
     timeout-minutes: 30
+
+    env:
+      CCACHE_BASEDIR: ${{ github.workspace }}
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      CCACHE_COMPRESS: true
+      CCACHE_COMPRESSLEVEL: 9
+      CCACHE_MAXSIZE: 100M
 
     steps:
       # NOTE - useful for debugging

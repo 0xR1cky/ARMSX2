@@ -18,7 +18,6 @@
 #include "DebugInterface.h"
 #include "Memory.h"
 #include "R5900.h"
-#include "AppCoreThread.h"
 #include "Debug.h"
 #include "VU.h"
 #include "GS.h" // Required for gsNonMirroredRead()
@@ -27,8 +26,6 @@
 #include "R3000A.h"
 #include "IopMem.h"
 #include "SymbolMap.h"
-
-extern AppCoreThread CoreThread;
 
 R5900DebugInterface r5900Debug;
 R3000DebugInterface r3000Debug;
@@ -182,7 +179,7 @@ void DebugInterface::pauseCpu()
 {
 	SysCoreThread& core = GetCoreThread();
 	if (!core.IsPaused())
-		core.Pause(true);
+		core.Pause({}, true);
 }
 
 void DebugInterface::resumeCpu()

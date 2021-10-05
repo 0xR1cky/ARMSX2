@@ -20,8 +20,8 @@
 #include <map>
 #include <queue>
 
-#include "AppConfig.h"
-#include "Pcsx2Types.h"
+#include "gui/AppConfig.h"
+#include "common/Pcsx2Types.h"
 
 #include "wx/checkbox.h"
 #include "wx/dc.h"

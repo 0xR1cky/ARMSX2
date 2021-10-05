@@ -46,9 +46,10 @@ function(get_git_version_info)
 		string(REGEX REPLACE "[%:\\-]" "" PCSX2_WC_TIME "${PCSX2_WC_TIME}")
 		string(REGEX REPLACE "([0-9]+) ([0-9]+).*" "\\1\\2" PCSX2_WC_TIME "${PCSX2_WC_TIME}")
 
-		EXECUTE_PROCESS(WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} COMMAND ${GIT_EXECUTABLE} describe --always
+		EXECUTE_PROCESS(WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} COMMAND ${GIT_EXECUTABLE} describe
 			OUTPUT_VARIABLE PCSX2_GIT_REV
-			OUTPUT_STRIP_TRAILING_WHITESPACE)
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_QUIET)
 	endif()
 	if(PCSX2_GIT_REV)
 		set(PCSX2_VERSION_LONG "${PCSX2_GIT_REV}")
@@ -68,7 +69,7 @@ function(get_git_version_info)
 endfunction()
 
 function(write_svnrev_h)
-	file(WRITE ${CMAKE_BINARY_DIR}/common/include/svnrev.h "#define SVN_REV ${PCSX2_WC_TIME}ll \n#define SVN_MODS 0\n#define GIT_REV \"${PCSX2_GIT_REV}\"")
+	file(WRITE ${CMAKE_BINARY_DIR}/common/include/svnrev.h "#define SVN_REV ${PCSX2_WC_TIME}ll \n#define SVN_MODS 0\n#define GIT_REV \"${PCSX2_GIT_REV}\"\n")
 endfunction()
 
 function(check_compiler_version version_warn version_err)
@@ -112,73 +113,6 @@ function(alias_library new old)
 	target_link_libraries(_alias_${library_no_namespace} INTERFACE ${old})
 	add_library(${new} ALIAS _alias_${library_no_namespace})
 endfunction()
-
-#NOTE: this macro is used to get rid of whitespace and newlines.
-macro(append_flags target flags)
-	if(flags STREQUAL "")
-		set(flags " ") # set to space to avoid error
-	endif()
-	get_target_property(TEMP ${target} COMPILE_FLAGS)
-	if(TEMP STREQUAL "TEMP-NOTFOUND")
-		set(TEMP "") # set to empty string
-	else()
-		set(TEMP "${TEMP} ") # a space to cleanly separate from existing content
-	endif()
-	# append our values
-	set(TEMP "${TEMP}${flags}")
-	# fix arg list
-	set(TEMP2 "")
-	foreach(_arg ${TEMP})
-		set(TEMP2 "${TEMP2} ${_arg}")
-	endforeach()
-	set_target_properties(${target} PROPERTIES COMPILE_FLAGS "${TEMP2}")
-endmacro(append_flags)
-
-macro(add_pcsx2_plugin lib srcs libs flags)
-	include_directories(.)
-	add_library(${lib} MODULE ${srcs})
-	target_link_libraries(${lib} ${libs})
-	append_flags(${lib} "${flags}")
-	if(NOT USER_CMAKE_LD_FLAGS STREQUAL "")
-		target_link_libraries(${lib} "${USER_CMAKE_LD_FLAGS}")
-	endif(NOT USER_CMAKE_LD_FLAGS STREQUAL "")
-	if(PACKAGE_MODE)
-		install(TARGETS ${lib} DESTINATION ${CMAKE_INSTALL_LIBDIR}/PCSX2)
-	else(PACKAGE_MODE)
-		install(TARGETS ${lib} DESTINATION ${CMAKE_SOURCE_DIR}/bin/plugins)
-	endif(PACKAGE_MODE)
-	if (APPLE)
-		# Output to app bundle
-		set_target_properties(${lib} PROPERTIES LIBRARY_OUTPUT_DIRECTORY "$<TARGET_FILE_DIR:PCSX2>/plugins")
-		add_dependencies(pcsx2-postprocess-bundle ${lib})
-	endif()
-endmacro(add_pcsx2_plugin)
-
-macro(add_pcsx2_lib lib srcs libs flags)
-	include_directories(.)
-	add_library(${lib} STATIC ${srcs})
-	target_link_libraries(${lib} ${libs})
-	append_flags(${lib} "${flags}")
-	if(NOT USER_CMAKE_LD_FLAGS STREQUAL "")
-		target_link_libraries(${lib} "${USER_CMAKE_LD_FLAGS}")
-	endif(NOT USER_CMAKE_LD_FLAGS STREQUAL "")
-endmacro(add_pcsx2_lib)
-
-macro(add_pcsx2_executable exe srcs libs flags)
-	add_definitions(${flags})
-	include_directories(.)
-	add_executable(${exe} ${srcs})
-	target_link_libraries(${exe} ${libs})
-	append_flags(${exe} "${flags}")
-	if(NOT USER_CMAKE_LD_FLAGS STREQUAL "")
-		target_link_libraries(${exe} "${USER_CMAKE_LD_FLAGS}")
-	endif(NOT USER_CMAKE_LD_FLAGS STREQUAL "")
-	if(PACKAGE_MODE)
-		install(TARGETS ${exe} DESTINATION ${CMAKE_INSTALL_BINDIR})
-	else(PACKAGE_MODE)
-		install(TARGETS ${exe} DESTINATION ${CMAKE_SOURCE_DIR}/bin)
-	endif(PACKAGE_MODE)
-endmacro(add_pcsx2_executable)
 
 # Helper macro to generate resources on linux (based on glib)
 macro(add_custom_glib_res out xml prefix)

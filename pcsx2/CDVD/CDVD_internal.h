@@ -50,26 +50,32 @@ enum CdvdIrqId
 
 };
 
-/* is cdvd.Status only for NCMDS? (linuzappz) */
-/* cdvd.Status is a construction site as of now (rama)*/
+/* Cdvd.Status bits and their meaning
+0x0 = Stop
+0x1 = Tray Open
+0x2 = Spindle Motor Spinning
+0x4 = Reading disc
+0x8 = Ready but not reading
+0x10 = Seeking
+0x20 = Abnormal Termination
+*/
 enum cdvdStatus
 {
-	//CDVD_STATUS_NONE            = 0x00, // not sure ;)
-	//CDVD_STATUS_SEEK_COMPLETE   = 0x0A,
 	CDVD_STATUS_STOP = 0x00,
 	CDVD_STATUS_TRAY_OPEN = 0x01, // confirmed to be tray open
 	CDVD_STATUS_SPIN = 0x02,
 	CDVD_STATUS_READ = 0x06,
-	CDVD_STATUS_PAUSE = 0x0A, // neutral value. Recommended to never rely on this.
+	CDVD_STATUS_PAUSE = 0x0A,
 	CDVD_STATUS_SEEK = 0x12,
 	CDVD_STATUS_EMERGENCY = 0x20,
 };
 
 enum cdvdready
 {
-	CDVD_NOTREADY = 0x00,
-	CDVD_READY1 = 0x40,
-	CDVD_READY2 = 0x4e // This is used in a few places for some reason.
+	CDVD_DRIVENOTREADY = 0x02,
+	CDVD_NCMDNOTREADY = 0x06,
+	CDVD_READY1 = 0x42,
+	CDVD_READY2 = 0x42 // This is used in a few places for some reason.
 					   //It would be worth checking if this was just a typo made at some point.
 };
 
@@ -123,8 +129,8 @@ static const uint tbl_ContigiousSeekDelta[3] =
 // concerned with accurate(ish) seek delays and less concerned with actual block read speeds.
 // Translation: it's a minor speedhack :D
 
-static const uint PSX_CD_READSPEED = 153600;   // 1 Byte Time @ x1 (150KB = cd x 1)
-static const uint PSX_DVD_READSPEED = 1382400; // 1 Byte Time @ x1 (1350KB = dvd x 1).
+static const uint PSX_CD_READSPEED = 153600;   // Bytes per second, rough values from outer CD (CAV).
+static const uint PSX_DVD_READSPEED = 1382400; // Bytes per second, rough values from outer DVD (CAV).
 
 // Legacy Note: FullSeek timing causes many games to load very slow, but it likely not the real problem.
 // Games breaking with it set to PSXCLK*40 : "wrath unleashed" and "Shijou Saikyou no Deshi Kenichi".

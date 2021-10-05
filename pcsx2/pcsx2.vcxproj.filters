@@ -196,6 +196,9 @@
     <Filter Include="System\Ps2\DEV9\PacketReader\IP\UDP\DNS">
       <UniqueIdentifier>{229bf045-e378-4ec5-bdf8-43938762511e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="System\Ps2\DEV9\Sessions">
+      <UniqueIdentifier>{64b05697-98cd-48ed-b5a5-cb0f6044ca15}</UniqueIdentifier>
+    </Filter>
     <Filter Include="System\Ps2\USB">
       <UniqueIdentifier>{df9de75c-2272-4f73-b2a0-4f9f492ba1e9}</UniqueIdentifier>
     </Filter>
@@ -275,9 +278,6 @@
     </None>
     <None Include="Docs\License.txt">
       <Filter>Docs</Filter>
-    </None>
-    <None Include="ps2\eeHwTraceLog.inl">
-      <Filter>System\Ps2\EmotionEngine\Hardware</Filter>
     </None>
     <None Include="x86\microVU_Alloc.inl">
       <Filter>System\Ps2\EmotionEngine\VU\Dynarec\microVU</Filter>
@@ -371,6 +371,9 @@
     <ClCompile Include="PrecompiledHeader.cpp">
       <Filter>Misc</Filter>
     </ClCompile>
+    <ClInclude Include="resource.h">
+      <Filter>Misc</Filter>
+    </ClInclude>
     <ClCompile Include="ShiftJisToUnicode.cpp">
       <Filter>Misc</Filter>
     </ClCompile>
@@ -758,12 +761,6 @@
     <ClCompile Include="gui\MainMenuClicks.cpp">
       <Filter>AppHost</Filter>
     </ClCompile>
-    <ClCompile Include="gui\MemoryCardFile.cpp">
-      <Filter>AppHost</Filter>
-    </ClCompile>
-    <ClCompile Include="gui\MemoryCardFolder.cpp">
-      <Filter>AppHost</Filter>
-    </ClCompile>
     <ClCompile Include="gui\MessageBoxes.cpp">
       <Filter>AppHost</Filter>
     </ClCompile>
@@ -865,12 +862,6 @@
     </ClCompile>
     <ClCompile Include="gui\SysState.cpp">
       <Filter>AppHost</Filter>
-    </ClCompile>
-    <ClCompile Include="ZipTools\thread_gzip.cpp">
-      <Filter>Misc</Filter>
-    </ClCompile>
-    <ClCompile Include="ZipTools\thread_lzma.cpp">
-      <Filter>Misc</Filter>
     </ClCompile>
     <ClCompile Include="GameDatabase.cpp">
       <Filter>Misc</Filter>
@@ -1130,9 +1121,6 @@
     <ClCompile Include="SPU2\Windows\SndOut_XAudio2.cpp">
       <Filter>System\Ps2\SPU2</Filter>
     </ClCompile>
-    <ClCompile Include="SPU2\Windows\SndOut_waveOut.cpp">
-      <Filter>System\Ps2\SPU2</Filter>
-    </ClCompile>
     <ClCompile Include="SPU2\Windows\UIHelpers.cpp">
       <Filter>System\Ps2\SPU2</Filter>
     </ClCompile>
@@ -1178,6 +1166,9 @@
     <ClCompile Include="DEV9\ATA\HddCreate.cpp">
       <Filter>System\Ps2\DEV9\ATA</Filter>
     </ClCompile>
+    <ClCompile Include="DEV9\DEV9Config.cpp">
+      <Filter>System\Ps2\DEV9</Filter>
+    </ClCompile>
     <ClCompile Include="DEV9\DEV9.cpp">
       <Filter>System\Ps2\DEV9</Filter>
     </ClCompile>
@@ -1185,6 +1176,12 @@
       <Filter>System\Ps2\DEV9</Filter>
     </ClCompile>
     <ClCompile Include="DEV9\InternalServers\DHCP_Server.cpp">
+      <Filter>System\Ps2\DEV9\InternalServers</Filter>
+    </ClCompile>
+    <ClCompile Include="DEV9\InternalServers\DNS_Logger.cpp">
+      <Filter>System\Ps2\DEV9\InternalServers</Filter>
+    </ClCompile>
+    <ClCompile Include="DEV9\InternalServers\DNS_Server.cpp">
       <Filter>System\Ps2\DEV9\InternalServers</Filter>
     </ClCompile>
     <ClCompile Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Options.cpp">
@@ -1377,9 +1374,6 @@
       <Filter>System\Ps2\PAD</Filter>
     </ClCompile>
     <ClCompile Include="PAD\Windows\DualShock3.cpp">
-      <Filter>System\Ps2\PAD</Filter>
-    </ClCompile>
-    <ClCompile Include="PAD\Windows\Global.cpp">
       <Filter>System\Ps2\PAD</Filter>
     </ClCompile>
     <ClCompile Include="PAD\Windows\HidDevice.cpp">
@@ -1646,6 +1640,38 @@
     <ClCompile Include="GS\Window\GSWnd.cpp">
       <Filter>System\Ps2\GS\Window</Filter>
     </ClCompile>
+    <ClCompile Include="gui\wxAppWithHelpers.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\ThreadingDialogs.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\CheckedStaticBox.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\pxCheckBox.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\pxRadioPanel.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="MemoryCardFile.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
+    <ClCompile Include="MemoryCardFolder.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\wxSettingsInterface.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\wxGuiTools.cpp" />
+    <ClCompile Include="gui\wxHelpers.cpp" />
+    <ClCompile Include="gui\pxStaticText.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\pxWindowTextWriter.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Patch.h">
@@ -1676,6 +1702,9 @@
       <Filter>System\Include</Filter>
     </ClInclude>
     <ClInclude Include="SaveState.h">
+      <Filter>System\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="SingleRegisterTypes.h">
       <Filter>System\Include</Filter>
     </ClInclude>
     <ClInclude Include="System.h">
@@ -1969,12 +1998,6 @@
     <ClInclude Include="gui\MainFrame.h">
       <Filter>AppHost\Include</Filter>
     </ClInclude>
-    <ClInclude Include="gui\MemoryCardFile.h">
-      <Filter>AppHost\Include</Filter>
-    </ClInclude>
-    <ClInclude Include="gui\MemoryCardFolder.h">
-      <Filter>AppHost\Include</Filter>
-    </ClInclude>
     <ClInclude Include="gui\RecentIsoList.h">
       <Filter>AppHost\Include</Filter>
     </ClInclude>
@@ -1998,9 +2021,6 @@
     </ClInclude>
     <ClInclude Include="SysForwardDefs.h">
       <Filter>AppHost\Include</Filter>
-    </ClInclude>
-    <ClInclude Include="ZipTools\ThreadedZipTools.h">
-      <Filter>Misc</Filter>
     </ClInclude>
     <ClInclude Include="GameDatabase.h">
       <Filter>Misc</Filter>
@@ -2219,6 +2239,12 @@
       <Filter>System\Ps2\DEV9</Filter>
     </ClInclude>
     <ClInclude Include="DEV9\InternalServers\DHCP_Server.h">
+      <Filter>System\Ps2\DEV9\InternalServers</Filter>
+    </ClInclude>
+    <ClInclude Include="DEV9\InternalServers\DNS_Logger.h">
+      <Filter>System\Ps2\DEV9\InternalServers</Filter>
+    </ClInclude>
+    <ClInclude Include="DEV9\InternalServers\DNS_Server.h">
       <Filter>System\Ps2\DEV9\InternalServers</Filter>
     </ClInclude>
     <ClInclude Include="DEV9\net.h">
@@ -2569,7 +2595,9 @@
     <ClInclude Include="GS\Renderers\Common\GSFastList.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
-    <ClInclude Include="GS\resource.h" />
+    <ClInclude Include="GS\resource.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
     <ClInclude Include="GS.h">
       <Filter>System\Ps2</Filter>
     </ClInclude>
@@ -2717,12 +2745,49 @@
     <ClInclude Include="GS\Window\GSWnd.h">
       <Filter>System\Ps2\GS\Window</Filter>
     </ClInclude>
+    <ClInclude Include="gui\wxAppWithHelpers.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\ThreadingDialogs.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\CheckedStaticBox.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\pxCheckBox.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\pxRadioPanel.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\pxEvents.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="MemoryCardFolder.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="MemoryCardFile.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="Host.h">
+      <Filter>System\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\wxSettingsInterface.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\wxGuiTools.h" />
+    <ClInclude Include="gui\pxStaticText.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windows\wxResources.rc">
       <Filter>AppHost\Resources</Filter>
     </ResourceCompile>
     <ResourceCompile Include="$(SolutionDir)3rdparty\wxwidgets3.0\include\wx\msw\wx.rc">
+      <Filter>AppHost\Resources</Filter>
+    </ResourceCompile>
+    <ResourceCompile Include="PCSX2.rc">
       <Filter>AppHost\Resources</Filter>
     </ResourceCompile>
     <ResourceCompile Include="SPU2\Windows\SPU2.rc">

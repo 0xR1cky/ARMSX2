@@ -34,7 +34,6 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(ProjectDir)\gui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\xbyak;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\freetype\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\xz\xz\src\liblzma\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -44,8 +43,9 @@
       <ExceptionHandling>Async</ExceptionHandling>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>PrecompiledHeader.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;LZMA_API_STATIC;BUILD_DX=1;SPU2X_PORTAUDIO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;LZMA_API_STATIC;BUILD_DX=1;SPU2X_PORTAUDIO;DIRECTINPUT_VERSION=0x0800;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Debug))">PCSX2_DEBUG;PCSX2_DEVBUILD;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Devel))">PCSX2_DEVEL;PCSX2_DEVBUILD;NDEBUG;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Release))">NDEBUG;_SECURE_SCL_=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -277,9 +277,12 @@
     <ClCompile Include="DEV9\ATA\ATA_State.cpp" />
     <ClCompile Include="DEV9\ATA\ATA_Transfer.cpp" />
     <ClCompile Include="DEV9\ATA\HddCreate.cpp" />
+    <ClCompile Include="DEV9\DEV9Config.cpp" />
     <ClCompile Include="DEV9\DEV9.cpp" />
     <ClCompile Include="DEV9\flash.cpp" />
     <ClCompile Include="DEV9\InternalServers\DHCP_Server.cpp" />
+    <ClCompile Include="DEV9\InternalServers\DNS_Logger.cpp" />
+    <ClCompile Include="DEV9\InternalServers\DNS_Server.cpp" />
     <ClCompile Include="DEV9\PacketReader\EthernetFrame.cpp" />
     <ClCompile Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Options.cpp" />
     <ClCompile Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Packet.cpp" />
@@ -301,6 +304,7 @@
     <ClCompile Include="Gif_Unit.cpp" />
     <ClCompile Include="gui\AppGameDatabase.cpp" />
     <ClCompile Include="gui\AppUserMode.cpp" />
+    <ClCompile Include="gui\CheckedStaticBox.cpp" />
     <ClCompile Include="gui\Debugger\BreakpointWindow.cpp" />
     <ClCompile Include="gui\Debugger\CtrlDisassemblyView.cpp" />
     <ClCompile Include="gui\Debugger\CtrlMemView.cpp" />
@@ -313,15 +317,23 @@
     <ClCompile Include="gui\Dialogs\McdConfigDialog.cpp" />
     <ClCompile Include="gui\DriveList.cpp" />
     <ClCompile Include="gui\Panels\MemoryCardListView.cpp" />
+    <ClCompile Include="gui\pxCheckBox.cpp" />
+    <ClCompile Include="gui\pxRadioPanel.cpp" />
+    <ClCompile Include="gui\pxStaticText.cpp" />
+    <ClCompile Include="gui\pxWindowTextWriter.cpp" />
+    <ClCompile Include="gui\ThreadingDialogs.cpp" />
+    <ClCompile Include="gui\wxAppWithHelpers.cpp" />
+    <ClCompile Include="gui\wxSettingsInterface.cpp" />
     <ClCompile Include="IopGte.cpp" />
     <ClCompile Include="IPC.cpp" />
     <ClCompile Include="FW.cpp" />
+    <ClCompile Include="MemoryCardFile.cpp" />
+    <ClCompile Include="MemoryCardFolder.cpp" />
     <ClCompile Include="PAD\Windows\PADConfig.cpp" />
     <ClCompile Include="PAD\Windows\DeviceEnumerator.cpp" />
     <ClCompile Include="PAD\Windows\Diagnostics.cpp" />
     <ClCompile Include="PAD\Windows\DirectInput.cpp" />
     <ClCompile Include="PAD\Windows\DualShock3.cpp" />
-    <ClCompile Include="PAD\Windows\Global.cpp" />
     <ClCompile Include="PAD\Windows\HidDevice.cpp" />
     <ClCompile Include="PAD\Windows\InputManager.cpp" />
     <ClCompile Include="PAD\Windows\KeyboardQueue.cpp" />
@@ -342,7 +354,6 @@
     <ClCompile Include="SPU2\wavedump_wav.cpp" />
     <ClCompile Include="SPU2\SndOut.cpp" />
     <ClCompile Include="SPU2\Timestretcher.cpp" />
-    <ClCompile Include="SPU2\Windows\SndOut_waveOut.cpp" />
     <ClCompile Include="SPU2\Windows\SndOut_XAudio2.cpp" />
     <ClCompile Include="SPU2\dma.cpp" />
     <ClCompile Include="SPU2\RegTable.cpp" />
@@ -655,12 +666,12 @@
     <ClCompile Include="gui\IsoDropTarget.cpp" />
     <ClCompile Include="gui\MainFrame.cpp" />
     <ClCompile Include="gui\MainMenuClicks.cpp" />
-    <ClCompile Include="gui\MemoryCardFile.cpp" />
-    <ClCompile Include="gui\MemoryCardFolder.cpp" />
     <ClCompile Include="gui\MessageBoxes.cpp" />
     <ClCompile Include="gui\MSWstuff.cpp" />
     <ClCompile Include="gui\RecentIsoList.cpp" />
     <ClCompile Include="gui\UpdateUI.cpp" />
+    <ClCompile Include="gui\wxGuiTools.cpp" />
+    <ClCompile Include="gui\wxHelpers.cpp" />
     <ClCompile Include="gui\Dialogs\AboutBoxDialog.cpp" />
     <ClCompile Include="gui\Dialogs\AssertionDialog.cpp" />
     <ClCompile Include="gui\Dialogs\BaseConfigurationDialog.cpp" />
@@ -692,8 +703,6 @@
     </ClCompile>
     <ClCompile Include="gui\Saveslots.cpp" />
     <ClCompile Include="gui\SysState.cpp" />
-    <ClCompile Include="ZipTools\thread_gzip.cpp" />
-    <ClCompile Include="ZipTools\thread_lzma.cpp" />
     <ClCompile Include="windows\Optimus.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -722,6 +731,8 @@
     <ClInclude Include="DEV9\Config.h" />
     <ClInclude Include="DEV9\DEV9.h" />
     <ClInclude Include="DEV9\InternalServers\DHCP_Server.h" />
+    <ClInclude Include="DEV9\InternalServers\DNS_Logger.h" />
+    <ClInclude Include="DEV9\InternalServers\DNS_Server.h" />
     <ClInclude Include="DEV9\net.h" />
     <ClInclude Include="DEV9\PacketReader\EthernetFrame.h" />
     <ClInclude Include="DEV9\PacketReader\IP\UDP\DHCP\DHCP_Options.h" />
@@ -745,8 +756,13 @@
     <ClInclude Include="GameDatabase.h" />
     <ClInclude Include="Gif_Unit.h" />
     <ClInclude Include="gui\AppGameDatabase.h" />
+    <ClInclude Include="gui\CheckedStaticBox.h" />
     <ClInclude Include="gui\i18n.h" />
     <ClInclude Include="gui\DriveList.h" />
+    <ClInclude Include="gui\pxCheckBox.h" />
+    <ClInclude Include="gui\pxEvents.h" />
+    <ClInclude Include="gui\pxRadioPanel.h" />
+    <ClInclude Include="gui\pxStaticText.h" />
     <ClInclude Include="gui\Saveslots.h" />
     <ClInclude Include="gui\Debugger\BreakpointWindow.h" />
     <ClInclude Include="gui\Debugger\CtrlDisassemblyView.h" />
@@ -756,9 +772,15 @@
     <ClInclude Include="gui\Debugger\DebuggerLists.h" />
     <ClInclude Include="gui\Debugger\DisassemblyDialog.h" />
     <ClInclude Include="gui\Panels\MemoryCardPanels.h" />
+    <ClInclude Include="gui\ThreadingDialogs.h" />
+    <ClInclude Include="gui\wxAppWithHelpers.h" />
+    <ClInclude Include="gui\wxSettingsInterface.h" />
+    <ClInclude Include="Host.h" />
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="IPC.h" />
     <ClInclude Include="FW.h" />
+    <ClInclude Include="MemoryCardFile.h" />
+    <ClInclude Include="MemoryCardFolder.h" />
     <ClInclude Include="PAD\Windows\PAD.h" />
     <ClInclude Include="PAD\Windows\PADConfig.h" />
     <ClInclude Include="PAD\Windows\DeviceEnumerator.h" />
@@ -938,11 +960,13 @@
     <ClInclude Include="Utilities\AsciiFile.h" />
     <ClInclude Include="Elfheader.h" />
     <ClInclude Include="CDVD\IsoFileFormats.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
     <ClInclude Include="Dump.h" />
     <ClInclude Include="IopCommon.h" />
     <ClInclude Include="SaveState.h" />
+    <ClInclude Include="SingleRegisterTypes.h" />
     <ClInclude Include="System.h" />
     <ClInclude Include="System\SysThreads.h" />
     <ClInclude Include="System\RecTypes.h" />
@@ -1067,19 +1091,18 @@
     <ClInclude Include="gui\GSFrame.h" />
     <ClInclude Include="gui\IsoDropTarget.h" />
     <ClInclude Include="gui\MainFrame.h" />
-    <ClInclude Include="gui\MemoryCardFile.h" />
-    <ClInclude Include="gui\MemoryCardFolder.h" />
     <ClInclude Include="gui\pxEventThread.h" />
     <ClInclude Include="gui\RecentIsoList.h" />
+    <ClInclude Include="gui\wxGuiTools.h" />
     <ClInclude Include="PathDefs.h" />
     <ClInclude Include="SysForwardDefs.h" />
-    <ClInclude Include="ZipTools\ThreadedZipTools.h" />
     <ClInclude Include="cheatscpp.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="$(SolutionDir)3rdparty\wxwidgets3.0\include\wx\msw\wx.rc">
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\wxwidgets3.0\$(PlatformName);$(SolutionDir)3rdparty\wxwidgets3.0\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
+    <ResourceCompile Include="PCSX2.rc" />
     <ResourceCompile Include="GS\GS.rc" />
     <ResourceCompile Include="PAD\Windows\PAD.rc" />
     <ResourceCompile Include="SPU2\Windows\SPU2.rc" />
@@ -1140,20 +1163,15 @@
       <Project>{2f6c0388-20cb-4242-9f6c-a6ebb6a83f47}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)common\build\Utilities\utilities.vcxproj">
-      <Project>{4639972e-424e-4e13-8b07-ca403c481346}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)common\build\x86emitter\x86emitter.vcxproj">
-      <Project>{a51123f5-9505-4eae-85e7-d320290a272c}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)tools\bin2cpp\bin2c.vcxproj">
       <Project>{677b7d11-d5e1-40b3-88b1-9a4df83d2213}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)3rdparty\jpgd\jpgd.vcxproj">
       <Project>{ed2f21fd-0a36-4a8f-9b90-e7d92a2acb63}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\common\common.vcxproj">
+      <Project>{4639972e-424e-4e13-8b07-ca403c481346}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

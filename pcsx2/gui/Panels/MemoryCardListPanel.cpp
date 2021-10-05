@@ -14,15 +14,16 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "AppCoreThread.h"
+#include "gui/AppCoreThread.h"
 #include "System.h"
 #include "MemoryCardFile.h"
 
 #include "ConfigurationPanels.h"
 #include "MemoryCardPanels.h"
 
-#include "Dialogs/ConfigurationDialog.h"
-#include "Utilities/IniInterface.h"
+#include "gui/Dialogs/ConfigurationDialog.h"
+#include "common/IniInterface.h"
+#include "common/StringUtil.h"
 #include "Sio.h"
 
 #include <wx/filepicker.h>
@@ -61,7 +62,7 @@ bool EnumerateMemoryCard(McdSlotItem& dest, const wxFileName& filename, const wx
 	dest.IsFormatted = false;
 	dest.IsPresent = false;
 	dest.IsPSX = false;
-	dest.Type = MemoryCardType::MemoryCard_None;
+	dest.Type = MemoryCardType::Empty;
 
 	const wxString fullpath(filename.GetFullPath());
 	//DevCon.WriteLn( fullpath );
@@ -92,7 +93,7 @@ bool EnumerateMemoryCard(McdSlotItem& dest, const wxFileName& filename, const wx
 			dest.SizeInMB = 1; // MegaBIT
 		}
 
-		dest.Type = MemoryCardType::MemoryCard_File;
+		dest.Type = MemoryCardType::File;
 		dest.IsFormatted = IsMcdFormatted(mcdFile);
 		filename.GetTimes(NULL, &dest.DateModified, &dest.DateCreated);
 	}
@@ -112,7 +113,7 @@ bool EnumerateMemoryCard(McdSlotItem& dest, const wxFileName& filename, const wx
 
 		dest.SizeInMB = 0;
 
-		dest.Type = MemoryCardType::MemoryCard_Folder;
+		dest.Type = MemoryCardType::Folder;
 		dest.IsFormatted = IsMcdFormatted(mcdFile);
 		superBlockFileName.GetTimes(NULL, &dest.DateModified, &dest.DateCreated);
 	}
@@ -546,17 +547,17 @@ void Panels::MemoryCardListPanel_Simple::Apply()
 	Console.WriteLn(L"Apply memory cards:");
 	for (uint slot = 0; slot < 8; ++slot)
 	{
-		g_Conf->Mcd[slot].Type = m_Cards[slot].Type;
-		g_Conf->Mcd[slot].Enabled = m_Cards[slot].IsEnabled && m_Cards[slot].IsPresent;
+		g_Conf->EmuOptions.Mcd[slot].Type = m_Cards[slot].Type;
+		g_Conf->EmuOptions.Mcd[slot].Enabled = m_Cards[slot].IsEnabled && m_Cards[slot].IsPresent;
 		if (m_Cards[slot].IsPresent)
-			g_Conf->Mcd[slot].Filename = m_Cards[slot].Filename;
+			g_Conf->EmuOptions.Mcd[slot].Filename = StringUtil::wxStringToUTF8String(m_Cards[slot].Filename.GetFullName());
 		else
-			g_Conf->Mcd[slot].Filename = L"";
+			g_Conf->EmuOptions.Mcd[slot].Filename.clear();
 
-		if (g_Conf->Mcd[slot].Enabled)
+		if (g_Conf->EmuOptions.Mcd[slot].Enabled)
 		{
 			used++;
-			Console.WriteLn(L"slot[%d]='%s'", slot, WX_STR(g_Conf->Mcd[slot].Filename.GetFullName()));
+			Console.WriteLn("slot[%d]='%s'", slot, g_Conf->EmuOptions.Mcd[slot].Filename.c_str());
 		}
 	}
 	if (!used)
@@ -569,8 +570,8 @@ void Panels::MemoryCardListPanel_Simple::AppStatusEvent_OnSettingsApplied()
 {
 	for (uint slot = 0; slot < 8; ++slot)
 	{
-		m_Cards[slot].IsEnabled = g_Conf->Mcd[slot].Enabled;
-		m_Cards[slot].Filename = g_Conf->Mcd[slot].Filename;
+		m_Cards[slot].IsEnabled = g_Conf->EmuOptions.Mcd[slot].Enabled;
+		m_Cards[slot].Filename = StringUtil::UTF8StringToWxString(g_Conf->EmuOptions.Mcd[slot].Filename);
 
 		// Automatically create the enabled but non-existing file such that it can be managed (else will get created anyway on boot)
 		wxString targetFile = (GetMcdPath() + m_Cards[slot].Filename.GetFullName()).GetFullPath();
@@ -697,11 +698,7 @@ void Panels::MemoryCardListPanel_Simple::UiConvertCard(McdSlotItem& card)
 		return;
 	}
 
-	AppConfig::McdOptions config;
-	config.Filename = card.Filename.GetFullName();
-	config.Enabled = card.IsEnabled;
-	config.Type = card.Type;
-	Dialogs::ConvertMemoryCardDialog dialog(this, m_FolderPicker->GetPath(), config);
+	Dialogs::ConvertMemoryCardDialog dialog(this, m_FolderPicker->GetPath(), card.Type, card.Filename.GetFullName());
 	wxWindowID result = dialog.ShowModal();
 
 	if (result != wxID_CANCEL)

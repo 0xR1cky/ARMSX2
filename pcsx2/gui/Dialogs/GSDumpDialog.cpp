@@ -14,20 +14,20 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "App.h"
-#include "AppCommon.h"
-#include "MSWstuff.h"
+#include "gui/App.h"
+#include "gui/AppCommon.h"
+#include "gui/MSWstuff.h"
 
-#include "Dialogs/ModalPopups.h"
+#include "gui/Dialogs/ModalPopups.h"
 
 
-#include "Utilities/EmbeddedImage.h"
-#include "Resources/NoIcon.h"
+#include "common/EmbeddedImage.h"
+#include "gui/Resources/NoIcon.h"
 #include "GS.h"
 
 #include "PathDefs.h"
-#include "AppConfig.h"
-#include "GSFrame.h"
+#include "gui/AppConfig.h"
+#include "gui/GSFrame.h"
 #include "Counters.h"
 
 #include <wx/mstream.h>
@@ -729,7 +729,7 @@ void Dialogs::GSDumpDialog::GSThread::ExecuteTaskInThread()
 	m_dump_file->Read(state_data.get(), ss);
 	m_dump_file->Read(&regs, 8192);
 
-	freezeData fd = {(int)ss, (s8*)state_data.get()};
+	freezeData fd = {(int)ss, (u8*)state_data.get()};
 	m_root_window->m_dump_packets.clear();
 
 	while (m_dump_file->Tell() < m_dump_file->Length())

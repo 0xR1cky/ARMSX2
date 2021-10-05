@@ -19,9 +19,9 @@
 
 #include <math.h>
 
-#include "App.h"
-#include "MSWstuff.h"
-#include "Utilities/EmbeddedImage.h"
+#include "gui/App.h"
+#include "gui/MSWstuff.h"
+#include "common/EmbeddedImage.h"
 #include "wx/dcbuffer.h"
 #include "wx/display.h"
 #include "wx/spinctrl.h"

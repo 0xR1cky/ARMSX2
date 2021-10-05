@@ -17,12 +17,10 @@
 #include "Common.h"
 #include "BiosTools.h"
 
-#include "Utilities/pxStreams.h"
+#include "common/pxStreams.h"
 #include "wx/ffile.h"
 
-
-// FIXME: Temporary hack until we remove dependence on Pcsx2App.
-#include "AppConfig.h"
+#include "Config.h"
 #include "wx/mstream.h"
 #include "wx/wfstream.h"
 
@@ -189,7 +187,7 @@ static void LoadExtraRom( const wxChar* ext, u8 (&dest)[_size] )
 	s64 filesize = 0;
 
 	// Try first a basic extension concatenation (normally results in something like name.bin.rom1)
-	const wxString Bios( g_Conf->FullpathToBios() );
+	const wxString Bios( EmuConfig.FullpathToBios() );
 	Bios1.Printf( L"%s.%s", WX_STR(Bios), ext);
 
 	try
@@ -223,14 +221,14 @@ static void LoadExtraRom( const wxChar* ext, u8 (&dest)[_size] )
 	}
 }
 
-static void LoadIrx( const wxString& filename, u8* dest )
+static void LoadIrx( const std::string& filename, u8* dest )
 {
 	s64 filesize = 0;
 	try
 	{
 		wxFile irx(filename);
 		if( (filesize=Path::GetFileSize( filename ) ) <= 0 ) {
-			Console.Warning(L"IRX Warning: %s could not be read", WX_STR(filename));
+			Console.Warning("IRX Warning: %s could not be read", filename.c_str());
 			return;
 		}
 
@@ -238,7 +236,7 @@ static void LoadIrx( const wxString& filename, u8* dest )
 	}
 	catch (Exception::BadStream& ex)
 	{
-		Console.Warning(L"IRX Warning: %s could not be read", WX_STR(filename));
+		Console.Warning("IRX Warning: %s could not be read", filename.c_str());
 		Console.Indent().WriteLn(L"Details: %s", WX_STR(ex.FormatDiagnosticMessage()));
 	}
 }
@@ -259,8 +257,8 @@ void LoadBIOS()
 
 	try
 	{
-		wxString Bios( g_Conf->FullpathToBios() );
-		if( !g_Conf->BaseFilenames.Bios.IsOk() || g_Conf->BaseFilenames.Bios.IsDir() )
+		wxString Bios( EmuConfig.FullpathToBios() );
+		if( EmuConfig.BaseFilenames.Bios.empty() )
 			throw Exception::FileNotFound( Bios )
 				.SetDiagMsg(L"BIOS has not been configured, or the configuration has been corrupted.")
 				.SetUserMsg(_("The PS2 BIOS could not be loaded.  The BIOS has not been configured, or the configuration has been corrupted.  Please re-configure."));
@@ -301,8 +299,8 @@ void LoadBIOS()
 		LoadExtraRom( L"rom2", eeMem->ROM2 );
 		LoadExtraRom( L"erom", eeMem->EROM );
 
-		if (g_Conf->CurrentIRX.Length() > 3)
-			LoadIrx(g_Conf->CurrentIRX, &eeMem->ROM[0x3C0000]);
+		if (EmuConfig.CurrentIRX.length() > 3)
+			LoadIrx(EmuConfig.CurrentIRX, &eeMem->ROM[0x3C0000]);
 
 		CurrentBiosInformation.threadListAddr = 0;
 	}
@@ -318,7 +316,7 @@ void LoadBIOS()
 
 bool IsBIOS(const wxString& filename, wxString& description)
 {
-	wxFileName Bios( g_Conf->Folders.Bios + filename );
+	wxFileName Bios( EmuFolders::Bios + filename );
 	pxInputStream inway( filename, new wxFFileInputStream( filename ) );
 
 	if (!inway.IsOk()) return false;

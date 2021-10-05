@@ -14,11 +14,11 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "AppConfig.h"
+#include "Config.h"
 #include "SPU2/Global.h"
 #include "Dialogs.h"
 
-#include "Utilities/StringHelpers.h"
+#include "common/StringHelpers.h"
 
 extern uptr gsWindowHandle;
 
@@ -49,7 +49,7 @@ void SysMessage(const wchar_t* fmt, ...)
 
 //////
 
-#include "Utilities/Path.h"
+#include "common/Path.h"
 
 wxString CfgFile(L"SPU2.ini");
 bool pathSet = false;
@@ -58,7 +58,7 @@ void initIni()
 {
 	if (!pathSet)
 	{
-		CfgFile = GetSettingsFolder().Combine(CfgFile).GetFullPath();
+		CfgFile = EmuFolders::Settings.Combine(CfgFile).GetFullPath();
 		pathSet = true;
 	}
 }

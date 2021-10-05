@@ -13,8 +13,8 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "gui/AppCoreThread.h"
 #include "Global.h"
-#include "AppCoreThread.h"
 #include "Device.h"
 #include "keyboard.h"
 #include "state_management.h"
@@ -54,7 +54,7 @@ s32 _PADopen(void* pDsp)
 
 void _PADclose()
 {
-	device_manager->devices.clear();
+	device_manager.devices.clear();
 }
 
 void PADupdate(int pad)
@@ -74,7 +74,7 @@ void PADupdate(int pad)
 
 	// Actually PADupdate is always call with pad == 0. So you need to update both
 	// pads -- Gregory
-	device_manager->Update();
+	device_manager.Update();
 }
 
 void PADconfigure()

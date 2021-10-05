@@ -29,7 +29,7 @@
 #include "DEV9/net.h"
 #include "DEV9/PacketReader\IP\IP_Address.h"
 #include "tap.h"
-#include "AppCoreThread.h"
+#include "gui/AppCoreThread.h"
 
 #include "DEV9/ATA/HddCreate.h"
 
@@ -219,7 +219,7 @@ void OnBrowse(HWND hW)
 	wchar_t wbuff[4096] = {0};
 	memcpy(wbuff, HDD_DEF, sizeof(HDD_DEF));
 
-	ghc::filesystem::path inis(GetSettingsFolder().ToString().wx_str());
+	ghc::filesystem::path inis(EmuFolders::Settings.ToString().wx_str());
 	wstring w_inis = inis.wstring();
 
 	OPENFILENAMEW ofn;
@@ -336,7 +336,7 @@ void OnOk(HWND hW)
 	if (hddPath.is_relative())
 	{
 		//GHC uses UTF8 on all platforms
-		ghc::filesystem::path path(GetSettingsFolder().ToUTF8().data());
+		ghc::filesystem::path path(EmuFolders::Settings.ToUTF8().data());
 		hddPath = path / hddPath;
 	}
 
@@ -499,7 +499,7 @@ BOOL CALLBACK ConfigureDlgProc(HWND hW, UINT uMsg, WPARAM wParam, LPARAM lParam)
 void DEV9configure()
 {
 	ScopedCoreThreadPause paused_core;
-	Config oldConfig = config;
+	ConfigDEV9 oldConfig = config;
 
 	DialogBox(hInst,
 		MAKEINTRESOURCE(IDD_CONFIG),

@@ -19,9 +19,9 @@
 #include "ConsoleLogger.h"
 #include "MSWstuff.h"
 
-#include "Utilities/Console.h"
-#include "Utilities/IniInterface.h"
-#include "Utilities/SafeArray.inl"
+#include "common/Console.h"
+#include "common/IniInterface.h"
+#include "common/SafeArray.inl"
 #include "Dialogs/LogOptionsDialog.h"
 #include "DebugTools/Debug.h"
 
@@ -1071,11 +1071,11 @@ void Pcsx2App::ProgramLog_PostEvent( wxEvent& evt )
 
 static void __concall ConsoleToFile_Newline()
 {
-#if defined(__unix__)
+#if defined(__POSIX__)
 	if ((g_Conf) && (g_Conf->EmuOptions.ConsoleToStdio)) ConsoleWriter_Stdout.Newline();
 #endif
 
-#if defined(__unix__)
+#if defined(__POSIX__)
 	fputc( '\n', emuLog );
 #else
 	fputs( "\r\n", emuLog );
@@ -1084,7 +1084,7 @@ static void __concall ConsoleToFile_Newline()
 
 static void __concall ConsoleToFile_DoWrite( const wxString& fmt )
 {
-#if defined(__unix__)
+#if defined(__POSIX__)
 	if ((g_Conf) && (g_Conf->EmuOptions.ConsoleToStdio)) ConsoleWriter_Stdout.WriteRaw(fmt);
 #endif
 

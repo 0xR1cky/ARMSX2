@@ -17,8 +17,8 @@
 #include "ConfigurationPanels.h"
 
 #include "fmt/core.h"
-#include "App.h"
-#include "AppAccelerators.h"
+#include "gui/App.h"
+#include "gui/AppAccelerators.h"
 
 using namespace pxSizerFlags;
 
@@ -151,6 +151,7 @@ void Panels::GSWindowSettingsPanel::AppStatusEvent_OnSettingsApplied()
 
 void Panels::GSWindowSettingsPanel::ApplyConfigToGui(AppConfig& configToApply, int flags)
 {
+	const Pcsx2Config::GSOptions& gsconf(configToApply.EmuOptions.GS);
 	const AppConfig::GSWindowOptions& conf(configToApply.GSWindow);
 
 	if (!(flags & AppConfig::APPLY_FLAG_FROM_PRESET))
@@ -160,9 +161,9 @@ void Panels::GSWindowSettingsPanel::ApplyConfigToGui(AppConfig& configToApply, i
 		m_check_HideMouse->SetValue(conf.AlwaysHideMouse);
 		m_check_SizeLock->SetValue(conf.DisableResizeBorders);
 
-		m_combo_AspectRatio->SetSelection((int)conf.AspectRatio);
-		m_combo_FMVAspectRatioSwitch->SetSelection(enum_cast(conf.FMVAspectRatioSwitch));
-		m_text_Zoom->ChangeValue(conf.Zoom.ToString());
+		m_combo_AspectRatio->SetSelection((int)gsconf.AspectRatio);
+		m_combo_FMVAspectRatioSwitch->SetSelection(enum_cast(gsconf.FMVAspectRatioSwitch));
+		m_text_Zoom->ChangeValue(wxString::FromDouble(gsconf.Zoom, 2));
 
 		m_check_DclickFullscreen->SetValue(conf.IsToggleFullscreenOnDoubleClick);
 
@@ -184,9 +185,13 @@ void Panels::GSWindowSettingsPanel::Apply()
 	appconf.AlwaysHideMouse = m_check_HideMouse->GetValue();
 	appconf.DisableResizeBorders = m_check_SizeLock->GetValue();
 
-	appconf.AspectRatio = (AspectRatioType)m_combo_AspectRatio->GetSelection();
-	appconf.FMVAspectRatioSwitch = (FMVAspectRatioSwitchType)m_combo_FMVAspectRatioSwitch->GetSelection();
-	appconf.Zoom = Fixed100::FromString(m_text_Zoom->GetValue());
+	gsconf.AspectRatio = (AspectRatioType)m_combo_AspectRatio->GetSelection();
+	gsconf.FMVAspectRatioSwitch = (FMVAspectRatioSwitchType)m_combo_FMVAspectRatioSwitch->GetSelection();
+	EmuConfig.CurrentAspectRatio = gsconf.AspectRatio;
+
+	double new_zoom = 0.0;
+	if (m_text_Zoom->GetValue().ToDouble(&new_zoom))
+		gsconf.Zoom = new_zoom;
 
 	gsconf.VsyncEnable = static_cast<VsyncMode>(m_combo_vsync->GetSelection());
 

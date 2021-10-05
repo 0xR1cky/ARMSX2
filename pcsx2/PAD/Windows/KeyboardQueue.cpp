@@ -18,49 +18,33 @@
 // This is undoubtedly completely unnecessary.
 #include "KeyboardQueue.h"
 
-// What MS calls a single process Mutex.  Faster, supposedly.
-// More importantly, can be abbreviated, amusingly, as cSection.
-#ifdef _MSC_VER
-static CRITICAL_SECTION cSection;
-static u8 csInitialized = 0;
-#else
 static std::mutex cSection;
-#endif
 
 #define EVENT_QUEUE_LEN 16
 // Actually points one beyond the last queued event.
 static u8 lastQueuedEvent = 0;
 static u8 nextQueuedEvent = 0;
-static keyEvent queuedEvents[EVENT_QUEUE_LEN];
+static HostKeyEvent queuedEvents[EVENT_QUEUE_LEN];
 
-void QueueKeyEvent(int key, int event)
+void QueueKeyEvent(u32 key, HostKeyEvent::Type event)
 {
-#ifdef _MSC_VER
-	if (!csInitialized)
-	{
-		csInitialized = 1;
-		InitializeCriticalSection(&cSection);
-	}
-	EnterCriticalSection(&cSection);
-#else
 	std::lock_guard<std::mutex> lock(cSection);
-#endif
 
 	// Don't queue events if escape is on top of queue.  This is just for safety
 	// purposes when a game is killing the emulator for whatever reason.
 	if (nextQueuedEvent == lastQueuedEvent ||
 		queuedEvents[nextQueuedEvent].key != VK_ESCAPE ||
-		queuedEvents[nextQueuedEvent].evt != KEYPRESS)
+		queuedEvents[nextQueuedEvent].type != HostKeyEvent::Type::KeyPressed)
 	{
 		// Clear queue on escape down, bringing escape to front.  May do something
 		// with shift/ctrl/alt and F-keys, later.
-		if (event == KEYPRESS && key == VK_ESCAPE)
+		if (event == HostKeyEvent::Type::KeyPressed && key == VK_ESCAPE)
 		{
 			nextQueuedEvent = lastQueuedEvent;
 		}
 
 		queuedEvents[lastQueuedEvent].key = key;
-		queuedEvents[lastQueuedEvent].evt = event;
+		queuedEvents[lastQueuedEvent].type = event;
 
 		lastQueuedEvent = (lastQueuedEvent + 1) % EVENT_QUEUE_LEN;
 		// If queue wrapped around, remove last element.
@@ -69,37 +53,21 @@ void QueueKeyEvent(int key, int event)
 			nextQueuedEvent = (nextQueuedEvent + 1) % EVENT_QUEUE_LEN;
 		}
 	}
-#ifdef _MSC_VER
-	LeaveCriticalSection(&cSection);
-#endif
 }
 
-int GetQueuedKeyEvent(keyEvent* event)
+int GetQueuedKeyEvent(HostKeyEvent* event)
 {
 	if (lastQueuedEvent == nextQueuedEvent)
 		return 0;
 
-#ifdef _MSC_VER
-	EnterCriticalSection(&cSection);
-#else
 	std::lock_guard<std::mutex> lock(cSection);
-#endif
+
 	*event = queuedEvents[nextQueuedEvent];
 	nextQueuedEvent = (nextQueuedEvent + 1) % EVENT_QUEUE_LEN;
-#ifdef _MSC_VER
-	LeaveCriticalSection(&cSection);
-#endif
 	return 1;
 }
 
 void ClearKeyQueue()
 {
 	lastQueuedEvent = nextQueuedEvent;
-#ifdef _MSC_VER
-	if (csInitialized)
-	{
-		DeleteCriticalSection(&cSection);
-		csInitialized = 0;
-	}
-#endif
 }

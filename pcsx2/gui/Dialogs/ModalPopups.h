@@ -15,10 +15,10 @@
 
 #pragma once
 
-#include "App.h"
+#include "gui/App.h"
 #include "ConfigurationDialog.h"
-#include "Panels/ConfigurationPanels.h"
-#include "Utilities/pxStreams.h"
+#include "gui/Panels/ConfigurationPanels.h"
+#include "common/pxStreams.h"
 
 #include <wx/wizard.h>
 #include <wx/treectrl.h>

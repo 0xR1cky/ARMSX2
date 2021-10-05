@@ -15,32 +15,35 @@
 
 #pragma once
 
-#include "x86emitter/tools.h"
+#include "common/emitter/tools.h"
+#include "common/General.h"
+#include "common/Path.h"
+#include <string>
 
-#include "Utilities/FixedPointTypes.h"
-#include "Utilities/General.h"
-#include <wx/filename.h>
+class SettingsInterface;
+class SettingsWrapper;
 
-class IniInterface;
+enum class CDVD_SourceType : uint8_t;
 
 enum GamefixId
 {
 	GamefixId_FIRST = 0,
 
-	Fix_VuAddSub = GamefixId_FIRST,
-	Fix_FpuMultiply,
+	Fix_FpuMultiply = GamefixId_FIRST,
 	Fix_FpuNegDiv,
-	Fix_XGKick,
-	Fix_EETiming,
+	Fix_GoemonTlbMiss,
 	Fix_SkipMpeg,
 	Fix_OPHFlag,
+	Fix_EETiming,
 	Fix_DMABusy,
+	Fix_GIFFIFO,
 	Fix_VIFFIFO,
 	Fix_VIF1Stall,
-	Fix_GIFFIFO,
-	Fix_GoemonTlbMiss,
+	Fix_VuAddSub,
 	Fix_Ibit,
 	Fix_VUKickstart,
+	Fix_VUOverflow,
+	Fix_XGKick,
 
 	GamefixId_COUNT
 };
@@ -63,6 +66,37 @@ enum class VsyncMode
 	Off,
 	On,
 	Adaptive,
+};
+
+enum class AspectRatioType : u8
+{
+	Stretch,
+	R4_3,
+	R16_9,
+	MaxCount
+};
+
+enum class FMVAspectRatioSwitchType : u8
+{
+	Off,
+	R4_3,
+	R16_9,
+	MaxCount
+};
+
+enum class MemoryCardType
+{
+	Empty,
+	File,
+	Folder,
+	MaxCount
+};
+
+enum class LimiterModeType : u8
+{
+	Nominal,
+	Turbo,
+	Slomo,
 };
 
 // Template function for casting enumerations to their underlying type
@@ -158,7 +192,7 @@ struct TraceLogFilters
 		Enabled	= false;
 	}
 
-	void LoadSave( IniInterface& ini );
+	void LoadSave( SettingsWrapper& ini );
 
 	bool operator ==( const TraceLogFilters& right ) const
 	{
@@ -197,7 +231,7 @@ struct Pcsx2Config
 
 		// Default is Disabled, with all recs enabled underneath.
 		ProfilerOptions() : bitset( 0xfffffffe ) {}
-		void LoadSave( IniInterface& conf );
+		void LoadSave( SettingsWrapper& wrap);
 
 		bool operator ==( const ProfilerOptions& right ) const
 		{
@@ -242,7 +276,7 @@ struct Pcsx2Config
 		RecompilerOptions();
 		void ApplySanityCheck();
 
-		void LoadSave( IniInterface& conf );
+		void LoadSave( SettingsWrapper& wrap);
 
 		bool operator ==( const RecompilerOptions& right ) const
 		{
@@ -265,7 +299,7 @@ struct Pcsx2Config
 		SSE_MXCSR sseVUMXCSR;
 
 		CpuOptions();
-		void LoadSave( IniInterface& conf );
+		void LoadSave( SettingsWrapper& wrap);
 		void ApplySanityCheck();
 
 		bool operator ==( const CpuOptions& right ) const
@@ -282,25 +316,32 @@ struct Pcsx2Config
 	// ------------------------------------------------------------------------
 	struct GSOptions
 	{
+		int VsyncQueueSize{ 2 };
+
 		// forces the MTGS to execute tags/tasks in fully blocking/synchronous
-		// style.  Useful for debugging potential bugs in the MTGS pipeline.
-		bool	SynchronousMTGS;
+		// style. Useful for debugging potential bugs in the MTGS pipeline.
+		bool SynchronousMTGS{ false };
+		bool FrameLimitEnable{ true };
+		bool FrameSkipEnable{ false };
 
-		int		VsyncQueueSize;
+		VsyncMode VsyncEnable{ VsyncMode::Off };
 
-		bool		FrameLimitEnable;
-		bool		FrameSkipEnable;
-		VsyncMode	VsyncEnable;
+		int FramesToDraw{ 2 }; // number of consecutive frames (fields) to render
+		int FramesToSkip{ 2 }; // number of consecutive frames (fields) to skip
 
-		int		FramesToDraw;	// number of consecutive frames (fields) to render
-		int		FramesToSkip;	// number of consecutive frames (fields) to skip
+		double LimitScalar{ 1.0 };
+		double FramerateNTSC{ 59.94 };
+		double FrameratePAL{ 50.00 };
 
-		Fixed100	LimitScalar;
-		Fixed100	FramerateNTSC;
-		Fixed100	FrameratePAL;
+		AspectRatioType AspectRatio{AspectRatioType::R4_3};
+		FMVAspectRatioSwitchType FMVAspectRatioSwitch{FMVAspectRatioSwitchType::Off};
 
-		GSOptions();
-		void LoadSave( IniInterface& conf );
+		double Zoom{100.0};
+		double StretchY{100.0};
+		double OffsetX{0.0};
+		double OffsetY{0.0};
+
+		void LoadSave( SettingsWrapper& wrap);
 
 		int GetVsync() const;
 
@@ -335,24 +376,25 @@ struct Pcsx2Config
 	{
 		BITFIELD32()
 			bool
-			VuAddSubHack : 1,			// Tri-ace games, they use an encryption algorithm that requires VU ADDI opcode to be bit-accurate.
 			FpuMulHack : 1,				// Tales of Destiny hangs.
 			FpuNegDivHack : 1,			// Gundam games messed up camera-view.
-			XgKickHack : 1,				// Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace games and others.
-			EETimingHack : 1,			// General purpose timing hack.
+			GoemonTlbHack : 1,			// Gomeon tlb miss hack. The game need to access unmapped virtual address. Instead to handle it as exception, tlb are preloaded at startup
 			SkipMPEGHack : 1,			// Skips MPEG videos (Katamari and other games need this)
 			OPHFlagHack : 1,			// Bleach Blade Battlers
+			EETimingHack : 1,			// General purpose timing hack.
 			DMABusyHack : 1,			// Denies writes to the DMAC when it's busy. This is correct behaviour but bad timing can cause problems.
+			GIFFIFOHack : 1,			// Enabled the GIF FIFO (more correct but slower)
 			VIFFIFOHack : 1,			// Pretends to fill the non-existant VIF FIFO Buffer.
 			VIF1StallHack : 1,			// Like above, processes FIFO data before the stall is allowed (to make sure data goes over).
-			GIFFIFOHack : 1,			// Enabled the GIF FIFO (more correct but slower)
-			GoemonTlbHack : 1,			// Gomeon tlb miss hack. The game need to access unmapped virtual address. Instead to handle it as exception, tlb are preloaded at startup
+			VuAddSubHack : 1,			// Tri-ace games, they use an encryption algorithm that requires VU ADDI opcode to be bit-accurate.
 			IbitHack : 1,				// I bit hack. Needed to stop constant VU recompilation in some games
-			VUKickstartHack : 1;		// Gives new VU programs a slight head start and runs VU's ahead of EE to avoid VU register reading/writing issues
+			VUKickstartHack : 1,		// Gives new VU programs a slight head start and runs VU's ahead of EE to avoid VU register reading/writing issues
+			VUOverflowHack : 1,			// Tries to simulate overflow flag checks (not really possible on x86 without soft floats)
+			XgKickHack : 1;				// Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace games and others.
 		BITFIELD_END
 
 		GamefixOptions();
-		void LoadSave( IniInterface& conf );
+		void LoadSave( SettingsWrapper& wrap);
 		GamefixOptions& DisableAll();
 
 		void Set( const wxString& list, bool enabled=true );
@@ -390,7 +432,7 @@ struct Pcsx2Config
 		u8	EECycleSkip;		// EE Cycle skip factor (0, 1, 2, or 3)
 
 		SpeedhackOptions();
-		void LoadSave(IniInterface& conf);
+		void LoadSave(SettingsWrapper& conf);
 		SpeedhackOptions& DisableAll();
 
 		void Set(SpeedhackId id, bool enabled = true);
@@ -422,7 +464,7 @@ struct Pcsx2Config
 		u32 MemoryViewBytesPerRow;
 
 		DebugOptions();
-		void LoadSave( IniInterface& conf );
+		void LoadSave( SettingsWrapper& wrap);
 		
 		bool operator ==( const DebugOptions& right ) const
 		{
@@ -434,6 +476,49 @@ struct Pcsx2Config
 		{
 			return !this->operator ==( right );
 		}
+	};
+
+	// ------------------------------------------------------------------------
+	struct FramerateOptions
+	{
+		bool SkipOnLimit{false};
+		bool SkipOnTurbo{false};
+
+		double NominalScalar{1.0};
+		double TurboScalar{2.0};
+		double SlomoScalar{0.5};
+
+		void LoadSave(SettingsWrapper& wrap);
+		void SanityCheck();
+	};
+
+	// ------------------------------------------------------------------------
+	struct FilenameOptions
+	{
+		std::string Bios;
+
+		FilenameOptions();
+		void LoadSave(SettingsWrapper& wrap);
+
+		bool operator==(const FilenameOptions& right) const
+		{
+			return OpEqu(Bios);
+		}
+
+		bool operator!=(const FilenameOptions& right) const
+		{
+			return !this->operator==(right);
+		}
+	};
+
+	// ------------------------------------------------------------------------
+	// Options struct for each memory card.
+	//
+	struct McdOptions
+	{
+		std::string	Filename;	// user-configured location of this memory card
+		bool		Enabled;	// memory card enabled (if false, memcard will not show up in-game)
+		MemoryCardType Type;	// the memory card implementation that should be used
 	};
 
 	BITFIELD32()
@@ -459,8 +544,12 @@ struct Pcsx2Config
 			MultitapPort1_Enabled:1,
 
 			ConsoleToStdio		:1,
-			HostFs				:1,
-			FullBootConfig		:1;
+			HostFs				:1;
+
+			// uses automatic ntfs compression when creating new memory cards (Win32 only)
+#ifdef __WXMSW__
+			bool		McdCompressNTFS;
+#endif
 	BITFIELD_END
 
 	CpuOptions			Cpu;
@@ -469,18 +558,31 @@ struct Pcsx2Config
 	GamefixOptions		Gamefixes;
 	ProfilerOptions		Profiler;
 	DebugOptions		Debugger;
+	FramerateOptions		Framerate;
 
 	TraceLogFilters		Trace;
 
-	wxFileName			BiosFilename;
+	FilenameOptions BaseFilenames;
+
+	// Memorycard options - first 2 are default slots, last 6 are multitap 1 and 2
+	// slots (3 each)
+	McdOptions Mcd[8];
+	std::string GzipIsoIndexTemplate; // for quick-access index with gzipped ISO
+
+	// Set at runtime, not loaded from config.
+	std::string CurrentBlockdump;
+	std::string CurrentIRX;
+	std::string CurrentGameArgs;
+	AspectRatioType CurrentAspectRatio = AspectRatioType::R4_3;
+	LimiterModeType LimiterMode = LimiterModeType::Nominal;
 
 	Pcsx2Config();
-	void LoadSave( IniInterface& ini );
+	void LoadSave(SettingsWrapper& wrap);
+	void LoadSaveMemcards(SettingsWrapper& wrap);
 
-	void Load( const wxString& srcfile );
-	void Load( const wxInputStream& srcstream );
-	void Save( const wxString& dstfile );
-	void Save( const wxOutputStream& deststream );
+	// TODO: Make these std::string when we remove wxFile...
+	wxString FullpathToBios() const;
+	wxString FullpathToMcd(uint slot) const;
 
 	bool MultitapEnabled( uint port ) const;
 
@@ -494,22 +596,33 @@ struct Pcsx2Config
 			OpEqu( Gamefixes )	&&
 			OpEqu( Profiler )	&&
 			OpEqu( Trace )		&&
-			OpEqu( BiosFilename );
+			OpEqu( BaseFilenames );
 	}
 
 	bool operator !=( const Pcsx2Config& right ) const
 	{
 		return !this->operator ==( right );
 	}
+
+	// You shouldn't assign to this class, because it'll mess with the runtime variables (Current...).
+	// But you can still use this to copy config. Only needed until we drop wx.
+	void CopyConfig(const Pcsx2Config& cfg);
 };
 
-extern const Pcsx2Config EmuConfig;
+extern Pcsx2Config EmuConfig;
 
-Pcsx2Config::GSOptions&			SetGSConfig();
-Pcsx2Config::RecompilerOptions& SetRecompilerConfig();
-Pcsx2Config::GamefixOptions&	SetGameFixConfig();
-TraceLogFilters&				SetTraceConfig();
-
+namespace EmuFolders
+{
+	extern wxDirName Settings;
+	extern wxDirName Bios;
+	extern wxDirName Snapshots;
+	extern wxDirName Savestates;
+	extern wxDirName MemoryCards;
+	extern wxDirName Langs;
+	extern wxDirName Logs;
+	extern wxDirName Cheats;
+	extern wxDirName CheatsWS;
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////
 // Helper Macros for Reading Emu Configurations.
@@ -519,9 +632,9 @@ TraceLogFilters&				SetTraceConfig();
 
 #define THREAD_VU1					(EmuConfig.Cpu.Recompiler.EnableVU1 && EmuConfig.Speedhacks.vuThread)
 #define INSTANT_VU1					(EmuConfig.Speedhacks.vu1Instant)
-#define CHECK_EEREC					(EmuConfig.Cpu.Recompiler.EnableEE && GetCpuProviders().IsRecAvailable_EE())
+#define CHECK_EEREC					(EmuConfig.Cpu.Recompiler.EnableEE)
 #define CHECK_CACHE					(EmuConfig.Cpu.Recompiler.EnableEECache)
-#define CHECK_IOPREC				(EmuConfig.Cpu.Recompiler.EnableIOP && GetCpuProviders().IsRecAvailable_IOP())
+#define CHECK_IOPREC				(EmuConfig.Cpu.Recompiler.EnableIOP)
 
 //------------ SPECIAL GAME FIXES!!! ---------------
 #define CHECK_VUADDSUBHACK			(EmuConfig.Gamefixes.VuAddSubHack)	 // Special Fix for Tri-ace games, they use an encryption algorithm that requires VU addi opcode to be bit-accurate.
@@ -535,6 +648,7 @@ TraceLogFilters&				SetTraceConfig();
 #define CHECK_VIFFIFOHACK			(EmuConfig.Gamefixes.VIFFIFOHack)    // Pretends to fill the non-existant VIF FIFO Buffer.
 #define CHECK_VIF1STALLHACK			(EmuConfig.Gamefixes.VIF1StallHack)  // Like above, processes FIFO data before the stall is allowed (to make sure data goes over).
 #define CHECK_GIFFIFOHACK			(EmuConfig.Gamefixes.GIFFIFOHack)	 // Enabled the GIF FIFO (more correct but slower)
+#define CHECK_VUOVERFLOWHACK		(EmuConfig.Gamefixes.VUOverflowHack) // Special Fix for Superman Returns, they check for overflows on PS2 floats which we can't do without soft floats.
 
 //------------ Advanced Options!!! ---------------
 #define CHECK_VU_OVERFLOW			(EmuConfig.Cpu.Recompiler.vuOverflow)

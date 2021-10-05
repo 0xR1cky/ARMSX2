@@ -16,8 +16,6 @@
 #include "PrecompiledHeader.h"
 #include "CDVDdiscReader.h"
 
-#include "AppConfig.h"
-
 #include <condition_variable>
 
 void (*newDiscCB)();
@@ -183,11 +181,7 @@ void StopKeepAliveThread()
 
 s32 CALLBACK DISCopen(const char* pTitle)
 {
-#if defined(_WIN32)
-	std::wstring drive = g_Conf->Folders.RunDisc.ToStdWstring();
-#else
-	std::string drive = g_Conf->Folders.RunDisc.ToStdString();
-#endif
+	std::string drive(pTitle);
 	GetValidDrive(drive);
 	if (drive.empty())
 		return -1;
@@ -197,7 +191,7 @@ s32 CALLBACK DISCopen(const char* pTitle)
 	{
 		src = std::unique_ptr<IOCtlSrc>(new IOCtlSrc(drive));
 	}
-	catch (std::runtime_error& ex)
+	catch (std::runtime_error&)
 	{
 		return -1;
 	}

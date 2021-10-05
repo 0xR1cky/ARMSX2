@@ -14,6 +14,7 @@
  */
 
 #pragma once
+#include <string>
 
 typedef struct _cdvdSubQ
 {
@@ -41,6 +42,11 @@ typedef struct _cdvdTN
 	u8 strack; //number of the first track (usually 1)
 	u8 etrack; //number of the last track
 } cdvdTN;
+
+// SpindleCtrl Masks
+#define CDVD_SPINDLE_SPEED 0x7  // Speed ranges from 0-3 (1, 2, 3, 4x for DVD) and 0-5 (1, 2, 4, 12, 24x for CD)
+#define CDVD_SPINDLE_DVD16 0x40 // Forces DVD to 1.6x speed (Mentioned in open SDK not really anywhere else
+#define CDVD_SPINDLE_CAV 0x80  // CAV/CLV selector
 
 // CDVDreadTrack mode values:
 #define CDVD_MODE_2352 0 // full 2352 bytes
@@ -151,8 +157,8 @@ extern CDVD_API CDVDapi_NoDisc;
 extern const wxChar* CDVD_SourceLabels[];
 
 extern void CDVDsys_ChangeSource(CDVD_SourceType type);
-extern void CDVDsys_SetFile(CDVD_SourceType srctype, const wxString& newfile);
-extern const wxString& CDVDsys_GetFile(CDVD_SourceType srctype);
+extern void CDVDsys_SetFile(CDVD_SourceType srctype, std::string newfile);
+extern const std::string& CDVDsys_GetFile(CDVD_SourceType srctype);
 extern CDVD_SourceType CDVDsys_GetSourceType();
 
 extern bool DoCDVDopen();

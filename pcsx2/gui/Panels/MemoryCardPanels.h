@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "AppCommon.h"
+#include "gui/AppCommon.h"
 
 #include <wx/dnd.h>
 #include <wx/listctrl.h>
@@ -64,7 +64,7 @@ struct McdSlotItem
 	{
 		Slot = -1;
 		SizeInMB = 0;
-		Type = MemoryCard_None;
+		Type = MemoryCardType::Empty;
 		
 		IsPSX = false;
 		IsPresent = false;

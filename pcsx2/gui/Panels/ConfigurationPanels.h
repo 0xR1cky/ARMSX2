@@ -25,8 +25,8 @@
 #include <wx/dnd.h>
 #include <memory>
 
-#include "AppCommon.h"
-#include "ApplyState.h"
+#include "gui/AppCommon.h"
+#include "gui/ApplyState.h"
 
 
 namespace Panels
@@ -391,20 +391,14 @@ namespace Panels
 	};
 
 	// --------------------------------------------------------------------------------------
-	//  BasePathsPanel / StandardPathsPanel
+	//  StandardPathsPanel
 	// --------------------------------------------------------------------------------------
-	class BasePathsPanel : public wxPanelWithHelpers
-	{
-	public:
-		BasePathsPanel(wxWindow* parent);
-
-	protected:
-	};
-
-	class StandardPathsPanel : public BasePathsPanel
+	class StandardPathsPanel : public BaseApplicableConfigPanel
 	{
 	public:
 		StandardPathsPanel(wxWindow* parent);
+		void Apply();
+		void AppStatusEvent_OnSettingsApplied();
 	};
 
 	// --------------------------------------------------------------------------------------

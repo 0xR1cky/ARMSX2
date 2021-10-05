@@ -68,17 +68,22 @@ jobs:
       matrix:
         os: [windows-2019]
         platform: [Win32, x64]
-        configuration: [Release, Release AVX2]
+        configuration: [Release, Release AVX2, CMake]
         experimental: [false]
 
     name: ${{ matrix.platform }} | ${{ matrix.configuration }}
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.experimental }}
     # Set some sort of timeout in the event of run-away builds.  We are limited on concurrent jobs so, get rid of them.
-    timeout-minutes: 30
+    timeout-minutes: 60
 
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
+      BUILDCACHE_COMPRESS_FORMAT: ZSTD
+      BUILDCACHE_COMPRESS_LEVEL: 9
+      BUILDCACHE_MAX_CACHE_SIZE: 536870912 # 512MB
+      BUILDCACHE_DIRECT_MODE: true
+      BUILDCACHE_LOG_FILE: ${{ github.workspace }}\buildcache.log
 
     steps:
       # NOTE - useful for debugging
@@ -91,27 +96,66 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Checkout Submodules
-        if: steps.cache-submodules.outputs.cache-hit != 'true'
         run: git submodule update --init --recursive -j $env:NUMBER_OF_PROCESSORS
+
+      - name: Setup Buildcache
+        uses: mikehardy/buildcache-action@v1.2.2
+        with:
+          cache_key: ${{ matrix.os }} ${{ matrix.platform }} ${{ matrix.configuration }}
+        if: matrix.configuration == 'CMake' # TODO: buildcache on VS
 
       - name: Verify VS Project Files
         run: .github\workflows\scripts\windows\validate-vs-filters.ps1
+        if: matrix.configuration != 'CMake'
 
       - name: Setup msbuild
         uses: microsoft/setup-msbuild@v1
+        if: matrix.configuration != 'CMake'
+
+      - name: Generate CMake
+        id: cmake
+        shell: cmd
+        run: |
+          if "${{ github.event.inputs.retainDebugArtifacts }}"=="true" (SET type=RelWithDebInfo) else (SET type=Release)
+          if "${{ matrix.platform }}"=="Win32" (SET vcvars=vcvarsamd64_x86.bat) else (SET vcvars=vcvars64.bat)
+          call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\%vcvars%"
+          echo ::set-output name=buildtype::%type%
+          echo ::set-output name=vcvars::%vcvars%
+          cmake . -B build -DCMAKE_BUILD_TYPE=%type% -DLTO_PCSX2_CORE=ON -G Ninja -DCMAKE_C_COMPILER_LAUNCHER=..\buildcache\bin\buildcache.exe -DCMAKE_CXX_COMPILER_LAUNCHER=..\buildcache\bin\buildcache.exe -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON
+        if: matrix.configuration == 'CMake'
 
       - name: Build PCSX2
+        shell: cmd
         env:
           # Set to 'true' to retain the .pdb / .exp / .lib, etc files which can be useful for repro'ing issues that only occur in the compiled .exe
           RetainDebuggingArtifacts: ${{ github.event.inputs.retainDebugArtifacts == 'true' }}
-        run: msbuild "PCSX2_suite.sln" /m /v:m /p:Configuration="${{ matrix.configuration }}" /p:Platform="${{ matrix.platform }}"
+        run: |
+          if "${{ matrix.configuration }}"=="CMake" (
+            call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\${{ steps.cmake.outputs.vcvars }}"
+            cmake --build build --config ${{ steps.cmake.outputs.buildtype }}
+          ) else (
+            msbuild "PCSX2_suite.sln" /m /v:m /p:Configuration="${{ matrix.configuration }}" /p:Platform="${{ matrix.platform }}"
+          )
+
+      - name: Run Tests
+        shell: cmd
+        run: |
+          call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\${{ steps.cmake.outputs.vcvars }}"
+          cmake --build build --config ${{ steps.cmake.outputs.buildtype }} --target unittests
+        if: matrix.configuration == 'CMake'
 
       - name: Prepare Artifact Metadata
         id: artifact-metadata
         shell: bash
         run: |
           ARCH=$([ "${{ matrix.platform }}" == Win32 ] && echo "32bit" || echo "64bit")
-          SIMD=$([ "${{ matrix.configuration }}" == Release ] && echo "SSE4" || echo "AVX2")
+          case "${{ matrix.configuration }}" in
+            Release) SIMD="SSE4";;
+            *AVX2)   SIMD="AVX2";;
+            CMake)   SIMD="CMake"
+                     cp build/pcsx2/PCSX2* bin/ ;;
+            *)       SIMD="UNKNOWN";;
+          esac
           if [ ${{ github.event_name }} == "pull_request" ]; then
             PR_SHA=$(git rev-parse --short "${{ github.event.pull_request.head.sha }}")
             ARTIFACT_NAME="PCSX2-${ARCH}-${SIMD}"

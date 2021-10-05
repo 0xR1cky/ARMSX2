@@ -15,11 +15,11 @@
 
 #pragma once
 
-#include "App.h"
+#include "gui/App.h"
 #include "ConfigurationDialog.h"
 
-#include "Utilities/wxGuiTools.h"
-#include "Utilities/CheckedStaticBox.h"
+#include "gui/wxGuiTools.h"
+#include "gui/CheckedStaticBox.h"
 
 namespace Dialogs {
 

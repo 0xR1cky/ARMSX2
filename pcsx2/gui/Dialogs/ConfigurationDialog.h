@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2018  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -18,9 +18,9 @@
 #include <wx/wx.h>
 #include <wx/propdlg.h>
 
-#include "AppCommon.h"
-#include "ApplyState.h"
-#include "App.h"
+#include "gui/AppCommon.h"
+#include "gui/ApplyState.h"
+#include "gui/App.h"
 
 namespace Panels
 {
@@ -151,23 +151,6 @@ namespace Dialogs
 	};
 
 	// --------------------------------------------------------------------------------------
-	//  ComponentsConfigDialog
-	// --------------------------------------------------------------------------------------
-	class ComponentsConfigDialog : public BaseConfigurationDialog
-	{
-	protected:
-
-	public:
-		virtual ~ComponentsConfigDialog() = default;
-		ComponentsConfigDialog(wxWindow* parent=NULL);
-		static wxString GetNameStatic() { return L"AppSettings"; }
-		wxString GetDialogName() const { return GetNameStatic(); }
-
-	protected:
-		virtual wxString& GetConfSettingsTabName() const { return g_Conf->ComponentsTabName; }
-	};
-
-	// --------------------------------------------------------------------------------------
 	//  CreateMemoryCardDialog
 	// --------------------------------------------------------------------------------------
 	class CreateMemoryCardDialog : public wxDialogWithHelpers
@@ -213,7 +196,7 @@ namespace Dialogs
 
 	public:
 		virtual ~ConvertMemoryCardDialog()  = default;
-		ConvertMemoryCardDialog( wxWindow* parent, const wxDirName& mcdPath, const AppConfig::McdOptions& mcdSourceConfig );
+		ConvertMemoryCardDialog( wxWindow* parent, const wxDirName& mcdPath, MemoryCardType type, const wxString& sourceFilename );
 	
 	protected:
 		void CreateControls( const MemoryCardType sourceType );

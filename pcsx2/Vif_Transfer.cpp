@@ -32,7 +32,7 @@ _vifT void vifTransferLoop(u32* &data) {
 
 	vifXRegs.stat.VPS |= VPS_TRANSFERRING;
 	vifXRegs.stat.ER1  = false;
-	if(!idx)VIF_LOG("Starting VIF0 loop, pSize = %x, stalled = %x", pSize, vifX.vifstalled.enabled );
+	//VIF_LOG("Starting VIF%d loop, pSize = %x, stalled = %x", idx, pSize, vifX.vifstalled.enabled );
 	while (pSize > 0 && !vifX.vifstalled.enabled) {
 
 		if(!vifX.cmd) { // Get new VifCode
@@ -59,6 +59,12 @@ _vifT void vifTransferLoop(u32* &data) {
 		ret = vifCmdHandler[idx][vifX.cmd & 0x7f](vifX.pass, data);
 		data   += ret;
 		pSize  -= ret;
+		if (vifX.vifstalled.enabled)
+		{
+			int current_STR = idx ? vif1ch.chcr.STR : vif0ch.chcr.STR;
+			if (!current_STR)
+				DevCon.Warning("Warning! VIF%d stalled during FIFO transfer!", idx);
+		}
 	}
 }
 

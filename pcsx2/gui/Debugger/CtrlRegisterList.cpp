@@ -18,7 +18,7 @@
 #include "DebugTools/Debug.h"
 
 #include "DebugEvents.h"
-#include "AppConfig.h"
+#include "gui/AppConfig.h"
 #include "DisassemblyDialog.h"
 
 wxBEGIN_EVENT_TABLE(CtrlRegisterList, wxWindow)
@@ -31,10 +31,7 @@ wxBEGIN_EVENT_TABLE(CtrlRegisterList, wxWindow)
 wxEND_EVENT_TABLE()
 
 enum DisassemblyMenuIdentifiers {
-	ID_REGISTERLIST_DISPLAY32 = 1,
-	ID_REGISTERLIST_DISPLAY64,
-	ID_REGISTERLIST_DISPLAY128,
-	ID_REGISTERLIST_DISPLAY128STRINGS,
+	ID_REGISTERLIST_RESOLVESTRINGS,
 	ID_REGISTERLIST_DISPLAYVU0FFLOATS,
 	ID_REGISTERLIST_CHANGELOWER,
 	ID_REGISTERLIST_CHANGEUPPER,
@@ -51,7 +48,6 @@ CtrlRegisterList::CtrlRegisterList(wxWindow* parent, DebugInterface* _cpu)
 	rowHeight = getDebugFontHeight() + 2;
 	charWidth = getDebugFontWidth();
 	category = 0;
-	maxBits = 128;
 	lastPc = 0xFFFFFFFF;
 	resolvePointerStrings = false;
 	displayVU0FAsFloat = false;
@@ -76,11 +72,10 @@ CtrlRegisterList::CtrlRegisterList(wxWindow* parent, DebugInterface* _cpu)
 	}
 
 	SetDoubleBuffered(true);
-	SetInitialSize(ClientToWindowSize(GetMinClientSize()));
 
-	const wxSize actualSize = getOptimalSize();
-	SetVirtualSize(actualSize);
-	SetScrollbars(1, rowHeight, actualSize.x, actualSize.y / rowHeight, 0, 0);
+	const wxSize optSize = getOptimalSize();
+	SetVirtualSize(optSize);
+	SetScrollbars(1, rowHeight, optSize.x, optSize.y / rowHeight, 0, 0);
 }
 
 CtrlRegisterList::~CtrlRegisterList()
@@ -91,32 +86,18 @@ CtrlRegisterList::~CtrlRegisterList()
 
 wxSize CtrlRegisterList::getOptimalSize() const
 {
-	int columnChars = 0;
-	int maxWidth = 0;
-	int maxRows = 0;
-
-	for (int i = 0; i < cpu->getRegisterCategoryCount(); i++)
+	wxSize optRegListSize;
+	if (cpu->getCpuType() == BreakPointCpu::BREAKPOINT_EE)
 	{
-		int bits = std::min<u32>(maxBits, cpu->getRegisterSize(i));
-
-		// Workaround for displaying VU0F registers as floats
-		if (i == EECAT_VU0F && displayVU0FAsFloat && category == EECAT_VU0F)
-			bits = 128;
-
-		const int start = startPositions[i];
-
-		int w = start + (bits / 4) * charWidth;
-		if (bits > 32)
-			w += (bits / 32) * 2 - 2;
-
-		maxWidth = std::max<int>(maxWidth, w);
-		columnChars += strlen(cpu->getRegisterCategoryName(i)) + 1;
-		maxRows = std::max<int>(maxRows, cpu->getRegisterCount(i));
+		optRegListSize = wxSize(331, 504);
+	}
+	else
+	{
+		// We are constructing the IOP register view
+		optRegListSize = wxSize(133, 504);
 	}
 
-	maxWidth = std::max<int>(columnChars * charWidth, maxWidth + 4);
-
-	return wxSize(maxWidth, (maxRows + 1) * rowHeight);
+	return wxSize(optRegListSize.x, optRegListSize.y);
 }
 
 void CtrlRegisterList::postEvent(wxEventType type, wxString text)
@@ -254,7 +235,7 @@ void CtrlRegisterList::OnDraw(wxDC& dc)
 	endRow = std::min<int>(cpu->getRegisterCount(category) - 1, endRow - 1);
 
 	const wxString vu0fTitles[5] = {"W", "Z", "Y", "X"};
-	int vu0fTitleCur = abs(maxBits / 32 - 4);
+	int vu0fTitleCur = 0;
 	const int nameStart = 17;
 	const int valueStart = startPositions[category];
 
@@ -290,7 +271,6 @@ void CtrlRegisterList::OnDraw(wxDC& dc)
 
 		switch (type)
 		{
-			[[fallthrough]]; // If we fallthrough, display VU0f as hexadecimal
 			case DebugInterface::SPECIAL: // let debug interface format them and just display them
 			{
 				if (changed.changed[0] || changed.changed[1] || changed.changed[2] || changed.changed[3])
@@ -304,17 +284,25 @@ void CtrlRegisterList::OnDraw(wxDC& dc)
 					{
 						char str[256];
 						const u128 val = cpu->getRegister(category, i);
-						// Use std::bit_cast in C++20. The below is technically UB
-						sprintf(str, "%7.2f %7.2f %7.2f %7.2f", *(float*)&val._u32[3], *(float*)&val._u32[2], *(float*)&val._u32[1], *(float*)&val._u32[0]);
-						dc.DrawText(wxString(str), x, y + 2);
+						// Print each register part individually so we know exactly where each part starts
+						// and use this information for printing the VU0F titles
+						for (int j = 3; j >= 0; j--)
+						{
+							// Use std::bit_cast in C++20. The below is technically UB
+							sprintf(str, "%7.2f", *(float*)&val._u32[j]);
+							dc.DrawText(wxString(str), x, y + 2);
+							x += charWidth * 8 + 2;
+						}
 
 						// Only draw the VU0f titles when we are drawing the first row
 						if (i == startRow)
 						{
+							x = valueStart; // Reset our X back to the starting position
+
 							for (int j = 0; j < 4; j++)
 							{
 								dc.SetTextForeground(colorNormal);
-								dc.DrawText(vu0fTitles[j], x + charWidth * 4, rowHeight + 2);
+								dc.DrawText(vu0fTitles[j], (x + charWidth * 4) - 4, rowHeight + 2);
 								x += charWidth * 8 + 2;
 							}
 						}
@@ -327,94 +315,91 @@ void CtrlRegisterList::OnDraw(wxDC& dc)
 					dc.DrawText(cpu->getRegisterString(category, i), x, y + 2);
 					break;
 				}
-				case DebugInterface::NORMAL: // display them in 32 bit parts
-					switch (registerBits)
+			}
+				[[fallthrough]];
+			case DebugInterface::NORMAL: // display them in 32 bit parts
+			{
+				switch (registerBits)
+				{
+					case 128:
 					{
-						case 128:
+						int startIndex = 3;
+
+						if (resolvePointerStrings && cpu->isAlive())
 						{
-							int startIndex = std::min<int>(3, maxBits / 32 - 1);
-
-							if (resolvePointerStrings && cpu->isAlive())
+							const char* strval = cpu->stringFromPointer(value._u32[0]);
+							if (strval)
 							{
-								const char* strval = cpu->stringFromPointer(value._u32[0]);
-								if (strval)
-								{
-									static wxColor clr = wxColor(0xFF228822);
-									dc.SetTextForeground(clr);
-									dc.DrawText(wxString(strval), width - (32 * charWidth + 12), y + 2);
-									startIndex = 0;
-								}
+								static wxColor clr = wxColor(0xFF228822);
+								dc.SetTextForeground(clr);
+								dc.DrawText(wxString(strval), width - (32 * charWidth + 12), y + 2);
+								startIndex = 0;
 							}
-
-							const int actualX = width - 4 - (startIndex + 1) * (8 * charWidth + 2);
-							x = std::max<int>(actualX, x);
-
-							if (startIndex != 3)
-							{
-								bool c = false;
-								for (int i = 3; i > startIndex; i--)
-									c = c || changed.changed[i];
-
-								if (c)
-								{
-									dc.SetTextForeground(colorChanged);
-									dc.DrawText(L"+", x - charWidth, y + 2);
-								}
-							}
-
-							for (int j = startIndex; j >= 0; j--)
-							{
-								if (changed.changed[j])
-									dc.SetTextForeground(colorChanged);
-								else
-									dc.SetTextForeground(colorUnchanged);
-
-								drawU32Text(dc, value._u32[j], x, y + 2);
-
-								// Only draw the VU0f titles when we are drawing the first row and are on the VU0f category
-								if (category == EECAT_VU0F && i == startRow)
-								{
-									dc.SetTextForeground(colorNormal);
-									dc.DrawText(vu0fTitles[vu0fTitleCur++], x + charWidth * 4, rowHeight + 2);
-								}
-								x += charWidth * 8 + 2;
-							}
-
-							break;
 						}
-						case 64:
+
+						const int actualX = width - 4 - (startIndex + 1) * (8 * charWidth + 2);
+						x = std::max<int>(actualX, x);
+
+						if (startIndex != 3)
 						{
-							if (maxBits < 64 && changed.changed[1])
+							bool c = false;
+							for (int i = 3; i > startIndex; i--)
+								c = c || changed.changed[i];
+
+							if (c)
 							{
 								dc.SetTextForeground(colorChanged);
 								dc.DrawText(L"+", x - charWidth, y + 2);
 							}
-
-							for (int j = 1; j >= 0; j--)
-							{
-								if (changed.changed[j])
-									dc.SetTextForeground(colorChanged);
-								else
-									dc.SetTextForeground(colorUnchanged);
-
-								drawU32Text(dc, value._u32[j], x, y + 2);
-								x += charWidth * 8 + 2;
-							}
-
-							break;
 						}
-						case 32:
+
+						for (int j = startIndex; j >= 0; j--)
 						{
-							if (changed.changed[0])
+							if (changed.changed[j])
 								dc.SetTextForeground(colorChanged);
 							else
 								dc.SetTextForeground(colorUnchanged);
 
-							drawU32Text(dc, value._u32[0], x, y + 2);
-							break;
+							drawU32Text(dc, value._u32[j], x, y + 2);
+
+							// Only draw the VU0f titles when we are drawing the first row and are on the VU0f category
+							if (category == EECAT_VU0F && i == startRow)
+							{
+								dc.SetTextForeground(colorNormal);
+								dc.DrawText(vu0fTitles[vu0fTitleCur++], x + (charWidth * 2.5), rowHeight + 2);
+							}
+							x += charWidth * 8 + 2;
 						}
+
+						break;
 					}
-					break;
+					case 64:
+					{
+						for (int j = 1; j >= 0; j--)
+						{
+							if (changed.changed[j])
+								dc.SetTextForeground(colorChanged);
+							else
+								dc.SetTextForeground(colorUnchanged);
+
+							drawU32Text(dc, value._u32[j], x, y + 2);
+							x += charWidth * 8 + 2;
+						}
+
+						break;
+					}
+					case 32:
+					{
+						if (changed.changed[0])
+							dc.SetTextForeground(colorChanged);
+						else
+							dc.SetTextForeground(colorUnchanged);
+
+						drawU32Text(dc, value._u32[0], x, y + 2);
+						break;
+					}
+				}
+				break;
 			}
 		}
 	}
@@ -464,37 +449,13 @@ void CtrlRegisterList::onPopupClick(wxCommandEvent& evt)
 {
 	switch (evt.GetId())
 	{
-		case ID_REGISTERLIST_DISPLAY32:
-			resolvePointerStrings = false;
-			maxBits = 32;
-			SetInitialSize(ClientToWindowSize(GetMinClientSize()));
-			postEvent(debEVT_UPDATELAYOUT, 0);
-			Refresh();
-			break;
-		case ID_REGISTERLIST_DISPLAY64:
-			resolvePointerStrings = false;
-			maxBits = 64;
-			SetInitialSize(ClientToWindowSize(GetMinClientSize()));
-			postEvent(debEVT_UPDATELAYOUT, 0);
-			Refresh();
-			break;
-		case ID_REGISTERLIST_DISPLAY128:
-			resolvePointerStrings = false;
-			maxBits = 128;
-			SetInitialSize(ClientToWindowSize(GetMinClientSize()));
-			postEvent(debEVT_UPDATELAYOUT, 0);
-			Refresh();
-			break;
-		case ID_REGISTERLIST_DISPLAY128STRINGS:
-			resolvePointerStrings = true;
-			maxBits = 128;
-			SetInitialSize(ClientToWindowSize(GetMinClientSize()));
+		case ID_REGISTERLIST_RESOLVESTRINGS:
+			resolvePointerStrings = !resolvePointerStrings;
 			postEvent(debEVT_UPDATELAYOUT, 0);
 			Refresh();
 			break;
 		case ID_REGISTERLIST_DISPLAYVU0FFLOATS:
 			displayVU0FAsFloat = !displayVU0FAsFloat;
-			SetInitialSize(ClientToWindowSize(GetMinClientSize()));
 			postEvent(debEVT_UPDATELAYOUT, 0);
 			Refresh();
 			break;
@@ -585,37 +546,20 @@ void CtrlRegisterList::mouseEvent(wxMouseEvent& evt)
 		}
 
 		wxMenu menu;
-		const int bits = cpu->getRegisterSize(category);
 
-		if (!(category == EECAT_VU0F && displayVU0FAsFloat))
-		{
-			menu.AppendRadioItem(ID_REGISTERLIST_DISPLAY32, L"Display 32 bit");
-			menu.AppendRadioItem(ID_REGISTERLIST_DISPLAY64, L"Display 64 bit");
-			menu.AppendRadioItem(ID_REGISTERLIST_DISPLAY128, L"Display 128 bit");
-			menu.AppendRadioItem(ID_REGISTERLIST_DISPLAY128STRINGS, L"Display 128 bit + Resolve string pointers");
-
-			switch (maxBits)
-			{
-				case 128:
-					if (resolvePointerStrings)
-						menu.Check(ID_REGISTERLIST_DISPLAY128STRINGS, true);
-					else
-						menu.Check(ID_REGISTERLIST_DISPLAY128, true);
-					break;
-				case 64:
-					menu.Check(ID_REGISTERLIST_DISPLAY64, true);
-					break;
-				case 32:
-					menu.Check(ID_REGISTERLIST_DISPLAY32, true);
-					break;
-			}
-		}
 
 		if (category == EECAT_VU0F)
+		{
 			menu.AppendCheckItem(ID_REGISTERLIST_DISPLAYVU0FFLOATS, L"Display VU0f registers as floats")->Check(displayVU0FAsFloat);
+		}
+		else
+		{
+			menu.AppendCheckItem(ID_REGISTERLIST_RESOLVESTRINGS, L"Resolve string pointers")->Check(resolvePointerStrings);
+		}
 
 		menu.AppendSeparator();
 
+		const int bits = cpu->getRegisterSize(category);
 		if (bits >= 64)
 		{
 			menu.Append(ID_REGISTERLIST_CHANGELOWER, L"Change lower 64 bit");
@@ -645,12 +589,6 @@ void CtrlRegisterList::mouseEvent(wxMouseEvent& evt)
 			if (cat != category)
 			{
 				category = cat;
-
-				// Requires the next two lines to check if we are rendering the vu0f category
-				// and if we need to make the window sized for 128 bits because we are displaying as float
-				SetInitialSize(ClientToWindowSize(GetMinClientSize()));
-				postEvent(debEVT_UPDATELAYOUT, 0);
-
 				Refresh();
 			}
 		}

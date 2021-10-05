@@ -16,7 +16,7 @@
 #include "PrecompiledHeader.h"
 #include "ConfigurationDialog.h"
 #include "System.h"
-#include "MSWstuff.h"
+#include "gui/MSWstuff.h"
 
 #include "MemoryCardFile.h"
 //#include <wx/filepicker.h>
@@ -158,7 +158,7 @@ void Dialogs::CreateMemoryCardDialog::OnOk_Click( wxCommandEvent& evt )
 	// [TODO] Remove g_Conf->McdCompressNTFS, and have this dialog load/save directly from the ini.
 
 #ifdef __WXMSW__
-	g_Conf->McdCompressNTFS = m_check_CompressNTFS->GetValue();
+	g_Conf->EmuOptions.McdCompressNTFS = m_check_CompressNTFS->GetValue();
 #endif
 	result_createdMcdFilename=L"_INVALID_FILE_NAME_";
 
@@ -220,7 +220,7 @@ void Dialogs::CreateMemoryCardDialog::CreateControls()
 
 	// Initial value of the checkbox is saved between calls to the dialog box.  If the user checks
 	// the option, it remains checked for future dialog.  If the user unchecks it, ditto.
-	m_check_CompressNTFS->SetValue( g_Conf->McdCompressNTFS );
+	m_check_CompressNTFS->SetValue( g_Conf->EmuOptions.McdCompressNTFS );
 #endif
 
 	m_text_filenameInput = new wxTextCtrl(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, wxTE_PROCESS_ENTER);

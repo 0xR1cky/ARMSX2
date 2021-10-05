@@ -278,7 +278,6 @@ void MainEmuFrame::ConnectMenus()
 	// Config
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_SysSettings_Click, this, MenuId_Config_SysSettings);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_McdSettings_Click, this, MenuId_Config_McdSettings);
-	Bind(wxEVT_MENU, &MainEmuFrame::Menu_SelectBios_Click, this, MenuId_Config_BIOS);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_AudioSettings_Click, this, MenuId_Config_SPU2);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_NetworkSettings_Click, this, MenuId_Config_DEV9);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_USBSettings_Click, this, MenuId_Config_USB);
@@ -294,7 +293,7 @@ void MainEmuFrame::ConnectMenus()
 
 	// Misc
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_ShowConsole, this, MenuId_Console);
-#if defined(__unix__)
+#if defined(__POSIX__)
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_ShowConsole_Stdio, this, MenuId_Console_Stdio);
 #endif
 
@@ -449,7 +448,6 @@ void MainEmuFrame::CreateConfigMenu()
 {
 	m_menuConfig.Append(MenuId_Config_SysSettings, _("General &Settings"));
 	m_menuConfig.Append(MenuId_Config_McdSettings, _("&Memory Cards"));
-	m_menuConfig.Append(MenuId_Config_BIOS, _("&BIOS / Folder Selector"));
 	m_menuConfig.AppendSeparator();
 	m_menuConfig.Append(MenuId_Config_GS, _("&Graphics Settings"));
 	m_menuConfig.Append(MenuId_Config_SPU2, _("&Audio Settings"));
@@ -477,7 +475,7 @@ void MainEmuFrame::CreateWindowsMenu()
 #endif
 
 	m_menuWindow.Append(&m_MenuItem_Console);
-#if defined(__unix__)
+#if defined(__POSIX__)
 	m_menuWindow.AppendSeparator();
 	m_menuWindow.Append(&m_MenuItem_Console_Stdio);
 #endif
@@ -576,7 +574,7 @@ MainEmuFrame::MainEmuFrame(wxWindow* parent, const wxString& title)
 	, m_GameSettingsSubmenu(*new wxMenu())
 
 	, m_MenuItem_Console(*new wxMenuItem(&m_menuWindow, MenuId_Console, _("&Show Program Log"), wxEmptyString, wxITEM_CHECK))
-#if defined(__unix__)
+#if defined(__POSIX__)
 	, m_MenuItem_Console_Stdio(*new wxMenuItem(&m_menuWindow, MenuId_Console_Stdio, _("&Program Log to Stdio"), wxEmptyString, wxITEM_CHECK))
 #endif
 
@@ -832,7 +830,7 @@ void MainEmuFrame::ApplyConfigToGui(AppConfig& configToApply, int flags)
 #endif
 		menubar.Check(MenuId_EnableHostFs, configToApply.EmuOptions.HostFs);
 		menubar.Check(MenuId_Debug_CreateBlockdump, configToApply.EmuOptions.CdvdDumpBlocks);
-#if defined(__unix__)
+#if defined(__POSIX__)
 		menubar.Check(MenuId_Console_Stdio, configToApply.EmuOptions.ConsoleToStdio);
 #endif
 

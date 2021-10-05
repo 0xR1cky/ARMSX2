@@ -30,7 +30,7 @@
 #include "SPU2/spu2.h"
 #include "DEV9/DEV9.h"
 #include "USB/USB.h"
-#include "gui/MemoryCardFile.h"
+#include "MemoryCardFile.h"
 #ifdef _WIN32
 #include "PAD/Windows/PAD.h"
 #else
@@ -40,15 +40,15 @@
 #include "DebugTools/MIPSAnalyst.h"
 #include "DebugTools/SymbolMap.h"
 
-#include "Utilities/PageFaultSource.h"
-#include "Utilities/Threading.h"
+#include "common/PageFaultSource.h"
+#include "common/Threading.h"
 #include "IopBios.h"
 
 #ifdef __WXMSW__
 #include <wx/msw/wrapwin.h>
 #endif
 
-#include "x86emitter/x86_intrin.h"
+#include "common/emitter/x86_intrin.h"
 
 bool g_CDVDReset = false;
 
@@ -99,6 +99,12 @@ bool SysCoreThread::Cancel(const wxTimeSpan& span)
 void SysCoreThread::OnStart()
 {
 	_parent::OnStart();
+}
+
+void SysCoreThread::OnSuspendInThread()
+{
+	TearDownSystems(static_cast<SystemsMask>(-1)); // All systems
+	GetMTGS().Suspend();
 }
 
 void SysCoreThread::Start()
@@ -176,7 +182,7 @@ void SysCoreThread::ApplySettings(const Pcsx2Config& src)
 	m_resetProfilers = (src.Profiler != EmuConfig.Profiler);
 	m_resetVsyncTimers = (src.GS != EmuConfig.GS);
 
-	const_cast<Pcsx2Config&>(EmuConfig) = src;
+	EmuConfig.CopyConfig(src);
 }
 
 // --------------------------------------------------------------------------------------
@@ -302,30 +308,26 @@ void SysCoreThread::ExecuteTaskInThread()
 	PCSX2_PAGEFAULT_EXCEPT;
 }
 
-void SysCoreThread::OnSuspendInThread()
+void SysCoreThread::TearDownSystems(SystemsMask systemsToTearDown)
 {
-	DEV9close();
-	USBclose();
-	DoCDVDclose();
-	FWclose();
-	PADclose();
-	SPU2close();
-	FileMcd_EmuClose();
-	GetMTGS().Suspend();
+	if (systemsToTearDown & System_DEV9) DEV9close();
+	if (systemsToTearDown & System_USB) USBclose();
+	if (systemsToTearDown & System_CDVD) DoCDVDclose();
+	if (systemsToTearDown & System_FW) FWclose();
+	if (systemsToTearDown & System_PAD) PADclose();
+	if (systemsToTearDown & System_SPU2) SPU2close();
+	if (systemsToTearDown & System_MCD) FileMcd_EmuClose();
 }
 
-void SysCoreThread::OnResumeInThread(bool isSuspended)
+void SysCoreThread::OnResumeInThread(SystemsMask systemsToReinstate)
 {
 	GetMTGS().WaitForOpen();
-	if (isSuspended)
-	{
-		DEV9open((void*)pDsp);
-		USBopen((void*)pDsp);
-	}
-	FWopen();
-	SPU2open((void*)pDsp);
-	PADopen((void*)pDsp);
-	FileMcd_EmuOpen();
+	if (systemsToReinstate & System_DEV9) DEV9open((void*)pDsp);
+	if (systemsToReinstate & System_USB) USBopen((void*)pDsp);
+	if (systemsToReinstate & System_FW) FWopen();
+	if (systemsToReinstate & System_SPU2) SPU2open((void*)pDsp);
+	if (systemsToReinstate & System_PAD) PADopen((void*)pDsp);
+	if (systemsToReinstate & System_MCD) FileMcd_EmuOpen();
 }
 
 

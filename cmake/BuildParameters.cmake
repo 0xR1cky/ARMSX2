@@ -18,6 +18,14 @@ set(PCSX2_DEFS "")
 option(DISABLE_BUILD_DATE "Disable including the binary compile date")
 option(ENABLE_TESTS "Enables building the unit tests" ON)
 option(USE_SYSTEM_YAML "Uses a system version of yaml, if found")
+option(LTO_PCSX2_CORE "Enable LTO/IPO/LTCG on the subset of pcsx2 that benefits most from it but not anything else")
+
+if(WIN32)
+	set(DEFAULT_NATIVE_TOOLS ON)
+else()
+	set(DEFAULT_NATIVE_TOOLS OFF)
+endif()
+option(USE_NATIVE_TOOLS "Uses c++ tools instead of ones written in scripting languages.  OFF requires perl, ON may fail if cross compiling" ${DEFAULT_NATIVE_TOOLS})
 
 if(DISABLE_BUILD_DATE OR openSUSE)
 	message(STATUS "Disabling the inclusion of the binary compile date.")
@@ -46,7 +54,6 @@ option(GTK2_API "Use GTK2 api (legacy)")
 if(PACKAGE_MODE)
 	# Compile all source codes with those defines
 	list(APPEND PCSX2_DEFS
-		PLUGIN_DIR_COMPILATION=${CMAKE_INSTALL_FULL_LIBDIR}/PCSX2
 		GAMEINDEX_DIR_COMPILATION=${CMAKE_INSTALL_FULL_DATADIR}/PCSX2
 		DOC_DIR_COMPILATION=${CMAKE_INSTALL_FULL_DOCDIR})
 endif()
@@ -70,6 +77,8 @@ elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 	set(USE_GCC TRUE)
 	message(STATUS "Building with GNU GCC")
+elseif(MSVC)
+	message(STATUS "Building with MSVC")
 else()
 	message(FATAL_ERROR "Unknown compiler: ${CMAKE_CXX_COMPILER_ID}")
 endif()
@@ -92,10 +101,12 @@ set(CMAKE_LINKER_FLAGS_DEVEL "${CMAKE_LINKER_FLAGS_RELWITHDEBINFO}"
 	CACHE STRING "Flags used for linking binaries during development builds" FORCE)
 set(CMAKE_SHARED_LINKER_FLAGS_DEVEL "${CMAKE_SHARED_LINKER_FLAGS_RELWITHDEBINFO}"
 	CACHE STRING "Flags used for linking shared libraries during development builds" FORCE)
+set(CMAKE_EXE_LINKER_FLAGS_DEVEL "${CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO}"
+	CACHE STRING "Flags used for linking executables during development builds" FORCE)
 if(CMAKE_CONFIGURATION_TYPES)
 	list(INSERT CMAKE_CONFIGURATION_TYPES 0 Devel)
 endif()
-mark_as_advanced(CMAKE_C_FLAGS_PROF CMAKE_CXX_FLAGS_PROF CMAKE_LINKER_FLAGS_PROF CMAKE_SHARED_LINKER_FLAGS_PROF)
+mark_as_advanced(CMAKE_C_FLAGS_DEVEL CMAKE_CXX_FLAGS_DEVEL CMAKE_LINKER_FLAGS_DEVEL CMAKE_SHARED_LINKER_FLAGS_DEVEL CMAKE_EXE_LINKER_FLAGS_DEVEL)
 # AVX2 doesn't play well with gdb
 if(CMAKE_BUILD_TYPE MATCHES "Debug")
 	SET(DISABLE_ADVANCE_SIMD ON)
@@ -145,17 +156,21 @@ if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "i386")
 	set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
 
 	if(NOT DEFINED ARCH_FLAG)
-		if (DISABLE_ADVANCE_SIMD)
-			if (USE_ICC)
-				set(ARCH_FLAG "-msse2 -msse4.1")
-			else()
-				set(ARCH_FLAG "-msse -msse2 -msse4.1 -mfxsr -march=i686")
-			endif()
+		if (MSVC)
+			set(ARCH_FLAG /arch:SSE2)
 		else()
-			# AVX requires some fix of the ABI (mangling) (default 2)
-			# Note: V6 requires GCC 4.7
-			#set(ARCH_FLAG "-march=native -fabi-version=6")
-			set(ARCH_FLAG "-mfxsr -march=native")
+			if (DISABLE_ADVANCE_SIMD)
+				if (USE_ICC)
+					set(ARCH_FLAG "-msse2 -msse4.1")
+				else()
+					set(ARCH_FLAG "-msse -msse2 -msse4.1 -mfxsr -march=i686")
+				endif()
+			else()
+				# AVX requires some fix of the ABI (mangling) (default 2)
+				# Note: V6 requires GCC 4.7
+				#set(ARCH_FLAG "-march=native -fabi-version=6")
+				set(ARCH_FLAG "-mfxsr -march=native")
+			endif()
 		endif()
 	endif()
 
@@ -167,7 +182,7 @@ elseif(${PCSX2_TARGET_ARCHITECTURES} MATCHES "x86_64")
 	# x86_64 requires -fPIC
 	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-	if(NOT DEFINED ARCH_FLAG)
+	if(NOT DEFINED ARCH_FLAG AND NOT MSVC)
 		if (DISABLE_ADVANCE_SIMD)
 			if (USE_ICC)
 				set(ARCH_FLAG "-msse2 -msse4.1")
@@ -193,34 +208,6 @@ string(REPLACE " " ";" ARCH_FLAG_LIST "${ARCH_FLAG}")
 add_compile_options("${ARCH_FLAG_LIST}")
 
 #-------------------------------------------------------------------------------
-# Control GCC flags
-#-------------------------------------------------------------------------------
-### Cmake set default value for various compilation variable
-### Here the list of default value for documentation purpose
-# ${CMAKE_SHARED_LIBRARY_CXX_FLAGS} = "-fPIC"
-# ${CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS} = "-rdynamic"
-#
-# ${CMAKE_C_FLAGS} = "-g -O2"
-# ${CMAKE_CXX_FLAGS} = "-g -O2"
-# Use in debug mode
-# ${CMAKE_CXX_FLAGS_DEBUG} = "-g"
-# Use in release mode
-# ${CMAKE_CXX_FLAGS_RELEASE} = "-O3 -DNDEBUG"
-
-#-------------------------------------------------------------------------------
-# Remove bad default option
-#-------------------------------------------------------------------------------
-# Remove -rdynamic option that can some segmentation fault when openining pcsx2 plugins
-set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
-set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
-if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "i386")
-	# Remove -fPIC option on 32bit architectures.
-	# No good reason to use it for plugins, also it impacts performance.
-	set(CMAKE_SHARED_LIBRARY_C_FLAGS "")
-	set(CMAKE_SHARED_LIBRARY_CXX_FLAGS "")
-endif()
-
-#-------------------------------------------------------------------------------
 # Set some default compiler flags
 #-------------------------------------------------------------------------------
 option(USE_PGO_GENERATE "Enable PGO optimization (generate profile)")
@@ -228,7 +215,20 @@ option(USE_PGO_OPTIMIZE "Enable PGO optimization (use profile)")
 
 # Note1: Builtin strcmp/memcmp was proved to be slower on Mesa than stdlib version.
 # Note2: float operation SSE is impacted by the PCSX2 SSE configuration. In particular, flush to zero denormal.
-add_compile_options(-pipe -fvisibility=hidden -pthread -fno-builtin-strcmp -fno-builtin-memcmp -mfpmath=sse -fno-operator-names)
+if(NOT MSVC)
+	add_compile_options(-pipe -fvisibility=hidden -pthread -fno-builtin-strcmp -fno-builtin-memcmp -mfpmath=sse -fno-operator-names)
+endif()
+
+if(WIN32)
+	add_compile_definitions(
+		$<$<CONFIG:Debug>:_ITERATOR_DEBUG_LEVEL=2>
+		$<$<CONFIG:Devel>:_ITERATOR_DEBUG_LEVEL=1>
+		$<$<CONFIG:RelWithDebInfo>:_ITERATOR_DEBUG_LEVEL=0>
+		$<$<CONFIG:MinSizeRel>:_ITERATOR_DEBUG_LEVEL=0>
+		$<$<CONFIG:Release>:_ITERATOR_DEBUG_LEVEL=0>
+	)
+	list(APPEND PCSX2_DEFS TIXML_USE_STL _SCL_SECURE_NO_WARNINGS _UNICODE UNICODE)
+endif()
 
 if(USE_VTUNE)
 	list(APPEND PCSX2_DEFS ENABLE_VTUNE)
@@ -245,9 +245,13 @@ endif()
 # -Wno-stringop-truncation: Who comes up with these compiler warnings, anyways?
 # -Wno-stringop-overflow: Probably the same people as this one...
 
-set(DEFAULT_WARNINGS -Wall -Wextra -Wno-attributes -Wno-unused-function -Wno-unused-parameter -Wno-missing-field-initializers -Wno-deprecated-declarations -Wno-format -Wno-format-security -Wno-overloaded-virtual)
-if (NOT USE_ICC)
-	list(APPEND DEFAULT_WARNINGS -Wno-unused-value)
+if (MSVC)
+	set(DEFAULT_WARNINGS)
+else()
+	set(DEFAULT_WARNINGS -Wall -Wextra -Wno-attributes -Wno-unused-function -Wno-unused-parameter -Wno-missing-field-initializers -Wno-deprecated-declarations -Wno-format -Wno-format-security -Wno-overloaded-virtual)
+	if (NOT USE_ICC)
+		list(APPEND DEFAULT_WARNINGS -Wno-unused-value)
+	endif()
 endif()
 
 if (USE_CLANG)
@@ -262,7 +266,7 @@ endif()
 # -Wstrict-aliasing=n: to fix one day aliasing issue. n=1/2/3
 if (USE_ICC)
 	set(AGGRESSIVE_WARNING -Wstrict-aliasing)
-else()
+elseif(NOT MSVC)
 	set(AGGRESSIVE_WARNING -Wstrict-aliasing -Wstrict-overflow=1)
 endif()
 
@@ -300,6 +304,11 @@ set(PCSX2_WARNINGS ${DEFAULT_WARNINGS} ${AGGRESSIVE_WARNING})
 
 if(CMAKE_BUILD_STRIP)
 	add_link_options(-s)
+endif()
+
+# Enable special stuff for CI builds
+if("$ENV{CI}" STREQUAL "true")
+	list(APPEND PCSX2_DEFS PCSX2_CI)
 endif()
 
 #-------------------------------------------------------------------------------

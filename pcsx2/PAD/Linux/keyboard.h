@@ -15,8 +15,8 @@
 
 #pragma once
 
-#include "Pcsx2Defs.h"
-#include "App.h"
+#include "common/Pcsx2Defs.h"
+#include "Host.h"
 
 #if defined(__unix__) || defined(__APPLE__)
 
@@ -29,7 +29,7 @@
 #undef DisableScreenSaver
 #endif
 
-extern void AnalyzeKeyEvent(keyEvent& evt);
+extern void AnalyzeKeyEvent(HostKeyEvent& evt);
 extern void UpdateKeyboardInput();
 extern bool PollForNewKeyboardKeys(u32& pkey);
 #endif

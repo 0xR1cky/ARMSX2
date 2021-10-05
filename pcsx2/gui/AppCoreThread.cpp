@@ -21,9 +21,8 @@
 #include <wx/stdpaths.h>
 #include "fmt/core.h"
 
-#include "Debugger/DisassemblyDialog.h"
-
-#include "Utilities/Threading.h"
+#include "common/StringUtil.h"
+#include "common/Threading.h"
 
 #include "ps2/BiosTools.h"
 #include "GS.h"
@@ -44,6 +43,15 @@ __aligned16 AppCoreThread CoreThread;
 
 typedef void (AppCoreThread::*FnPtr_CoreThreadMethod)();
 
+SysCoreThread& GetCoreThread()
+{
+	return CoreThread;
+}
+
+SysMtgsThread& GetMTGS()
+{
+	return mtgsThread;
+}
 
 namespace GameInfo
 {
@@ -208,13 +216,18 @@ void Pcsx2App::SysApplySettings()
 		return;
 	CoreThread.ApplySettings(g_Conf->EmuOptions);
 
-	CDVD_SourceType cdvdsrc(g_Conf->CdvdSource);
-	if (cdvdsrc != CDVDsys_GetSourceType() || (cdvdsrc == CDVD_SourceType::Iso && (CDVDsys_GetFile(cdvdsrc) != g_Conf->CurrentIso)))
+	const CDVD_SourceType cdvdsrc(g_Conf->CdvdSource);
+	const std::string currentIso(StringUtil::wxStringToUTF8String(g_Conf->CurrentIso));
+	const std::string currentDisc(StringUtil::wxStringToUTF8String(g_Conf->Folders.RunDisc));
+	if (cdvdsrc != CDVDsys_GetSourceType() ||
+			CDVDsys_GetFile(CDVD_SourceType::Iso) != currentIso ||
+			CDVDsys_GetFile(CDVD_SourceType::Disc) != currentDisc)
 	{
 		CoreThread.ResetCdvd();
 	}
 
-	CDVDsys_SetFile(CDVD_SourceType::Iso, g_Conf->CurrentIso);
+	CDVDsys_SetFile(CDVD_SourceType::Iso, currentIso);
+	CDVDsys_SetFile(CDVD_SourceType::Disc, currentDisc);
 }
 
 void AppCoreThread::OnResumeReady()
@@ -385,7 +398,7 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 	// Note: It's important that we apply the commandline overrides *before* database fixes.
 	// The database takes precedence (if enabled).
 
-	fixup = src;
+	fixup.CopyConfig(src);
 
 	const CommandlineOverrides& overrides(wxGetApp().Overrides);
 	if (overrides.DisableSpeedhacks || !g_Conf->EnableSpeedHacks)
@@ -484,12 +497,12 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 
 	// regular cheat patches
 	if (fixup.EnableCheats)
-		gameCheats.Printf(L" [%d Cheats]", LoadPatchesFromDir(GameInfo::gameCRC, GetCheatsFolder(), L"Cheats"));
+		gameCheats.Printf(L" [%d Cheats]", LoadPatchesFromDir(GameInfo::gameCRC, EmuFolders::Cheats, L"Cheats"));
 
 	// wide screen patches
 	if (fixup.EnableWideScreenPatches)
 	{
-		if (int numberLoadedWideScreenPatches = LoadPatchesFromDir(GameInfo::gameCRC, GetCheatsWsFolder(), L"Widescreen hacks"))
+		if (int numberLoadedWideScreenPatches = LoadPatchesFromDir(GameInfo::gameCRC, EmuFolders::CheatsWS, L"Widescreen hacks"))
 		{
 			gameWsHacks.Printf(L" [%d widescreen hacks]", numberLoadedWideScreenPatches);
 			Console.WriteLn(Color_Gray, "Found widescreen patches in the cheats_ws folder --> skipping cheats_ws.zip");
@@ -579,19 +592,19 @@ void AppCoreThread::DoCpuReset()
 	_parent::DoCpuReset();
 }
 
-void AppCoreThread::OnResumeInThread(bool isSuspended)
+void AppCoreThread::OnResumeInThread(SystemsMask systemsToReinstate)
 {
 	if (m_resetCdvd)
 	{
 		CDVDsys_ChangeSource(g_Conf->CdvdSource);
-		cdvdCtrlTrayOpen();
 		DoCDVDopen();
+		cdvdCtrlTrayOpen();
 		m_resetCdvd = false;
 	}
-	else if (isSuspended)
+	else if (systemsToReinstate & System_CDVD)
 		DoCDVDopen();
 
-	_parent::OnResumeInThread(isSuspended);
+	_parent::OnResumeInThread(systemsToReinstate);
 	PostCoreStatus(CoreThread_Resumed);
 }
 
@@ -722,7 +735,7 @@ void SysExecEvent_CoreThreadClose::InvokeEvent()
 
 void SysExecEvent_CoreThreadPause::InvokeEvent()
 {
-	ScopedCoreThreadPause paused_core;
+	ScopedCoreThreadPause paused_core(m_systemsToTearDown);
 	_post_and_wait(paused_core);
 	paused_core.AllowResume();
 }
@@ -776,16 +789,15 @@ void BaseScopedCoreThread::DoResume()
 // Returns TRUE if the event is posted to the SysExecutor.
 // Returns FALSE if the thread *is* the SysExecutor (no message is posted, calling code should
 //  handle the code directly).
-bool BaseScopedCoreThread::PostToSysExec(BaseSysExecEvent_ScopedCore* msg)
+bool BaseScopedCoreThread::PostToSysExec(std::unique_ptr<BaseSysExecEvent_ScopedCore> msg)
 {
-	std::unique_ptr<BaseSysExecEvent_ScopedCore> smsg(msg);
-	if (!smsg || GetSysExecutorThread().IsSelf())
+	if (!msg || GetSysExecutorThread().IsSelf())
 		return false;
 
 	msg->SetSyncState(m_sync);
 	msg->SetResumeStates(m_sync_resume, m_mtx_resume);
 
-	GetSysExecutorThread().PostEvent(smsg.release());
+	GetSysExecutorThread().PostEvent(msg.release());
 	m_sync.WaitForResult();
 	m_sync.RethrowException();
 
@@ -801,7 +813,7 @@ ScopedCoreThreadClose::ScopedCoreThreadClose()
 		return;
 	}
 
-	if (!PostToSysExec(new SysExecEvent_CoreThreadClose()))
+	if (!PostToSysExec(std::make_unique<SysExecEvent_CoreThreadClose>()))
 	{
 		m_alreadyStopped = CoreThread.IsClosed();
 		if (!m_alreadyStopped)
@@ -823,7 +835,7 @@ ScopedCoreThreadClose::~ScopedCoreThreadClose()
 	DESTRUCTOR_CATCHALL
 }
 
-ScopedCoreThreadPause::ScopedCoreThreadPause(BaseSysExecEvent_ScopedCore* abuse_me)
+ScopedCoreThreadPause::ScopedCoreThreadPause(SystemsMask systemsToTearDown)
 {
 	if (ScopedCore_IsFullyClosed || ScopedCore_IsPaused)
 	{
@@ -832,13 +844,11 @@ ScopedCoreThreadPause::ScopedCoreThreadPause(BaseSysExecEvent_ScopedCore* abuse_
 		return;
 	}
 
-	if (!abuse_me)
-		abuse_me = new SysExecEvent_CoreThreadPause();
-	if (!PostToSysExec(abuse_me))
+	if (!PostToSysExec(std::make_unique<SysExecEvent_CoreThreadPause>(systemsToTearDown)))
 	{
 		m_alreadyStopped = CoreThread.IsPaused();
 		if (!m_alreadyStopped)
-			CoreThread.Pause();
+			CoreThread.Pause(systemsToTearDown);
 	}
 
 	ScopedCore_IsPaused = true;

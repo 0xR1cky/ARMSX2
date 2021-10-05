@@ -23,13 +23,7 @@
 #include "Gif_Unit.h"
 #include "MTVU.h"
 #include "Elfheader.h"
-#include "App.h"
 #include "gui/Dialogs/ModalPopups.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
 
 
 // Uncomment this to enable profiling of the GS RingBufferCopy function.
@@ -518,10 +512,6 @@ void SysMtgsThread::ExecuteTaskInThread()
 						}
 						break;
 
-						case GS_RINGTYPE_MODECHANGE:
-							// [TODO] some frameskip sync logic might be needed here!
-							break;
-
 						case GS_RINGTYPE_CRC:
 							GSsetGameCRC(tag.data[0], 0);
 							break;
@@ -608,12 +598,12 @@ void SysMtgsThread::OnSuspendInThread()
 	_parent::OnSuspendInThread();
 }
 
-void SysMtgsThread::OnResumeInThread(bool isSuspended)
+void SysMtgsThread::OnResumeInThread(SystemsMask systemsToReinstate)
 {
-	if (isSuspended)
+	if (systemsToReinstate & System_GS)
 		OpenGS();
 
-	_parent::OnResumeInThread(isSuspended);
+	_parent::OnResumeInThread(systemsToReinstate);
 }
 
 void SysMtgsThread::OnCleanupInThread()

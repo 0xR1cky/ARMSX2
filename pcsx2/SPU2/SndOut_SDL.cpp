@@ -14,15 +14,19 @@
  */
 
 #include "PrecompiledHeader.h"
+
+#ifdef SDL_BUILD
+
 #include <cassert>
 #include <iostream>
 
 #include "Global.h"
 #include "SndOut.h"
-#if defined(__linux__) || defined(__APPLE__)
-#include "Linux/Dialogs.h"
-#elif defined(_WIN32)
+
+#if defined(_WIN32)
 #include "Windows/Dialogs.h"
+#else // BSD, Macos
+#include "Linux/Dialogs.h"
 #endif
 
 #include <memory>
@@ -188,3 +192,5 @@ private:
 SDLAudioMod SDLAudioMod::mod;
 
 SndOutModule* const SDLOut = &SDLAudioMod::mod;
+
+#endif // SDL_BUILD

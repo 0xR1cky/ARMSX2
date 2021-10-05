@@ -36,7 +36,8 @@
 #include "DEV9/pcap_io.h"
 #include "DEV9/net.h"
 #include "DEV9/PacketReader/IP/IP_Address.h"
-#include "AppCoreThread.h"
+#include "Config.h"
+#include "gui/AppCoreThread.h"
 
 #include "DEV9/ATA/HddCreate.h"
 
@@ -199,11 +200,11 @@ void OnInitDialog()
 
 void OnBrowse(GtkButton* button, gpointer usr_data)
 {
-	ghc::filesystem::path inis(GetSettingsFolder().ToString().ToStdString());
+	ghc::filesystem::path inis(EmuFolders::Settings.ToString().ToStdString());
 
 	static const wxChar* hddFilterType = L"HDD|*.raw;*.RAW";
 
-	wxFileDialog ctrl(nullptr, _("HDD Image File"), GetSettingsFolder().ToString(), HDD_DEF,
+	wxFileDialog ctrl(nullptr, _("HDD Image File"), EmuFolders::Settings.ToString(), HDD_DEF,
 		(wxString)hddFilterType + L"|" + _("All Files (*.*)") + L"|*.*", wxFD_SAVE);
 
 	if (ctrl.ShowModal() != wxID_CANCEL)
@@ -279,7 +280,7 @@ void OnOk()
 
 	if (hddPath.is_relative())
 	{
-		ghc::filesystem::path path(GetSettingsFolder().ToString().wx_str());
+		ghc::filesystem::path path(EmuFolders::Settings.ToString().wx_str());
 		hddPath = path / hddPath;
 	}
 
@@ -297,7 +298,7 @@ void OnOk()
 void DEV9configure()
 {
 	ScopedCoreThreadPause paused_core;
-	Config oldConfig = config;
+	ConfigDEV9 oldConfig = config;
 
 	gtk_init(NULL, NULL);
 	GError* error = NULL;

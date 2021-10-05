@@ -20,15 +20,16 @@
 //------------------------------------------------------------------
 
 // Generates the code for entering/exit recompiled blocks
-void mVUdispatcherAB(mV) {
+void mVUdispatcherAB(mV)
+{
 	mVU.startFunct = x86Ptr;
 
 	{
 		xScopedStackFrame frame(false, true);
 
 		// __fastcall = The caller has already put the needed parameters in ecx/edx:
-		if (!isVU1)	{ xFastCall((void*)mVUexecuteVU0, arg1reg, arg2reg); }
-		else		{ xFastCall((void*)mVUexecuteVU1, arg1reg, arg2reg); }
+		if (!isVU1) xFastCall((void*)mVUexecuteVU0, arg1reg, arg2reg);
+		else        xFastCall((void*)mVUexecuteVU1, arg1reg, arg2reg);
 
 		// Load VU's MXCSR state
 		xLDMXCSR(g_sseVUMXCSR);
@@ -42,7 +43,7 @@ void mVUdispatcherAB(mV) {
 		xPSHUF.D(xmmPQ, xmmPQ, 0xe1);
 		xMOVSS(xmmPQ, xmmT2);
 		xPSHUF.D(xmmPQ, xmmPQ, 0xe1);
-		
+
 		if (isVU1)
 		{
 			//Load in other P instance
@@ -74,18 +75,19 @@ void mVUdispatcherAB(mV) {
 
 		// __fastcall = The first two DWORD or smaller arguments are passed in ECX and EDX registers;
 		//              all other arguments are passed right to left.
-		if (!isVU1) { xFastCall((void*)mVUcleanUpVU0); }
-		else		{ xFastCall((void*)mVUcleanUpVU1); }
+		if (!isVU1) xFastCall((void*)mVUcleanUpVU0);
+		else        xFastCall((void*)mVUcleanUpVU1);
 	}
 
 	xRET();
 
 	pxAssertDev(xGetPtr() < (mVU.dispCache + mVUdispCacheSize),
-			"microVU: Dispatcher generation exceeded reserved cache area!");
+		"microVU: Dispatcher generation exceeded reserved cache area!");
 }
 
 // Generates the code for resuming/exit xgkick
-void mVUdispatcherCD(mV) {
+void mVUdispatcherCD(mV)
+{
 	mVU.startFunctXG = x86Ptr;
 
 	{
@@ -105,9 +107,6 @@ void mVUdispatcherCD(mV) {
 
 		mVU.exitFunctXG = x86Ptr;
 
-		//xPOP(gprT1); // Pop return address
-		//xMOV(ptr32[&mVU.resumePtrXG], gprT1);
-
 		// Backup Status Flag (other regs were backed up on xgkick)
 		xMOV(ptr32[&mVU.regs().micro_statusflags[0]], gprF0);
 		xMOV(ptr32[&mVU.regs().micro_statusflags[1]], gprF1);
@@ -116,7 +115,6 @@ void mVUdispatcherCD(mV) {
 
 		// Load EE's MXCSR state
 		xLDMXCSR(g_sseMXCSR);
-
 	}
 
 	xRET();
@@ -130,15 +128,17 @@ void mVUdispatcherCD(mV) {
 //------------------------------------------------------------------
 
 // Executes for number of cycles
-_mVUt void* __fastcall mVUexecute(u32 startPC, u32 cycles) {
+_mVUt void* __fastcall mVUexecute(u32 startPC, u32 cycles)
+{
 
 	microVU& mVU = mVUx;
-	u32 vuLimit  = vuIndex ? 0x3ff8 : 0xff8;
-	if (startPC  > vuLimit + 7) {
+	u32 vuLimit = vuIndex ? 0x3ff8 : 0xff8;
+	if (startPC > vuLimit + 7)
+	{
 		DevCon.Warning("microVU%x Warning: startPC = 0x%x, cycles = 0x%x", vuIndex, startPC, cycles);
 	}
 
-	mVU.cycles		= cycles;
+	mVU.cycles = cycles;
 	mVU.totalCycles = cycles;
 
 	xSetPtr(mVU.prog.x86ptr); // Set x86ptr to where last program left off
@@ -149,15 +149,14 @@ _mVUt void* __fastcall mVUexecute(u32 startPC, u32 cycles) {
 // Cleanup Functions
 //------------------------------------------------------------------
 
-_mVUt void mVUcleanUp() {
+_mVUt void mVUcleanUp()
+{
 	microVU& mVU = mVUx;
-	//mVUprint("microVU: Program exited successfully!");
-	//mVUprint("microVU: VF0 = {%x,%x,%x,%x}", mVU.regs().VF[0].UL[0], mVU.regs().VF[0].UL[1], mVU.regs().VF[0].UL[2], mVU.regs().VF[0].UL[3]);
-	//mVUprint("microVU: VI0 = %x", mVU.regs().VI[0].UL);
 
 	mVU.prog.x86ptr = x86Ptr;
 
-	if ((xGetPtr() < mVU.prog.x86start) || (xGetPtr() >= mVU.prog.x86end)) {
+	if ((xGetPtr() < mVU.prog.x86start) || (xGetPtr() >= mVU.prog.x86end))
+	{
 		Console.WriteLn(vuIndex ? Color_Orange : Color_Magenta, "microVU%d: Program cache limit reached.", mVU.index);
 		mVUreset(mVU, false);
 	}
@@ -165,9 +164,11 @@ _mVUt void mVUcleanUp() {
 	mVU.cycles = mVU.totalCycles - mVU.cycles;
 	mVU.regs().cycle += mVU.cycles;
 
-	if (!vuIndex || !THREAD_VU1) {
+	if (!vuIndex || !THREAD_VU1)
+	{
 		u32 cycles_passed = std::min(mVU.cycles, 3000u) * EmuConfig.Speedhacks.EECycleSkip;
-		if (cycles_passed > 0) {
+		if (cycles_passed > 0)
+		{
 			s32 vu0_offset = VU0.cycle - cpuRegs.cycle;
 			cpuRegs.cycle += cycles_passed;
 
@@ -180,14 +181,6 @@ _mVUt void mVUcleanUp() {
 		}
 	}
 	mVU.profiler.Print();
-	//static int ax = 0; ax++;
-	//if (!(ax % 100000)) {
-	//	for (u32 i = 0; i < (mVU.progSize / 2); i++) {
-	//		if (mVUcurProg.block[i]) {
-	//			mVUcurProg.block[i]->printInfo(i*8);
-	//		}
-	//	}
-	//}
 }
 
 //------------------------------------------------------------------
@@ -196,5 +189,5 @@ _mVUt void mVUcleanUp() {
 
 void* __fastcall mVUexecuteVU0(u32 startPC, u32 cycles) { return mVUexecute<0>(startPC, cycles); }
 void* __fastcall mVUexecuteVU1(u32 startPC, u32 cycles) { return mVUexecute<1>(startPC, cycles); }
-void  __fastcall mVUcleanUpVU0() { mVUcleanUp<0>(); }
-void  __fastcall mVUcleanUpVU1() { mVUcleanUp<1>(); }
+void __fastcall mVUcleanUpVU0() { mVUcleanUp<0>(); }
+void __fastcall mVUcleanUpVU1() { mVUcleanUp<1>(); }

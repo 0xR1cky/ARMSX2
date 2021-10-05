@@ -16,7 +16,7 @@
 #include "PrecompiledHeader.h"
 #include "CtrlMemView.h"
 #include "DebugTools/Debug.h"
-#include "AppConfig.h"
+#include "gui/AppConfig.h"
 
 #include "BreakpointWindow.h"
 #include "DebugEvents.h"
@@ -342,7 +342,7 @@ void CtrlMemView::onPopupClick(wxCommandEvent& evt)
 			}
 			break;
 		case ID_MEMVIEW_GOTOINDISASM:
-			postEvent(debEVT_GOTOINDISASM, 1);
+			postEvent(debEVT_GOTOINDISASM, curAddress);
 			break;
 		case ID_MEMVIEW_GOTOADDRESS:
 			postEvent(debEVT_GOTOADDRESS, curAddress);

@@ -35,9 +35,9 @@
 // - The 6 widescreen patches are 6 pnach-style patch lines loaded either from cheats_ws folder or from cheats_ws.zip
 
 
-#include "Pcsx2Defs.h"
+#include "common/Pcsx2Defs.h"
 #include "SysForwardDefs.h"
-#include "AppGameDatabase.h"
+#include "gui/AppGameDatabase.h"
 
 enum patch_cpu_type {
 	NO_CPU,

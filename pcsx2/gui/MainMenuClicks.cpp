@@ -37,7 +37,7 @@
 #include "Dialogs/ConfigurationDialog.h"
 #include "Debugger/DisassemblyDialog.h"
 
-#include "Utilities/IniInterface.h"
+#include "common/IniInterface.h"
 
 #include "fmt/core.h"
 #include "wx/numdlg.h"
@@ -101,7 +101,7 @@ void MainEmuFrame::Menu_GSSettings_Click(wxCommandEvent& event)
 	if (is_frame_init)
 	{
 		GetMTGS().Freeze(FreezeAction::Size, sstate);
-		fP.data = new char[fP.size];
+		fP.data = new u8[fP.size];
 		GetMTGS().Freeze(FreezeAction::Save, sstate);
 		GetMTGS().Suspend(true);
 	}
@@ -126,7 +126,7 @@ void MainEmuFrame::Menu_WindowSettings_Click(wxCommandEvent& event)
 
 void MainEmuFrame::Menu_SelectBios_Click(wxCommandEvent& event)
 {
-	AppOpenDialog<ComponentsConfigDialog>(this);
+	AppOpenDialog<SysConfigDialog>(this);
 }
 
 void MainEmuFrame::Menu_ChangeLang(wxCommandEvent& event) // Always in English
@@ -1016,7 +1016,7 @@ void MainEmuFrame::Menu_Capture_Screenshot_Screenshot_As_Click(wxCommandEvent& e
 	// Ensure emulation is paused so that the correct image is captured
 	bool wasPaused = CoreThread.IsPaused();
 	if (!wasPaused)
-		CoreThread.Pause();
+		CoreThread.Pause({});
 
 	wxFileDialog fileDialog(this, _("Select a file"), g_Conf->Folders.Snapshots.ToAscii(), wxEmptyString, "PNG files (*.png)|*.png", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 

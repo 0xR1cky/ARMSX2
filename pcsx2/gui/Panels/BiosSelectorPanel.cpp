@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -14,9 +14,10 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "App.h"
+#include "gui/App.h"
 #include "ConfigurationPanels.h"
 
+#include "common/StringUtil.h"
 #include "ps2/BiosTools.h"
 
 #include <wx/dir.h>
@@ -137,7 +138,7 @@ void Panels::BiosSelectorPanel::Apply()
 			.SetUserMsg(pxE(L"Please select a valid BIOS.  If you are unable to make a valid selection then press Cancel to close the Configuration panel."));
 	}
 
-	g_Conf->BaseFilenames.Bios = (*m_BiosList)[(sptr)m_ComboBox->GetClientData(sel)];
+	g_Conf->EmuOptions.BaseFilenames.Bios = StringUtil::wxStringToUTF8String(wxFileName((*m_BiosList)[(sptr)m_ComboBox->GetClientData(sel)]).GetFullName());
 }
 
 void Panels::BiosSelectorPanel::AppStatusEvent_OnSettingsApplied()
@@ -203,14 +204,21 @@ void Panels::BiosSelectorPanel::OnEnumComplete(wxCommandEvent& evt)
 	if (m_EnumeratorThread.get() != enumThread || m_BiosList->size() < enumThread->Result.size())
 		return;
 
-	const wxFileName& currentBios = g_Conf->FullpathToBios();
+	const wxString currentBios(g_Conf->EmuOptions.FullpathToBios());
 	m_ComboBox->Clear(); // Clear the "Enumerating BIOSes..."
 
 	for (const std::pair<wxString, u32>& result : enumThread->Result)
 	{
-		const int sel = m_ComboBox->Append(result.first, reinterpret_cast<void*>(result.second));
-		if (currentBios == wxFileName((*m_BiosList)[result.second]))
+		const int sel = m_ComboBox->Append(result.first, reinterpret_cast<void*>(static_cast<uintptr_t>(result.second)));
+		if (currentBios == (*m_BiosList)[result.second])
 			m_ComboBox->SetSelection(sel);
+	}
+	// Select a bios if one isn't selected. 
+	// This makes it so users don't _have_ to click on their bios,
+	// possibly reducing confusion.
+	if(m_ComboBox->GetSelection() == -1 && m_ComboBox->GetCount() > 0)
+	{
+		m_ComboBox->SetSelection(0);
 	}
 };
 

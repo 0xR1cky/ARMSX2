@@ -105,8 +105,8 @@ int main(int argc, char* argv[])
 
 	strcpy(srcfile,argv[ARG_SRCFILE]);
 
-	int srcfn_len = strlen( srcfile );
-	if( srcfile[srcfn_len-4] != '.' )
+	const size_t srcfn_len = strlen( srcfile );
+	if( srcfn_len < 4 || srcfile[srcfn_len-4] != '.' )
 	{
 		printf( "ERROR : Malformed source filename.  I'm a crap utility and I demand 3-letter extensions only!\n" );
 		return 18;
@@ -146,8 +146,7 @@ int main(int argc, char* argv[])
 	if( (dest=fopen( Dummy, "wb+" )) == NULL )
 	{
 		printf( "ERROR : I can't open destination file   %s\n", Dummy );
-		(void)fcloseall();
-		return 0L;
+		return 1;
 	}
 
 	// ----------------------------------------------------------------------------
@@ -167,7 +166,7 @@ int main(int argc, char* argv[])
 	}
 
 	{
-		int len = strlen(fnameonly);
+		int len = static_cast<int>(strlen(fnameonly));
 		const char* fnlast = &fnameonly[len];
 		while( --fnlast, --len, (len >= 0 && (*fnlast != '/')) );
 
@@ -181,7 +180,7 @@ int main(int argc, char* argv[])
 
 	fprintf( dest,
 		"#pragma once\n\n"
-		"#include \"Pcsx2Types.h\"\n"
+		"#include \"common/Pcsx2Types.h\"\n"
 		"#include <wx/gdicmn.h>\n\n"
 		"class %s\n{\n"
 		"public:\n"
@@ -195,7 +194,6 @@ int main(int argc, char* argv[])
 	if( ferror( dest ) )
 	{
 		printf( "ERROR writing on target file:  %s\n", Dummy );
-		(void)fcloseall();
 		return 20L;
 	}
 
@@ -218,8 +216,6 @@ int main(int argc, char* argv[])
 	while( ! feof( source ) );
 
 	fprintf(dest,"};\n");
-
-	fcloseall();
 
 	return 0;
 }

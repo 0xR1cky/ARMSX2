@@ -42,14 +42,14 @@ if(NOT NO_TRANSLATION)
 endif()
 
 # make common
-add_subdirectory(common/src/Utilities)
-add_subdirectory(common/src/x86emitter)
+add_subdirectory(common)
 
 # make pcsx2
 add_subdirectory(pcsx2)
 
 # tests
 if(ACTUALLY_ENABLE_TESTS)
+	set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 	add_subdirectory(3rdparty/gtest EXCLUDE_FROM_ALL)
 	add_subdirectory(tests/ctest)
 endif()

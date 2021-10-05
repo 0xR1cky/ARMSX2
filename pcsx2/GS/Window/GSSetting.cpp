@@ -162,11 +162,10 @@ const char* dialog_message(int ID, bool* updateText)
 				"Note: This hack is a work in progress.");
 		case IDC_GEOMETRY_SHADER_OVERRIDE:
 			return cvtString("Allows the GPU instead of just the CPU to transform lines into sprites. This reduces CPU load and bandwidth requirement, but it is heavier on the GPU.\n"
-				"Automatic detection is recommended.\n\n"
-				"Note: This option is only supported by GPUs which support at least Direct3D 10.");
+				"Automatic detection is recommended.");
 		case IDC_IMAGE_LOAD_STORE:
-			return cvtString("Allows advanced atomic operations to speed up DATE Accuracy.\n"
-				"Only disable this if using DATE Accuracy causes (GPU driver) issues.\n\n"
+			return cvtString("Allows advanced atomic operations to speed up Accurate DATE.\n"
+				"Only disable this if using Accurate DATE causes (GPU driver) issues.\n\n"
 				"Note: This option is only supported by GPUs which support at least Direct3D 11.");
 		case IDC_SPARSE_TEXTURE:
 			return cvtString("Allows to reduce VRAM usage on the GPU.\n\n"
@@ -197,6 +196,13 @@ const char* dialog_message(int ID, bool* updateText)
 				   "Disabling this can amplify stuttering due to low RAM/VRAM.\n\n"
 				   "Note: It should be enabled for Armored Core, Destroy All Humans, Gran Turismo and possibly others.\n"
 				   "This option does not improve the graphics or the FPS.");
+		case IDC_DITHERING:
+			return cvtString("In the PS2's case, it reduces banding between colors and improves the perceived color depth.\n"
+				   "In the PS1's case, it was used more aggressively due to 16-bit colour.\n"
+				   "Sit far enough and don't examine it too closely for the best effect.\n\n"
+				   "Off:\nDisables any dithering.\n\n"
+				   "Unscaled:\nNative Dithering / Lowest dithering effect does not increase size of squares when upscaling.\n\n"
+				   "Scaled:\nUpscaling-aware / Highest dithering effect.");
 			// Windows only options.
 #ifdef _WIN32
 		case IDC_ACCURATE_BLEND_UNIT_D3D11:
