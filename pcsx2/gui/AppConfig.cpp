@@ -727,16 +727,21 @@ void AppConfig::FolderOptions::LoadSave(IniInterface& ini)
 		for (int i = 0; i < FolderId_COUNT; ++i)
 			operator[]((FoldersEnum_t)i).Normalize();
 
-		EmuFolders::Settings = GetSettingsFolder();
-		EmuFolders::Bios = GetResolvedFolder(FolderId_Bios);
-		EmuFolders::Snapshots = GetResolvedFolder(FolderId_Snapshots);
-		EmuFolders::Savestates = GetResolvedFolder(FolderId_Savestates);
-		EmuFolders::MemoryCards = GetResolvedFolder(FolderId_MemoryCards);
-		EmuFolders::Logs = GetResolvedFolder(FolderId_Logs);
-		EmuFolders::Langs = GetResolvedFolder(FolderId_Langs);
-		EmuFolders::Cheats = GetResolvedFolder(FolderId_Cheats);
-		EmuFolders::CheatsWS = GetResolvedFolder(FolderId_CheatsWS);
+		AppSetEmuFolders();
 	}
+}
+
+void AppSetEmuFolders()
+{
+	EmuFolders::Settings = GetSettingsFolder();
+	EmuFolders::Bios = GetResolvedFolder(FolderId_Bios);
+	EmuFolders::Snapshots = GetResolvedFolder(FolderId_Snapshots);
+	EmuFolders::Savestates = GetResolvedFolder(FolderId_Savestates);
+	EmuFolders::MemoryCards = GetResolvedFolder(FolderId_MemoryCards);
+	EmuFolders::Logs = GetResolvedFolder(FolderId_Logs);
+	EmuFolders::Langs = GetResolvedFolder(FolderId_Langs);
+	EmuFolders::Cheats = GetResolvedFolder(FolderId_Cheats);
+	EmuFolders::CheatsWS = GetResolvedFolder(FolderId_CheatsWS);
 }
 
 // ------------------------------------------------------------------------
@@ -884,7 +889,7 @@ void AppConfig::UiTemplateOptions::LoadSave(IniInterface& ini)
 
 int AppConfig::GetMaxPresetIndex()
 {
-	return 5;
+	return 2;
 }
 
 bool AppConfig::isOkGetPresetTextAndColor(int n, wxString& label, wxColor& c)
@@ -893,12 +898,9 @@ bool AppConfig::isOkGetPresetTextAndColor(int n, wxString& label, wxColor& c)
 		{
 			{_t("Safest (No hacks)"), L"Blue"},
 			{_t("Safe (Default)"), L"Dark Green"},
-			{_t("Balanced"), L"Forest Green"},
-			{_t("Aggressive"), L"Orange"},
-			{_t("Very Aggressive"), L"Red"},
-			{_t("Mostly Harmful"), L"Purple"}};
-	if (n < 0 || n > GetMaxPresetIndex())
-		return false;
+			{_t("Balanced"), L"Forest Green"}
+		} ;
+		n  = std::clamp(n, 0, GetMaxPresetIndex());
 
 	label = wxsFormat(L"%d - ", n + 1) + presetNamesAndColors[n][0];
 	c = wxColor(presetNamesAndColors[n][1]);
@@ -968,22 +970,9 @@ bool AppConfig::IsOkApplyPreset(int n, bool ignoreMTVU)
 
 	// Actual application of current preset over the base settings which all presets use (mostly pcsx2's default values).
 
-	bool isRateSet = false, isSkipSet = false, isMTVUSet = ignoreMTVU ? true : false; // used to prevent application of specific lower preset values on fallthrough.
+	bool  isMTVUSet = ignoreMTVU ? true : false; // used to prevent application of specific lower preset values on fallthrough.
 	switch (n) // Settings will waterfall down to the Safe preset, then stop. So, Balanced and higher will inherit any settings through Safe.
 	{
-		case 5: // Mostly Harmful
-			isRateSet ? 0 : (isRateSet = true, EmuOptions.Speedhacks.EECycleRate = 1); // +1 EE cyclerate
-			isSkipSet ? 0 : (isSkipSet = true, EmuOptions.Speedhacks.EECycleSkip = 1); // +1 EE cycle skip
-			[[fallthrough]];
-
-		case 4: // Very Aggressive
-			isRateSet ? 0 : (isRateSet = true, EmuOptions.Speedhacks.EECycleRate = -2); // -2 EE cyclerate
-			[[fallthrough]];
-
-		case 3: // Aggressive
-			isRateSet ? 0 : (isRateSet = true, EmuOptions.Speedhacks.EECycleRate = -1); // -1 EE cyclerate
-			[[fallthrough]];
-
 		case 2: // Balanced
 			isMTVUSet ? 0 : (isMTVUSet = true, EmuOptions.Speedhacks.vuThread = true); // Enable MTVU
 			[[fallthrough]];
@@ -1080,6 +1069,8 @@ void AppConfig_OnChangedSettingsFolder(bool overwrite)
 
 	if (!overwrite)
 		AppLoadSettings();
+	else
+		AppSetEmuFolders();
 
 	AppApplySettings();
 	AppSaveSettings(); //Make sure both ini files are created if needed.
@@ -1175,10 +1166,12 @@ static void LoadUiSettings()
 	ConLog_LoadSaveSettings(loader);
 	SysTraceLog_LoadSaveSettings(loader);
 
-	wxSettingsInterface wxsi(&loader.GetConfig());
-	SettingsLoadWrapper wrapper(wxsi);
-	g_Conf = std::make_unique<AppConfig>();
-	g_Conf->LoadSave(loader, wrapper);
+	{
+		wxSettingsInterface wxsi(&loader.GetConfig());
+		SettingsLoadWrapper wrapper(wxsi);
+		g_Conf = std::make_unique<AppConfig>();
+		g_Conf->LoadSave(loader, wrapper);
+	}
 
 	if (!wxFile::Exists(g_Conf->CurrentIso))
 	{
@@ -1194,11 +1187,13 @@ static void LoadVmSettings()
 	// are regulated by the PCSX2 UI.
 
 	std::unique_ptr<wxFileConfig> vmini(OpenFileConfig(GetVmSettingsFilename()));
-	wxSettingsInterface wxsi(vmini.get());
 	IniLoader vmloader(vmini.get());
-	SettingsLoadWrapper vmwrapper(wxsi);
-	g_Conf->EmuOptions.LoadSave(vmwrapper);
-	g_Conf->EmuOptions.GS.LimitScalar = g_Conf->EmuOptions.Framerate.NominalScalar;
+	{
+		wxSettingsInterface wxsi(vmini.get());
+		SettingsLoadWrapper vmwrapper(wxsi);
+		g_Conf->EmuOptions.LoadSave(vmwrapper);
+		g_Conf->EmuOptions.GS.LimitScalar = g_Conf->EmuOptions.Framerate.NominalScalar;
+	}
 
 	if (g_Conf->EnablePresets)
 	{
@@ -1227,9 +1222,11 @@ static void SaveUiSettings()
 	sApp.GetRecentIsoManager().Add(g_Conf->CurrentIso);
 
 	AppIniSaver saver;
-	wxSettingsInterface wxsi(&saver.GetConfig());
-	SettingsSaveWrapper wrapper(wxsi);
-	g_Conf->LoadSave(saver, wrapper);
+	{
+		wxSettingsInterface wxsi(&saver.GetConfig());
+		SettingsSaveWrapper wrapper(wxsi);
+		g_Conf->LoadSave(saver, wrapper);
+	}
 	ConLog_LoadSaveSettings(saver);
 	SysTraceLog_LoadSaveSettings(saver);
 
@@ -1239,10 +1236,12 @@ static void SaveUiSettings()
 static void SaveVmSettings()
 {
 	std::unique_ptr<wxFileConfig> vmini(OpenFileConfig(GetVmSettingsFilename()));
-	wxSettingsInterface wxsi(vmini.get());
 	IniSaver vmsaver(vmini.get());
-	SettingsSaveWrapper vmwrapper(wxsi);
-	g_Conf->EmuOptions.LoadSave(vmwrapper);
+	{
+		wxSettingsInterface wxsi(vmini.get());
+		SettingsSaveWrapper vmwrapper(wxsi);
+		g_Conf->EmuOptions.LoadSave(vmwrapper);
+	}
 
 	sApp.DispatchVmSettingsEvent(vmsaver);
 }

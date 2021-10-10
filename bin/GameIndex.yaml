@@ -93,6 +93,9 @@ PBPX-95506:
         comment=You must enable the EETimingHack when playing the WRC demo to avoids random hangs.
         comment=You must change the EE Clamping mode to Full when playing the Klonoa 2 demo to avoids misplaced objects.
         comment=You must change the VU Clamping mode to extra when playing the Klonoa 2 demo to fixes reflections issues.
+PBPX-95509:
+  name: "Linux Release 1.0 Runtime Environment  [Disc 1]"
+  region: "PAL-E"
 PBPX-95514:
   name: "Playstation 2 - Demo Disc 2002"
   region: "PAL-M5"
@@ -6766,6 +6769,8 @@ SLED-50117:
 SLED-50359:
   name: "Devil May Cry [Demo]"
   region: "PAL-E"
+  clampModes:
+    vuClampMode: 3  # Fixes out of place polys (COP2).
 SLED-50478:
   name: "WWF Smackdown! - Just Bring It [Demo]"
   region: "PAL-E"
@@ -33040,6 +33045,15 @@ SLUS-20216:
   name: "Devil May Cry"
   region: "NTSC-U"
   compat: 5
+  patches:
+    79B8A95F:
+      content: |-
+        comment=Patch by Refraction
+        // Rearranges some bad CLIP/CFC2 instructions, not sure what it fixes, but can't be a good thing.
+        // 1da20c *4BD9C9FF vclip vf25xyz, vf25w
+        // 1da210 =48429000 cfc2    v0, ClipFlag
+        patch=1,EE,001DA20C,word,48429000
+        patch=1,EE,001DA210,word,4BD9C9FF
 SLUS-20217:
   name: "Arctic Thunder"
   region: "NTSC-U"

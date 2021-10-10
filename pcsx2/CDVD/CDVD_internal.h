@@ -132,6 +132,15 @@ static const uint tbl_ContigiousSeekDelta[3] =
 static const uint PSX_CD_READSPEED = 153600;   // Bytes per second, rough values from outer CD (CAV).
 static const uint PSX_DVD_READSPEED = 1382400; // Bytes per second, rough values from outer DVD (CAV).
 
+static const uint CD_SECTORS_PERSECOND = 75;
+static const uint DVD_SECTORS_PERSECOND = 675;
+
+static const uint CD_MIN_ROTATION_X1 = 214;
+static const uint CD_MAX_ROTATION_X1 = 497;
+
+static const uint DVD_MIN_ROTATION_X1 = 570;
+static const uint DVD_MAX_ROTATION_X1 = 1515;
+
 // Legacy Note: FullSeek timing causes many games to load very slow, but it likely not the real problem.
 // Games breaking with it set to PSXCLK*40 : "wrath unleashed" and "Shijou Saikyou no Deshi Kenichi".
 
