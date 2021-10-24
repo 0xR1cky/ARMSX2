@@ -150,6 +150,7 @@ static SysTraceLog * const traceLogList[] =
 	// IOP Section
 
 	&SysTrace.IOP.Bios,
+	&SysTrace.IOP.SIO2,
 	&SysTrace.IOP.Memcards,
 	&SysTrace.IOP.PAD,
 

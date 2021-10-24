@@ -1,0 +1,14 @@
+
+#pragma once
+
+enum class AnalogComponents
+{
+	RIGHT_STICK_X_NEG = 0x00,
+	RIGHT_STICK_X_POS = 0x01,
+	RIGHT_STICK_Y_NEG = 0x02,
+	RIGHT_STICK_Y_POS = 0x04,
+	LEFT_STICK_X_NEG = 0x10,
+	LEFT_STICK_X_POS = 0x11,
+	LEFT_STICK_Y_NEG = 0x12,
+	LEFT_STICK_Y_POS = 0x14
+};

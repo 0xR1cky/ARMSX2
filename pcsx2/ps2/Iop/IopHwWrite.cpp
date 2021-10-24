@@ -25,6 +25,8 @@
 
 #include "ps2/pgif.h"
 #include "Mdec.h"
+#include "Sio2.h"
+#include "Sio0.h"
 
 namespace IopMemory {
 
@@ -76,7 +78,7 @@ void __fastcall iopHwWrite8_Page1( u32 addr, mem8_t val )
 
 	switch( masked_addr )
 	{
-		mcase(HW_SIO_DATA): sioWrite8( val ); break;
+		mcase(HW_SIO_DATA): g_sio0.SetData(val); break;
 
 		// for use of serial port ignore for now
 		//case 0x50: serial_write8( val ); break;
@@ -152,10 +154,15 @@ void __fastcall iopHwWrite8_Page8( u32 addr, mem8_t val )
 	// all addresses are assumed to be prefixed with 0x1f808xxx:
 	pxAssert( (addr >> 12) == 0x1f808 );
 
-	if( addr == HW_SIO2_DATAIN )	// sio2 serial data feed input
-		sio2_serialIn( val );
+	if (addr == HW_SIO2_FIFO_IN)	// sio2 serial data feed input
+	{
+		SIO2_LOG("%s(%08X, %02X) SIO2 FIFO Write", __FUNCTION__, addr, val);
+		g_sio2.Sio2Write(val);
+	}
 	else
-		psxHu8( addr ) = val;
+	{
+		psxHu8(addr) = val;
+	}
 
 	IopHwTraceLog<mem8_t>( addr, val, false );
 }
@@ -273,38 +280,25 @@ static __fi void _HwWrite_16or32_Page1( u32 addr, T val )
 		switch( masked_addr )
 		{
 			// ------------------------------------------------------------------------
-			mcase(HW_SIO_DATA):
-				sioWrite8( val & 0xFF );
-				sioWrite8( (val >> 8) & 0xFF );
-				if( sizeof(T) == 4 )
-				{
-					// u32 gets rid of compiler warnings when using the u16 version of this template
-					sioWrite8( ((u32)val >> 16) & 0xFF );
-					sioWrite8( ((u32)val >> 24) & 0xFF );
-				}
+			mcase(HW_SIO_DATA) :
+				DevCon.Warning("%s(%08X) Attempted 32 bit write to 8 bit SIO DATA register", __FUNCTION__, val);
+				g_sio0.SetData(static_cast<u8>(val));
 			break;
 
-			mcase(HW_SIO_STAT):		// read-only?
-				//regname = "SIO_STAT (read-only?)";
-				//sio.StatReg;
+			mcase(HW_SIO_STAT):
+				g_sio0.SetStat(val);
 			break;
 
 			mcase(HW_SIO_MODE):
-				sio.ModeReg = (u16)val;
-				if( sizeof(T) == 4 )
-				{
-					// My guess on 32-bit accesses.  Dunno yet what the real hardware does. --air
-					sio.CtrlReg = (u16)((u32)val >> 16);
-				}
+				g_sio0.SetMode(static_cast<u16>(val));
 			break;
 
 			mcase(HW_SIO_CTRL):
-				//sio.CtrlReg = (u16)val;
-				sioWriteCtrl16((u16)val);
+				g_sio0.SetCtrl(static_cast<u16>(val));
 			break;
 
 			mcase(HW_SIO_BAUD):
-				sio.BaudReg = (u16)val;
+				g_sio0.SetBaud(static_cast<u16>(val));
 			break;
 
 			// ------------------------------------------------------------------------
@@ -584,29 +578,31 @@ void __fastcall iopHwWrite32_Page8( u32 addr, mem32_t val )
 	{
 		if( masked_addr < 0x240 )
 		{
+			SIO2_LOG("%s(%08X, %08X) SIO2 SEND3 Write", __FUNCTION__, addr, val);
 			const int parm = (masked_addr-0x200) / 4;
-			sio2_setSend3( parm, val );
+			g_sio2.SetSend3(parm, val);
 		}
 		else if( masked_addr < 0x260 )
 		{
+			SIO2_LOG("%s(%08X, %08X) SIO2 SEND1/2 Write", __FUNCTION__, addr, val);
 			// SIO2 Send commands alternate registers.  First reg maps to Send1, second
 			// to Send2, third to Send1, etc.  And the following clever code does this:
 
 			const int parm = (masked_addr-0x240) / 8;
-			if(masked_addr & 4) sio2_setSend2( parm, val ); else sio2_setSend1( parm, val );
+			if(masked_addr & 4) g_sio2.SetSend2( parm, val ); else g_sio2.SetSend1( parm, val );
 		}
 		else if( masked_addr <= 0x280 )
 		{
 			switch( masked_addr )
 			{
-				mcase(HW_SIO2_CTRL):	sio2_setCtrl( val );	break;
-				mcase(0x1f808278):		sio2_set8278( val );	break;
-				mcase(0x1f80827C):		sio2_set827C( val );	break;
-				mcase(HW_SIO2_INTR):	sio2_setIntr( val );	break;
+			mcase(HW_SIO2_CTRL):		g_sio2.SetCtrl( val );		SIO2_LOG("%s(%08X, %08X) SIO2 CTRL Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_UNKNOWN1):	g_sio2.SetUnknown1( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 1 Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_UNKNOWN2):	g_sio2.SetUnknown2( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 2 Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_ISTAT):		g_sio2.SetIStat( val );		SIO2_LOG("%s(%08X, %08X) SIO2 ISTAT Write", __FUNCTION__, addr, val); break;
 
-				// Other SIO2 registers are read-only, no-ops on write.
-				default:
-					psxHu32(addr) = val;
+			// Other SIO2 registers are read-only, no-ops on write.
+			default:
+				psxHu32(addr) = val;
 				break;
 			}
 		}

@@ -209,6 +209,8 @@ static const SysTraceLogDescriptor
 
 	TLD_IOP_DMAhw = {L"DmaRegs", L"DMA Regs", pxDt("Logs only DMA-related registers."), "iReg"},
 
+	TLD_IOP_SIO2 = {L"SIO2", L"SIO2", pxDt("Logs all writes to SIO2 registers."), "SIO2"},
+
 	TLD_IOP_Memcards = {L"Memorycards", L"Memorycards", pxDt("Memorycard reads, writes, erases, terminators, and other processing."), "Mcd"},
 
 	TLD_IOP_PAD = {L"Pad", L"Pad", pxDt("Gamepad activity on the SIO."), "Pad"},
@@ -255,6 +257,7 @@ SysTraceLogPack::EE_PACK::EE_PACK()
 
 SysTraceLogPack::IOP_PACK::IOP_PACK()
 	: Bios(&TLD_IOP_Bios)
+	, SIO2(&TLD_IOP_SIO2)
 	, Memcards(&TLD_IOP_Memcards)
 	, PAD(&TLD_IOP_PAD)
 

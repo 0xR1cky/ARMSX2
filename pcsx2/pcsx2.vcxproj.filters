@@ -276,6 +276,20 @@
     </Filter>
     <Filter Include="System\Ps2\GS\GIF">
       <UniqueIdentifier>{78f5077b-255e-435e-9a51-352171dfaee8}</UniqueIdentifier>
+    <Filter Include="System\Ps2\Memcard">
+      <UniqueIdentifier>{7e01d877-cdbc-4586-8381-81f559c82885}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\Memcard\PS1">
+      <UniqueIdentifier>{407d88c4-f3ba-4afd-8d79-366e58141bcf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\Memcard\PS2">
+      <UniqueIdentifier>{ba199138-6441-423a-b2e0-a060d22c9ec0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\PAD\PS1">
+      <UniqueIdentifier>{b25af0a0-b2f6-4806-8aa8-c93849f55df5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\PAD\PS2">
+      <UniqueIdentifier>{ee847e0c-c6d5-49fd-b586-395a6cbb2aee}</UniqueIdentifier>
     </Filter>
     <Filter Include="Host">
       <UniqueIdentifier>{65f21394-287a-471b-a0c1-d8f0d5d95a81}</UniqueIdentifier>
@@ -1687,6 +1701,38 @@
     </ClCompile>
     <ClCompile Include="Host.cpp">
       <Filter>Host</Filter>
+    <ClCompile Include="Memcard\PS1\MemcardPS1.cpp">
+      <Filter>System\Ps2\Memcard\PS1</Filter>
+    </ClCompile>
+    <ClCompile Include="Memcard\PS2\MemcardPS2.cpp">
+      <Filter>System\Ps2\Memcard\PS2</Filter>
+    </ClCompile>
+    <ClCompile Include="Memcard\Memcard.cpp">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClCompile>
+    <ClCompile Include="Sio0.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
+    <ClCompile Include="PAD\PS1\PadPS1.cpp">
+      <Filter>System\Ps2\PAD\PS1</Filter>
+    </ClCompile>
+    <ClCompile Include="Memcard\PS1\MemcardPS1Protocol.cpp">
+      <Filter>System\Ps2\Memcard\PS1</Filter>
+    </ClCompile>
+    <ClCompile Include="PAD\PS1\PadPS1Protocol.cpp">
+      <Filter>System\Ps2\PAD\PS1</Filter>
+    </ClCompile>
+    <ClCompile Include="Sio2.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
+    <ClCompile Include="PAD\PS2\PadPS2.cpp">
+      <Filter>System\Ps2\PAD\PS2</Filter>
+    </ClCompile>
+    <ClCompile Include="PAD\PS2\PadPS2Protocol.cpp">
+      <Filter>System\Ps2\PAD\PS2</Filter>
+    </ClCompile>
+    <ClCompile Include="Memcard\PS2\MemcardPS2Protocol.cpp">
+      <Filter>System\Ps2\Memcard\PS2</Filter>
     </ClCompile>
     <ClCompile Include="Frontend\VulkanHostDisplay.cpp">
       <Filter>Host</Filter>
@@ -2823,6 +2869,65 @@
     </ClInclude>
     <ClInclude Include="Frontend\ImGuiManager.h">
       <Filter>Host</Filter>
+    <ClInclude Include="Memcard\PS1\MemcardPS1.h">
+      <Filter>System\Ps2\Memcard\PS1</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\PS1\MemcardPS1Types.h">
+      <Filter>System\Ps2\Memcard\PS1</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\PS2\MemcardPS2.h">
+      <Filter>System\Ps2\Memcard\PS2</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\PS2\MemcardPS2Types.h">
+      <Filter>System\Ps2\Memcard\PS2</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\Memcard.h">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClInclude>
+    <ClInclude Include="Sio0.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="MemcardTypes.h">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClInclude>
+    <ClInclude Include="Sio0Types.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PS1\PadPS1.h">
+      <Filter>System\Ps2\PAD\PS1</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PS1\PadPS1Types.h">
+      <Filter>System\Ps2\PAD\PS1</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PadTypes.h">
+      <Filter>System\Ps2\PAD</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\PS1\MemcardPS1Protocol.h">
+      <Filter>System\Ps2\Memcard\PS1</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PS1\PadPS1Protocol.h">
+      <Filter>System\Ps2\PAD\PS1</Filter>
+    </ClInclude>
+    <ClInclude Include="SioTypes.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="Sio2.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="Sio2Types.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PS2\PadPS2.h">
+      <Filter>System\Ps2\PAD\PS2</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PS2\PadPS2Protocol.h">
+      <Filter>System\Ps2\PAD\PS2</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\PS2\PadPS2Types.h">
+      <Filter>System\Ps2\PAD\PS2</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\PS2\MemcardPS2Protocol.h">
+      <Filter>System\Ps2\Memcard\PS2</Filter>
     </ClInclude>
     <ClInclude Include="Frontend\VulkanHostDisplay.h">
       <Filter>Host</Filter>

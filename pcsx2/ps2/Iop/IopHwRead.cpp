@@ -26,6 +26,8 @@
 
 #include "ps2/pgif.h"
 #include "Mdec.h"
+#include "Sio0.h"
+#include "Sio2.h"
 
 namespace IopMemory
 {
@@ -47,8 +49,8 @@ mem8_t __fastcall iopHwRead8_Page1( u32 addr )
 			// 1F801040h 1/4  JOY_DATA Joypad/Memory Card Data (R/W)
 			// psxmode: documentation suggests a valid 8 bit read and the rest of the 32 bit register is unclear.
 			// todo: check this and compare with the HW_SIO_DATA read around line 245 as well.
-			ret = sioRead8();
-		break;
+			ret = g_sio0.GetSioData();
+			break;
 
 		// for use of serial port ignore for now
 		//case 0x50: ret = serial_read8(); break;
@@ -115,10 +117,15 @@ mem8_t __fastcall iopHwRead8_Page8( u32 addr )
 
 	mem8_t ret;
 
-	if( addr == HW_SIO2_FIFO )
-		ret = sio2_fifoOut();//sio2 serial data feed/fifo_out
+	if (addr == HW_SIO2_FIFO_OUT)
+	{
+		SIO2_LOG("%s(%08X) SIO2 FIFO Read", __FUNCTION__, addr);
+		ret = g_sio2.Sio2Read();
+	}
 	else
-		ret = psxHu8( addr );
+	{
+		ret = psxHu8(addr);
+	}
 
 	IopHwTraceLog<mem8_t>( addr, ret, true );
 	return ret;
@@ -250,37 +257,25 @@ static __fi T _HwRead_16or32_Page1( u32 addr )
 		switch( masked_addr )
 		{
 			// ------------------------------------------------------------------------
-			mcase(HW_SIO_DATA):
-				ret  = sioRead8();
-				ret |= sioRead8() << 8;
-				if( sizeof(T) == 4 )
-				{
-					ret |= sioRead8() << 16;
-					ret |= sioRead8() << 24;
-				}
+			mcase(HW_SIO_DATA) :
+				DevCon.Warning("%s Attempted 32 bit read of 8 bit SIO DATA register", __FUNCTION__);
+				ret = g_sio0.GetSioData();
 			break;
 
-			mcase(HW_SIO_STAT):
-				ret = sio.StatReg;
-				sioStatRead();
-				// Console.WriteLn( "SIO0 Read STAT %02X INT_STAT= %08X IOPpc= %08X " , ret, psxHu32(0x1070), psxRegs.pc);
+			mcase(HW_SIO_STAT) :
+				ret = g_sio0.GetSioStat();
 			break;
 
-			mcase(HW_SIO_MODE):
-				ret = sio.ModeReg;
-				if( sizeof(T) == 4 )
-				{
-					// My guess on 32-bit accesses.  Dunno yet what the real hardware does. --air
-					ret |= sio.CtrlReg << 16;
-				}
+			mcase(HW_SIO_MODE) :
+				ret = g_sio0.GetSioMode();
 			break;
 
-			mcase(HW_SIO_CTRL):
-				ret = sio.CtrlReg;
+			mcase(HW_SIO_CTRL) :
+				ret = g_sio0.GetSioCtrl();
 			break;
 
-			mcase(HW_SIO_BAUD):
-				ret = sio.BaudReg;
+			mcase(HW_SIO_BAUD) :
+				ret = g_sio0.GetSioBaud();
 			break;
 
 			// ------------------------------------------------------------------------
@@ -415,42 +410,38 @@ mem32_t __fastcall iopHwRead32_Page8( u32 addr )
 	{
 		if( masked_addr < 0x240 )
 		{
+			SIO2_LOG("%s(%08X) SIO2 SEND3 Read", __FUNCTION__, addr);
 			const int parm = (masked_addr-0x200) / 4;
-			ret = sio2_getSend3( parm );
+			ret = g_sio2.GetSend3( parm );
 		}
 		else if( masked_addr < 0x260 )
 		{
+			SIO2_LOG("%s(%08X) SIO2 SEND1/2 Read", __FUNCTION__, addr);
 			// SIO2 Send commands alternate registers.  First reg maps to Send1, second
 			// to Send2, third to Send1, etc.  And the following clever code does this:
 
 			const int parm = (masked_addr-0x240) / 8;
-			ret = (masked_addr & 4) ? sio2_getSend2( parm ) : sio2_getSend1( parm );
+			ret = (masked_addr & 4) ? g_sio2.GetSend2( parm ) : g_sio2.GetSend1( parm );
 		}
 		else if( masked_addr <= 0x280 )
 		{
 			switch( masked_addr )
 			{
-				mcase(HW_SIO2_CTRL):	ret = sio2_getCtrl();	break;
-				mcase(HW_SIO2_RECV1):	ret = sio2_getRecv1();	break;
-				mcase(HW_SIO2_RECV2):	ret = sio2_getRecv2();	break;
-				mcase(HW_SIO2_RECV3):	ret = sio2_getRecv3();	break;
-				mcase(0x1f808278):		ret = sio2_get8278();	break;
-				mcase(0x1f80827C):		ret = sio2_get827C();	break;
-				mcase(HW_SIO2_INTR):	ret = sio2_getIntr();	break;
+				mcase(HW_SIO2_CTRL):		ret = g_sio2.GetCtrl();		SIO2_LOG("%s(%08X) SIO2 CTRL Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_RECV1):		ret = g_sio2.GetRecv1();	SIO2_LOG("%s(%08X) SIO2 RECV1 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_RECV2):		ret = g_sio2.GetRecv2();	SIO2_LOG("%s(%08X) SIO2 RECV2 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_RECV3):		ret = g_sio2.GetRecv3();	SIO2_LOG("%s(%08X) SIO2 RECV3 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_UNKNOWN1):	ret = g_sio2.GetUnknown1();	SIO2_LOG("%s(%08X) SIO2 Unknown 1 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_UNKNOWN2):	ret = g_sio2.GetUnknown2();	SIO2_LOG("%s(%08X) SIO2 Unknown 2 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_ISTAT):		ret = g_sio2.GetIStat();	SIO2_LOG("%s(%08X) SIO2 ISTAT Read", __FUNCTION__, addr); break;
 
-				// HW_SIO2_FIFO -- A yet unknown: Should this be ignored on 32 bit writes, or handled as a
-				// 4-byte FIFO input?
-				// The old IOP system just ignored it, so that's what we do here.  I've included commented code
-				// for treating it as a 16/32 bit write though [which is what the SIO does, for example).
-				mcase(HW_SIO2_FIFO) :
-					//ret = sio2_fifoOut();
-					//ret |= sio2_fifoOut() << 8;
-					//ret |= sio2_fifoOut() << 16;
-					//ret |= sio2_fifoOut() << 24;
-				//break;
-					DevCon.Warning("HW_SIO2_FIFO read");
+				// Log any cases of FIFO Out access; this should never happen on 32 bit reads
+				// because this register is only ever (supposed to be) read or written to on
+				// its LSB. But in case some game is a dick, we should know about it.
+				mcase(HW_SIO2_FIFO_OUT) :
+					SIO2_LOG("[WARN] %s(%08X) Unexpected 32 bit read of HW_SIO2_FIFO_OUT", __FUNCTION__, addr);
 					ret = psxHu32(addr);
-				break;
+					break;
 
 				default:
 					ret = psxHu32(addr);

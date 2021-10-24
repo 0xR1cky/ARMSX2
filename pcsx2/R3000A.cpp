@@ -61,6 +61,7 @@ void psxReset()
 	psxRegs.pc = 0xbfc00000; // Start in bootstrap
 	psxRegs.CP0.n.Status = 0x10900000; // COP0 enabled | BEV = 1 | TS = 1
 	psxRegs.CP0.n.PRid   = 0x0000001f; // PRevID = Revision ID, same as the IOP R3000A
+	psxRegs.interrupt |= (1 << IopEvt_SIO);
 
 	iopBreak = 0;
 	iopCycleEE = -1;
@@ -171,13 +172,30 @@ static __fi void IopTestEvent( IopEventId n, void (*callback)() )
 		psxSetNextBranch( psxRegs.sCycle[n], psxRegs.eCycle[n] );
 }
 
+#include "Sio0.h"
+
 static __fi void _psxTestInterrupts()
 {
 	IopTestEvent(IopEvt_SIF0,		sif0Interrupt);	// SIF0
 	IopTestEvent(IopEvt_SIF1,		sif1Interrupt);	// SIF1
 	IopTestEvent(IopEvt_SIF2,		sif2Interrupt);	// SIF2
-	// Originally controlled by a preprocessor define, now PSX dependent.
-	if (psxHu32(HW_ICFG) & (1 << 3)) IopTestEvent(IopEvt_SIO, sioInterruptR);
+	/*
+	if (psxHu32(HW_ICFG) & (1 << 3))
+	{
+		if (!(psxRegs.interrupt & (1 << IopEvt_SIO))) return;
+
+		if (psxTestCycle(psxRegs.sCycle[IopEvt_SIO], psxRegs.eCycle[IopEvt_SIO]))
+		{
+			psxRegs.interrupt &= ~(1 << IopEvt_SIO);
+			g_sio0.SetStat(g_sio0.GetSioStat() | SioStat::IRQ);
+			//iopIntcIrq(7);
+			psxHu32(0x1070) |= 1 << 7;
+		}
+		else
+			psxSetNextBranch(psxRegs.sCycle[IopEvt_SIO], psxRegs.eCycle[IopEvt_SIO]);
+		
+	}
+	*/
 	IopTestEvent(IopEvt_CdvdRead,	cdvdReadInterrupt);
 	IopTestEvent(IopEvt_CdvdSectorReady, cdvdSectorReady);
 

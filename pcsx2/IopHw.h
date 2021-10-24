@@ -74,15 +74,25 @@ static const u32
 
 	// SIO2 is a DMA interface for the SIO.
 
+	HW_SIO2_SEND3		= 0x1f808200,
+	// SEND1 and SEND2 have a weird relationship where the 2nd bit of the address being read
+	// determines which of the two is accessed. However, both are technically accessed from
+	// this one base address, it seems.
+	HW_SIO2_SEND1_2		= 0x1f808240,
 	HW_SIO2_DATAIN		= 0x1F808260,
+#define HW_SIO2_FIFO_IN HW_SIO2_DATAIN
 	HW_SIO2_FIFO		= 0x1f808264,
+#define HW_SIO2_FIFO_OUT HW_SIO2_FIFO
 	HW_SIO2_CTRL		= 0x1f808268,
 	HW_SIO2_RECV1		= 0x1f80826c,
 	HW_SIO2_RECV2		= 0x1f808270,
 	HW_SIO2_RECV3		= 0x1f808274,
 	HW_SIO2_8278        = 0x1F808278, // May as well add defs
+#define HW_SIO2_UNKNOWN1 HW_SIO2_8278
 	HW_SIO2_827C        = 0x1F80827C, // for these 2...
+#define HW_SIO2_UNKNOWN2 HW_SIO2_827C
 	HW_SIO2_INTR		= 0x1f808280;
+#define HW_SIO2_ISTAT HW_SIO2_INTR
 
 enum DMAMadrAddresses
 {

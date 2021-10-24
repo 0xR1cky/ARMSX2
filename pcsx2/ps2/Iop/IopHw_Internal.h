@@ -145,14 +145,14 @@ static __ri const char* _ioplog_GetHwName( u32 addr, T val )
 
 		// ------------------------------------------------------------------------
 
-		case HW_SIO2_FIFO:	return "SIO2 FIFO";
-		case HW_SIO2_CTRL:	return "SIO2 CTRL";
-		case HW_SIO2_RECV1:	return "SIO2 RECV1";
-		case HW_SIO2_RECV2:	return "SIO2 RECV2";
-		case HW_SIO2_RECV3:	return "SIO2 RECV3";
-		case HW_SIO2_INTR:	return "SIO2 INTR";
-		case 0x1f808278:	return "SIO2 8278";
-		case 0x1f80827C:	return "SIO2 827C";
+		case HW_SIO2_FIFO_OUT:	return "SIO2 FIFO";
+		case HW_SIO2_CTRL:		return "SIO2 CTRL";
+		case HW_SIO2_RECV1:		return "SIO2 RECV1";
+		case HW_SIO2_RECV2:		return "SIO2 RECV2";
+		case HW_SIO2_RECV3:		return "SIO2 RECV3";
+		case HW_SIO2_ISTAT:		return "SIO2 INTR";
+		case HW_SIO2_UNKNOWN1:	return "SIO2 8278";
+		case HW_SIO2_UNKNOWN2:	return "SIO2 827C";
 
 		// ------------------------------------------------------------------------
 		// Check for "zoned" registers in the default case.

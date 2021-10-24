@@ -289,6 +289,7 @@ struct SysTraceLogPack
 	struct IOP_PACK
 	{
 		SysTraceLog_IOP				Bios;
+		SysTraceLog_IOP				SIO2;
 		SysTraceLog_IOP				Memcards;
 		SysTraceLog_IOP				PAD;
 
@@ -388,6 +389,7 @@ extern void __Log( const char* fmt, ... );
 #define PSXUnkHW_LOG	macTrace(IOP.UnknownHw)
 #define PSXDMA_LOG		macTrace(IOP.DMAhw)
 #define PSXCNT_LOG		macTrace(IOP.Counters)
+#define SIO2_LOG		macTrace(IOP.SIO2)
 #define MEMCARDS_LOG	macTrace(IOP.Memcards)
 #define PAD_LOG			macTrace(IOP.PAD)
 #define GPU_LOG			macTrace(IOP.GPU)
