@@ -25,6 +25,9 @@ void Sio2::SetInterrupt()
 
 void Sio2::Sio2Write(u8 data)
 {
+	PadPS2* pad = nullptr;
+	MemcardPS2* memcard = nullptr;
+
 	switch (mode)
 	{
 	case Sio2Mode::NOT_SET:
@@ -35,7 +38,14 @@ void Sio2::Sio2Write(u8 data)
 		break;
 	case Sio2Mode::PAD:
 		g_sio2.SetRecv1(Recv1::CONNECTED);
+		pad = g_padPS2Protocol.GetPad(GetCtrl() & Sio2Ctrl::PORT, 0);
+		g_padPS2Protocol.SetActivePad(pad);
 		fifoOut.push_back(g_padPS2Protocol.SendToPad(data));
+
+		if (g_padPS2Protocol.IsReset())
+		{
+			mode = Sio2Mode::NOT_SET;
+		}
 		break;
 	case Sio2Mode::MULTITAP:
 	case Sio2Mode::INFRARED:
@@ -57,8 +67,15 @@ u8 Sio2::Sio2Read()
 {
 	if (fifoPosition >= fifoOut.size())
 	{
+		/*
 		DevCon.Warning("%s Attempted to read beyond FIFO contents", __FUNCTION__);
 		return 0xff;
+		*/
+		// For reasons unknown, the same command is sometimes written twice sequentially,
+		// with no read in between. This triggers a protocol reset (and hence SIO2 mode reset)
+		// which in turn dumps the FIFO contents. To work around this, wrap the fifoPosition
+		// back to 0 when we detect an overflow.
+		fifoPosition = 0;
 	}
 
 	return fifoOut.at(fifoPosition++);

@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "MemcardPS2Types.h"
+#include "MemcardPS2.h"
 
 class MemcardPS2Protocol
 {

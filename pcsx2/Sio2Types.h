@@ -14,6 +14,7 @@ namespace Sio2Ctrl
 {
 	static constexpr u32 START_TRANSFER = 0x1;
 	static constexpr u32 RESET = 0xc;
+	static constexpr u32 PORT = 0x2000;
 }
 
 namespace Recv1
