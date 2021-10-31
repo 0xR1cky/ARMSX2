@@ -11,9 +11,8 @@ PadPS2Protocol g_padPS2Protocol;
 // adverse effects.
 void PadPS2Protocol::Reset()
 {
-	reset = true;
 	mode = PadPS2Mode::NOT_SET;
-	currentCommandByte = 0;
+	currentCommandByte = 1;
 }
 
 size_t PadPS2Protocol::GetResponseSize(PadPS2Type padPS2Type)
@@ -47,7 +46,6 @@ u8 PadPS2Protocol::Mystery(u8 data)
 	case 5:
 		return 0x02;
 	case 8:
-		Reset();
 		return 0x5a;
 	default:
 		return 0x00;
@@ -70,7 +68,6 @@ u8 PadPS2Protocol::ButtonQuery(u8 data)
 	case 5:
 		return 0x03;
 	case 8:
-		Reset();
 		return 0x5a;
 	default:
 		return 0x00;
@@ -99,14 +96,6 @@ u8 PadPS2Protocol::Poll(u8 data)
 	default:
 		ret = 0x00;
 		break;
-	}
-
-	// Reset after the command is finished. Lower nibble of the controller's type value
-	// is the number of half-words in the reply, indicating command length. -3 to remove
-	// header bytes.
-	if (GetResponseSize(activePad->GetPadType()) == (currentCommandByte - 3 + 1) / 2)
-	{
-		Reset();
 	}
 
 	return ret;
@@ -167,21 +156,6 @@ u8 PadPS2Protocol::Config(u8 data)
 		break;
 	}
 
-	// Reset after the command is finished. Lower nibble of the controller's type value
-	// is the number of half-words in the reply. If the command was to exit config mode,
-	// our command length is expected to be 3 half words (lower nibble of 0xf3 aka config
-	// mode), so after setting the config mode bool to false, we use configResponse to
-	// persist that we were in config mode when we started. We can then arbitrarily set
-	// configResponse to false on Reset with no consequences every time.
-	const size_t halfWords = activePad->IsConfigResponse() ? GetResponseSize(PadPS2Type::CONFIG) : GetResponseSize(activePad->GetPadType());
-	
-	// -3 to remove header bytes, +1 to account for 0/1 based indexing, /2 to convert bytes to half-words.
-	if (halfWords == (currentCommandByte - 3 + 1) / 2)
-	{
-		activePad->SetConfigResponse(false);
-		Reset();
-	}
-
 	return ret;
 }
 
@@ -215,7 +189,6 @@ u8 PadPS2Protocol::ModeSwitch(u8 data)
 		activePad->SetAnalogLocked(data == 0x03);
 		break;
 	case 8:
-		Reset();
 		return 0x00;
 	default:
 		return 0x00;
@@ -243,7 +216,6 @@ u8 PadPS2Protocol::StatusInfo(u8 data)
 	case 7:
 		return 0x01;
 	case 8:
-		Reset();
 		return 0x00;
 	}
 }
@@ -314,8 +286,6 @@ u8 PadPS2Protocol::Constant1(u8 data)
 			}
 		}
 	case 8:
-		Reset();
-
 		if (!activePad->GetConstantStage())
 		{
 			return 0x0A;
@@ -362,7 +332,6 @@ u8 PadPS2Protocol::Constant2(u8 data)
 			return 0x00;
 		}
 	case 8:
-		Reset();
 		return 0x00;
 	default:
 		DevCon.Warning("%s(%02X) Overran expected length (%d > 9)", __FUNCTION__, data, currentCommandByte);
@@ -404,7 +373,6 @@ u8 PadPS2Protocol::Constant3(u8 data)
 	case 7:
 		return 0x00;
 	case 8:
-		Reset();
 		return 0x00;
 	default:
 		DevCon.Warning("%s(%02X) Overran expected length (%d > 9)", __FUNCTION__, data, currentCommandByte);
@@ -420,8 +388,6 @@ u8 PadPS2Protocol::VibrationMap(u8 data)
 		return 0x00;
 	case 4:
 		return 0x01;
-	case 8:
-		Reset();
 	default:
 		return 0xff;
 	}
@@ -453,7 +419,6 @@ u8 PadPS2Protocol::ResponseBytes(u8 data)
 		}
 		break;
 	case 8:
-		Reset();
 		return 0x5a;
 	default:
 		break;
@@ -474,17 +439,6 @@ PadPS2Protocol::PadPS2Protocol()
 }
 
 PadPS2Protocol::~PadPS2Protocol() = default;
-
-bool PadPS2Protocol::IsReset()
-{
-	if (reset)
-	{
-		reset = false;
-		return true;
-	}
-
-	return false;
-}
 
 PadPS2Mode PadPS2Protocol::GetPadMode()
 {
@@ -543,7 +497,6 @@ u8 PadPS2Protocol::SendToPad(u8 data)
 			break;
 		default:
 			DevCon.Warning("%s(%02X) Unhandled PadPS2Mode (%02X) (currentCommandByte = %d)", __FUNCTION__, data, static_cast<u8>(mode), currentCommandByte);
-			Reset();
 			break;
 		}
 	}

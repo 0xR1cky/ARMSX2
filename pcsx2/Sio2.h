@@ -44,11 +44,16 @@ private:
 	
 	u8 activePort;
 	u8 activeSlot;
+	bool send3Read = false;
+	size_t send3Position = 0;
+	size_t commandLength = 0;
+	size_t processedLength = 0;
 public:
 	Sio2();
 	~Sio2();
 
-	void Reset();
+	void FullReset();
+	void WriteReset();
 
 	void SetInterrupt();
 

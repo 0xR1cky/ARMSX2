@@ -10,6 +10,11 @@ enum class Sio2Mode
 	MEMCARD = 0x81
 };
 
+namespace Send3
+{
+	static constexpr u32 PORT = 0x01;
+}
+
 namespace Sio2Ctrl
 {
 	static constexpr u32 START_TRANSFER = 0x1;

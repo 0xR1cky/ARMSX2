@@ -9,13 +9,18 @@ Sio2 g_sio2;
 Sio2::Sio2() = default;
 Sio2::~Sio2() = default;
 
-void Sio2::Reset()
+void Sio2::FullReset()
 {
 	// SIO2MAN provided by the BIOS resets SIO2_CTRL to 0x3bc. Thanks ps2tek!
 	g_sio2.SetCtrl(0x000003bc);
 	g_sio2.SetRecv1(Recv1::DISCONNECTED);
 	g_sio2.SetRecv2(Recv2::DEFAULT);
 	g_sio2.SetRecv3(Recv3::DEFAULT);
+}
+
+void Sio2::WriteReset()
+{
+	
 }
 
 void Sio2::SetInterrupt()
@@ -28,24 +33,25 @@ void Sio2::Sio2Write(u8 data)
 	PadPS2* pad = nullptr;
 	MemcardPS2* memcard = nullptr;
 
+	if (!send3Read)
+	{
+		const u32 s3 = send3.at(send3Position++);
+		activePort = (s3 & Send3::PORT);
+		commandLength = (s3 >> 18) & 0x1ff;
+		send3Read = true;
+	}
+
 	switch (mode)
 	{
 	case Sio2Mode::NOT_SET:
 		mode = static_cast<Sio2Mode>(data);
-		fifoPosition = 0;
-		fifoOut.clear();
 		fifoOut.push_back(0xff);
 		break;
 	case Sio2Mode::PAD:
 		g_sio2.SetRecv1(Recv1::CONNECTED);
-		pad = g_padPS2Protocol.GetPad(GetCtrl() & Sio2Ctrl::PORT, 0);
+		pad = g_padPS2Protocol.GetPad(activePort, 0);
 		g_padPS2Protocol.SetActivePad(pad);
 		fifoOut.push_back(g_padPS2Protocol.SendToPad(data));
-
-		if (g_padPS2Protocol.IsReset())
-		{
-			mode = Sio2Mode::NOT_SET;
-		}
 		break;
 	case Sio2Mode::MULTITAP:
 	case Sio2Mode::INFRARED:
@@ -61,21 +67,35 @@ void Sio2::Sio2Write(u8 data)
 		DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);
 		break;
 	}
+
+	if (++processedLength >= commandLength)
+	{
+		send3Read = false;
+		processedLength = 0;
+
+		switch (mode)
+		{
+		case Sio2Mode::PAD:
+			g_padPS2Protocol.Reset();
+			break;
+		case Sio2Mode::MULTITAP:
+			break;
+		case Sio2Mode::INFRARED:
+			break;
+		case Sio2Mode::MEMCARD:
+			break;
+		}
+
+		mode = Sio2Mode::NOT_SET;
+	}
 }
 
 u8 Sio2::Sio2Read()
 {
 	if (fifoPosition >= fifoOut.size())
 	{
-		/*
 		DevCon.Warning("%s Attempted to read beyond FIFO contents", __FUNCTION__);
 		return 0xff;
-		*/
-		// For reasons unknown, the same command is sometimes written twice sequentially,
-		// with no read in between. This triggers a protocol reset (and hence SIO2 mode reset)
-		// which in turn dumps the FIFO contents. To work around this, wrap the fifoPosition
-		// back to 0 when we detect an overflow.
-		fifoPosition = 0;
 	}
 
 	return fifoOut.at(fifoPosition++);
@@ -103,11 +123,6 @@ u32 Sio2::GetCtrl()
 
 u32 Sio2::GetRecv1()
 {
-	// Access to RECV1 indicates that writes are all sent,
-	// and the replies are about to be read. After writes
-	// are complete, Sio2Mode does not matter for reads,
-	// and should be reset to prepare for the next writes.
-	mode = Sio2Mode::NOT_SET;
 	return recv1;
 }
 
@@ -149,6 +164,13 @@ void Sio2::SetSend2(u8 index, u32 data)
 void Sio2::SetSend3(u8 index, u32 data)
 {
 	send3.at(index) = data;
+
+	if (index == 0)
+	{
+		fifoPosition = 0;
+		fifoOut.clear();
+		send3Position = 0;
+	}
 }
 
 void Sio2::SetCtrl(u32 data)

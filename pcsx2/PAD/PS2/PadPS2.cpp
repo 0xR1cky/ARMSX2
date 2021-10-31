@@ -104,7 +104,7 @@ void PadPS2::SetDigitalByte2(u8 data)
 
 void PadPS2::Debug_Poll()
 {
-	DWORD res = XInputGetState(1, &state);
+	DWORD res = XInputGetState(0, &state);
 
 	if (res != ERROR_SUCCESS)
 	{
