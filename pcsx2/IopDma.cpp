@@ -19,6 +19,7 @@
 
 #include "Sif.h"
 #include "DEV9/DEV9.h"
+#include "Sio2.h"
 
 using namespace R3000A;
 
@@ -220,4 +221,60 @@ void psxDma10(u32 madr, u32 bcr, u32 chcr)
 	SIF1Dma();
 }
 
-/* psxDma11 & psxDma 12 are in IopSio2.cpp, along with the appropriate interrupt functions. */
+void psxDma11(u32 madr, u32 bcr, u32 chcr) {
+	SIO2_LOG("DMA 11 // SIO2 in // madr = %08X // bcr = %08X // chcr = %08X", madr, bcr, chcr);
+
+	if (chcr != 0x01000201)
+	{
+		return;
+	}
+
+	const size_t blocks = (bcr >> 16);
+	const size_t bytes = (bcr & 0xffff);
+
+	for (size_t block = 0; block < blocks; block++)
+	{
+		for (size_t byte = 0; byte < bytes; byte++)
+		{
+			g_sio2.Sio2Write(iopMemRead8(madr++));
+		}
+	}
+
+	HW_DMA11_MADR = madr;
+	PSX_INT(IopEvt_Dma11, ((blocks * bytes) >> 2));	
+}
+
+void psxDMA11Interrupt()
+{
+	HW_DMA11_CHCR &= ~0x01000000;
+	psxDmaInterrupt2(4);
+}
+
+void psxDma12(u32 madr, u32 bcr, u32 chcr) {
+	SIO2_LOG("DMA 12 // SIO2 out // madr = %08X // bcr = %08X // chcr = %08X", madr, bcr, chcr);
+
+	if (chcr != 0x41000200)
+	{
+		return;
+	}
+
+	const size_t blocks = (bcr >> 16);
+	const size_t bytes = (bcr & 0xffff);
+
+	for (size_t block = 0; block < blocks; block++)
+	{
+		for (size_t byte = 0; byte < bytes; byte++)
+		{
+			iopMemWrite8(madr++, g_sio2.Sio2Read());
+		}
+	}
+
+	HW_DMA12_MADR = madr;
+	PSX_INT(IopEvt_Dma12, ((blocks * bytes) >> 2));
+}
+
+void psxDMA12Interrupt()
+{
+	HW_DMA12_CHCR &= ~0x01000000;
+	psxDmaInterrupt2(5);
+}

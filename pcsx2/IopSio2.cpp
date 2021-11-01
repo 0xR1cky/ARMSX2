@@ -184,7 +184,7 @@ void sio2_fifoIn(u8 value){
 	SIODMAWrite(value);
 
 	if (sio2.packet.sendSize >= BUFSIZE) {//asadr
-		Console.WriteLn("*PCSX2*: sendSize >= %d", BUFSIZE);
+		//Console.WriteLn("*PCSX2*: sendSize >= %d", BUFSIZE);
 	} else {
 		sio2.buf[sio2.packet.sendSize] = sioRead8();
 		sio2.packet.sendSize++;
@@ -206,63 +206,3 @@ void SaveStateBase::sio2Freeze()
 	FreezeTag( "sio2" );
 	Freeze(sio2);
 }
-
-/////////////////////////////////////////////////
-////////////////////////////////////////////  DMA
-/////////////////////////////////////////////////
-
-void psxDma11(u32 madr, u32 bcr, u32 chcr) {
-	unsigned int i, j;
-	int size = (bcr >> 16) * (bcr & 0xffff);
-	PSXDMA_LOG("*** DMA 11 - SIO2 in *** %lx addr = %lx size = %lx", chcr, madr, bcr);
-
-	if (chcr != 0x01000201) return;
-
-	for(i = 0; i < (bcr >> 16); i++)
-	{
-		sio.count = 1;
-		for(j = 0; j < ((bcr & 0xFFFF) * 4); j++)
-		{
-			sio2_fifoIn(iopMemRead8(madr));
-			madr++;
-			if(sio2.packet.sendSize == BUFSIZE)
-				goto finished;
-		}
-	}
-
-finished:
-	HW_DMA11_MADR = madr;
-	PSX_INT(IopEvt_Dma11,(size>>2));	// Interrupts should always occur at the end
-}
-
-void psxDMA11Interrupt()
-{
-	HW_DMA11_CHCR &= ~0x01000000;
-	psxDmaInterrupt2(4);
-}
-
-void psxDma12(u32 madr, u32 bcr, u32 chcr) {
-	int size = ((bcr >> 16) * (bcr & 0xFFFF)) * 4;
-	PSXDMA_LOG("*** DMA 12 - SIO2 out *** %lx addr = %lx size = %lx", chcr, madr, size);
-
-	if (chcr != 0x41000200) return;
-
-	sio2.recvIndex = 0; // Set To start;    saqib
-
-	bcr = size;
-	while (bcr > 0) {
-		iopMemWrite8( madr, sio2_fifoOut() );
-		bcr--; madr++;
-		if(sio2.recvIndex == sio2.packet.sendSize) break;
-	}
-	HW_DMA12_MADR = madr;
-	PSX_INT(IopEvt_Dma12,(size>>2));	// Interrupts should always occur at the end
-}
-
-void psxDMA12Interrupt()
-{
-	HW_DMA12_CHCR &= ~0x01000000;
-	psxDmaInterrupt2(5);
-}
-
-//#endif

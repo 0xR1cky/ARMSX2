@@ -23,6 +23,8 @@ extern void psxDma7(u32 madr, u32 bcr, u32 chcr);
 extern void psxDma8(u32 madr, u32 bcr, u32 chcr);
 extern void psxDma9(u32 madr, u32 bcr, u32 chcr);
 extern void psxDma10(u32 madr, u32 bcr, u32 chcr);
+extern void psxDma11(u32 madr, u32 bcr, u32 chcr);
+extern void psxDma12(u32 madr, u32 bcr, u32 chcr);
 
 extern int  psxDma4Interrupt();
 extern int  psxDma7Interrupt();
@@ -34,6 +36,13 @@ extern void fwIrq();
 extern void spu2Irq();
 extern void spu2DMA4Irq();
 extern void spu2DMA7Irq();
+extern void psxDMA11Interrupt();
+extern void psxDMA12Interrupt();
 
 extern void iopIntcIrq( uint irqType );
 extern void iopTestIntc();
+
+namespace CHCR
+{
+	static constexpr u32 BUSY = 0x1000000;
+}

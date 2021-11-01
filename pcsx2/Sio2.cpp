@@ -33,11 +33,49 @@ void Sio2::Sio2Write(u8 data)
 	PadPS2* pad = nullptr;
 	MemcardPS2* memcard = nullptr;
 
+	// If SEND3 contents at index send3Position have not been read, do so now.
+	// This tells us what physical port we are operating on, and the length of
+	// the command.
 	if (!send3Read)
 	{
-		const u32 s3 = send3.at(send3Position++);
+		// If send3Position somehow goes out of bounds, warn and exit.
+		// The source which tried to write this byte will still expect
+		// a reply, even if writing this byte was a clear mistake. Pad
+		// fifoOut with a byte to match.
+		if (send3Position >= send3.size())
+		{
+			DevCon.Warning("%s(%02X) SEND3 Overflow! SIO2 has processed commands described by all 16 SEND3 registers, and is still receiving command bytes!", __FUNCTION__, data);
+			fifoOut.push_back(0x00);
+			return;
+		}
+
+		const u32 s3 = send3.at(send3Position);
+		
+		// SEND3 is the source of truth for command length in SIO2. This applies to
+		// commands written directly via HW write, and also when a command is sent
+		// over DMA11 in a 36 byte payload. For direct writes, the IOP module
+		// responsible will, unless written by a jackass, not attempt to directly
+		// write more bytes than specified in each SEND3 index. If it does, this
+		// ensures that when we hit a 0 value in a SEND3 index, SIO2 effectively
+		// "shuts down" until the next CTRL write signals that we're done with the
+		// write and starting a new one. Also, in the case of DMA11's 36 byte payloads,
+		// this ensures that once we reach the end of the contents described by SEND3,
+		// the rest of the payload is still "received" to make DMA11 happy, but not 
+		// mistakenly executed as a command when it is just padding.
+		//
+		// Note, in any such case, we are going to queue a 0 byte as a reply. For IOP
+		// modules written by jackasses, this is because for each write, even erroneous,
+		// there is a read, so we need *something*. For DMA11, this just pads out the
+		// data that DMA12 will then scoop up. 
+		if (s3 == 0)
+		{
+			fifoOut.push_back(0x00);
+			return;
+		}
+
+		send3Position++;
 		activePort = (s3 & Send3::PORT);
-		commandLength = (s3 >> 18) & 0x1ff;
+		commandLength = (s3 >> 8) & 0x1ff;
 		send3Read = true;
 	}
 
@@ -55,13 +93,9 @@ void Sio2::Sio2Write(u8 data)
 		break;
 	case Sio2Mode::MULTITAP:
 	case Sio2Mode::INFRARED:
+	case Sio2Mode::MEMCARD:
 		g_sio2.SetRecv1(Recv1::DISCONNECTED);
 		fifoOut.push_back(0xff);
-		break;
-	case Sio2Mode::MEMCARD:
-		// FIXME
-		g_sio2.SetRecv1(Recv1::DISCONNECTED); 
-		fifoOut.push_back(g_memcardPS2Protocol.SendToMemcard(data));
 		break;
 	default:
 		DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);
@@ -165,6 +199,10 @@ void Sio2::SetSend3(u8 index, u32 data)
 {
 	send3.at(index) = data;
 
+	// When SEND3 is first written, clear out the previous
+	// FIFO contents in preparation for what's coming next.
+	// Also reset the send3Position so that the next DMA11
+	// or HW writes start reading SEND3 from the top.
 	if (index == 0)
 	{
 		fifoPosition = 0;
@@ -176,7 +214,7 @@ void Sio2::SetSend3(u8 index, u32 data)
 void Sio2::SetCtrl(u32 data)
 {
 	ctrl = data;
-
+	
 	// Bit 0 signals to start transfer. Interrupt is raised after this bit is set. 
 	if (ctrl & Sio2Ctrl::START_TRANSFER)
 	{
