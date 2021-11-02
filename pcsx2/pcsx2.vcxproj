@@ -40,6 +40,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\baseclasses;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\libpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
@@ -277,6 +278,7 @@
     <ClCompile Include="DEV9\ATA\ATA_State.cpp" />
     <ClCompile Include="DEV9\ATA\ATA_Transfer.cpp" />
     <ClCompile Include="DEV9\ATA\HddCreate.cpp" />
+    <ClCompile Include="DEV9\ConfigUI.cpp" />
     <ClCompile Include="DEV9\DEV9Config.cpp" />
     <ClCompile Include="DEV9\DEV9.cpp" />
     <ClCompile Include="DEV9\flash.cpp" />
@@ -298,7 +300,6 @@
     <ClCompile Include="DEV9\Win32\DEV9WinConfig.cpp" />
     <ClCompile Include="DEV9\net.cpp" />
     <ClCompile Include="DEV9\Win32\tap-win32.cpp" />
-    <ClCompile Include="DEV9\Win32\Win32.cpp" />
     <ClCompile Include="GameDatabase.cpp" />
     <ClCompile Include="Gif_Logger.cpp" />
     <ClCompile Include="Gif_Unit.cpp" />
@@ -513,12 +514,6 @@
     <ClCompile Include="GS\Renderers\Common\GSVertexList.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSVertexSW.cpp" />
     <ClCompile Include="GS\Renderers\Common\GSVertexTrace.cpp" />
-    <ClCompile Include="GS\Window\GSWnd.cpp" />
-    <ClCompile Include="GS\Window\GSWndDX.cpp" />
-    <ClCompile Include="GS\Window\GSWndEGL.cpp">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="GS\Window\GSWndWGL.cpp" />
     <ClCompile Include="Utilities\FileUtils.cpp" />
     <ClCompile Include="Dump.cpp" />
     <ClCompile Include="x86\iMisc.cpp" />
@@ -751,7 +746,6 @@
     <ClInclude Include="DEV9\SimpleQueue.h" />
     <ClInclude Include="DEV9\smap.h" />
     <ClInclude Include="DEV9\Win32\pcap_io_win32_funcs.h" />
-    <ClInclude Include="DEV9\Win32\resource.h" />
     <ClInclude Include="DEV9\Win32\tap.h" />
     <ClInclude Include="GameDatabase.h" />
     <ClInclude Include="Gif_Unit.h" />
@@ -881,15 +875,10 @@
     <ClInclude Include="GS\GSVector8i.h" />
     <ClInclude Include="GS\GSVector8.h" />
     <ClInclude Include="GS\Renderers\Common\GSVertex.h" />
-    <ClInclude Include="GS\Renderers\OpenGL\GSVertexArrayOGL.h" />
     <ClInclude Include="GS\Renderers\HW\GSVertexHW.h" />
     <ClInclude Include="GS\Renderers\Common\GSVertexList.h" />
     <ClInclude Include="GS\Renderers\SW\GSVertexSW.h" />
     <ClInclude Include="GS\Renderers\Common\GSVertexTrace.h" />
-    <ClInclude Include="GS\Window\GSWnd.h" />
-    <ClInclude Include="GS\Window\GSWndDX.h" />
-    <ClInclude Include="GS\Window\GSWndEGL.h" />
-    <ClInclude Include="GS\Window\GSWndWGL.h" />
     <ClInclude Include="GS\resource.h" />
     <ClInclude Include="IPU\IPUdma.h" />
     <ClInclude Include="Mdec.h" />
@@ -1106,7 +1095,6 @@
     <ResourceCompile Include="GS\GS.rc" />
     <ResourceCompile Include="PAD\Windows\PAD.rc" />
     <ResourceCompile Include="SPU2\Windows\SPU2.rc" />
-    <ResourceCompile Include="DEV9\Win32\DEV9ghzdrk.rc" />
     <ResourceCompile Include="USB\usb-pad\dx\versionproxy.rc" />
     <ResourceCompile Include="USB\usb-pad\raw\raw-config.rc" />
     <ResourceCompile Include="USB\Win32\USBDialog.rc" />
@@ -1172,6 +1160,9 @@
     </ProjectReference>
     <ProjectReference Include="..\common\common.vcxproj">
       <Project>{4639972e-424e-4e13-8b07-ca403c481346}</Project>
+    </ProjectReference>
+    <ProjectReference Include="..\3rdparty\glad\glad.vcxproj">
+      <Project>{c0293b32-5acf-40f0-aa6c-e6da6f3bf33a}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

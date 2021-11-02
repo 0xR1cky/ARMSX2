@@ -42,6 +42,11 @@ static constexpr uint32 g_convert_index      = 15;
 static constexpr uint32 g_vs_cb_index        = 20;
 static constexpr uint32 g_ps_cb_index        = 21;
 
+static constexpr u32 VERTEX_BUFFER_SIZE = 32 * 1024 * 1024;
+static constexpr u32 INDEX_BUFFER_SIZE = 16 * 1024 * 1024;
+static constexpr u32 VERTEX_UNIFORM_BUFFER_SIZE = 8 * 1024 * 1024;
+static constexpr u32 FRAGMENT_UNIFORM_BUFFER_SIZE = 8 * 1024 * 1024;
+
 bool  GSDeviceOGL::m_debug_gl_call = false;
 int   GSDeviceOGL::m_shader_inst = 0;
 int   GSDeviceOGL::m_shader_reg  = 0;
@@ -51,11 +56,8 @@ GSDeviceOGL::GSDeviceOGL()
 	: m_force_texture_clear(0)
 	, m_fbo(0)
 	, m_fbo_read(0)
-	, m_va(NULL)
 	, m_apitrace(0)
 	, m_palette_ss(0)
-	, m_vs_cb(NULL)
-	, m_ps_cb(NULL)
 	, m_shader(NULL)
 {
 	memset(&m_merge_obj, 0, sizeof(m_merge_obj));
@@ -105,7 +107,10 @@ GSDeviceOGL::~GSDeviceOGL()
 	GL_PUSH("GSDeviceOGL destructor");
 
 	// Clean vertex buffer state
-	delete m_va;
+	if (m_vertex_array_object)
+		glDeleteVertexArrays(0, &m_vertex_array_object);
+	m_vertex_stream_buffer.reset();
+	m_index_stream_buffer.reset();
 
 	// Clean m_merge_obj
 	delete m_merge_obj.cb;
@@ -132,8 +137,8 @@ GSDeviceOGL::~GSDeviceOGL()
 	glDeleteFramebuffers(1, &m_fbo_read);
 
 	// Delete HW FX
-	delete m_vs_cb;
-	delete m_ps_cb;
+	m_vertex_uniform_stream_buffer.reset();
+	m_fragment_uniform_stream_buffer.reset();
 	glDeleteSamplers(1, &m_palette_ss);
 
 	m_ps.clear();
@@ -305,9 +310,27 @@ GSTexture* GSDeviceOGL::FetchSurface(int type, int w, int h, int format)
 	return t;
 }
 
-bool GSDeviceOGL::Create(const std::shared_ptr<GSWnd>& wnd)
+bool GSDeviceOGL::Create(const WindowInfo& wi)
 {
 	std::vector<char> shader;
+
+	m_gl_context = GL::Context::Create(wi, GL::Context::GetAllVersionsList());
+	if (!m_gl_context || !m_gl_context->MakeCurrent())
+		return false;
+
+	// Check openGL requirement as soon as possible so we can switch to another
+	// renderer/device
+	try
+	{
+		GLLoader::check_gl_requirements();
+	}
+	catch (std::exception& ex)
+	{
+		printf("GS error: Exception caught in GSDeviceOGL::Create: %s", ex.what());
+		m_gl_context->DoneCurrent();
+		return false;
+	}
+
 	// ****************************************************************
 	// Debug helper
 	// ****************************************************************
@@ -363,18 +386,36 @@ bool GSDeviceOGL::Create(const std::shared_ptr<GSWnd>& wnd)
 	{
 		GL_PUSH("GSDeviceOGL::Vertex Buffer");
 
+		glGenVertexArrays(1, &m_vertex_array_object);
+		glBindVertexArray(m_vertex_array_object);
+
+		m_vertex_stream_buffer = GL::StreamBuffer::Create(GL_ARRAY_BUFFER, VERTEX_BUFFER_SIZE);
+		m_index_stream_buffer = GL::StreamBuffer::Create(GL_ELEMENT_ARRAY_BUFFER, INDEX_BUFFER_SIZE);
+		m_vertex_uniform_stream_buffer = GL::StreamBuffer::Create(GL_UNIFORM_BUFFER, VERTEX_UNIFORM_BUFFER_SIZE);
+		m_fragment_uniform_stream_buffer = GL::StreamBuffer::Create(GL_UNIFORM_BUFFER, FRAGMENT_UNIFORM_BUFFER_SIZE);
+		glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &m_uniform_buffer_alignment);
+		if (!m_vertex_stream_buffer || !m_index_stream_buffer || !m_vertex_uniform_stream_buffer || !m_fragment_uniform_stream_buffer)
+		{
+			Console.Error("Failed to create vertex/index/uniform streaming buffers");
+			return false;
+		}
+
+		// rebind because of VAO state
+		m_vertex_stream_buffer->Bind();
+		m_index_stream_buffer->Bind();
+
 		static_assert(sizeof(GSVertexPT1) == sizeof(GSVertex), "wrong GSVertex size");
-		std::vector<GSInputLayoutOGL> il_convert = {
-			{0, 2 , GL_FLOAT          , GL_FALSE , sizeof(GSVertexPT1) , (const GLvoid*)( 0) } ,
-			{1, 2 , GL_FLOAT          , GL_FALSE , sizeof(GSVertexPT1) , (const GLvoid*)(16) } ,
-			{2, 4 , GL_UNSIGNED_BYTE  , GL_FALSE , sizeof(GSVertex)    , (const GLvoid*)( 8) } ,
-			{3, 1 , GL_FLOAT          , GL_FALSE , sizeof(GSVertex)    , (const GLvoid*)(12) } ,
-			{4, 2 , GL_UNSIGNED_SHORT , GL_FALSE , sizeof(GSVertex)    , (const GLvoid*)(16) } ,
-			{5, 1 , GL_UNSIGNED_INT   , GL_FALSE , sizeof(GSVertex)    , (const GLvoid*)(20) } ,
-			{6, 2 , GL_UNSIGNED_SHORT , GL_FALSE , sizeof(GSVertex)    , (const GLvoid*)(24) } ,
-			{7, 4 , GL_UNSIGNED_BYTE  , GL_TRUE  , sizeof(GSVertex)    , (const GLvoid*)(28) } , // Only 1 byte is useful but hardware unit only support 4B
-		};
-		m_va = new GSVertexBufferStateOGL(il_convert);
+		for (u32 i = 0; i < 8; i++)
+			glEnableVertexAttribArray(i);
+
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GSVertexPT1), (const GLvoid*)(0));
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GSVertexPT1), (const GLvoid*)(16));
+		glVertexAttribPointer(2, 4, GL_UNSIGNED_BYTE, GL_FALSE, sizeof(GSVertex), (const GLvoid*)(8));
+		glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, sizeof(GSVertex), (const GLvoid*)(12));
+		glVertexAttribIPointer(4, 2, GL_UNSIGNED_SHORT, sizeof(GSVertex), (const GLvoid*)(16));
+		glVertexAttribIPointer(5, 1, GL_UNSIGNED_INT, sizeof(GSVertex), (const GLvoid*)(20));
+		glVertexAttribIPointer(6, 2, GL_UNSIGNED_SHORT, sizeof(GSVertex), (const GLvoid*)(24));
+		glVertexAttribPointer(7, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(GSVertex), (const GLvoid*)(28));
 	}
 
 	// ****************************************************************
@@ -584,11 +625,10 @@ bool GSDeviceOGL::Create(const std::shared_ptr<GSWnd>& wnd)
 	// ****************************************************************
 	// Finish window setup and backbuffer
 	// ****************************************************************
-	if (!GSDevice::Create(wnd))
+	if (!GSDevice::Create(wi))
 		return false;
 
-	const GSVector4i rect = wnd->GetClientRect();
-	Reset(rect.z, rect.w);
+	Reset(wi.surface_width, wi.surface_height);
 
 	// Basic to ensure structures are correctly packed
 	static_assert(sizeof(VSSelector) == 4, "Wrong VSSelector size");
@@ -603,9 +643,6 @@ bool GSDeviceOGL::Create(const std::shared_ptr<GSWnd>& wnd)
 void GSDeviceOGL::CreateTextureFX()
 {
 	GL_PUSH("GSDeviceOGL::CreateTextureFX");
-
-	m_vs_cb = new GSUniformBufferOGL("HW VS UBO", g_vs_cb_index, sizeof(VSConstantBuffer));
-	m_ps_cb = new GSUniformBufferOGL("HW PS UBO", g_ps_cb_index, sizeof(PSConstantBuffer));
 
 	theApp.LoadResource(IDR_TFX_VGS_GLSL, m_shader_tfx_vgs);
 	theApp.LoadResource(IDR_TFX_FS_GLSL, m_shader_tfx_fs);
@@ -645,19 +682,20 @@ bool GSDeviceOGL::Reset(int w, int h)
 	// Opengl allocate the backbuffer with the window. The render is done in the backbuffer when
 	// there isn't any FBO. Only a dummy texture is created to easily detect when the rendering is done
 	// in the backbuffer
-	m_backbuffer = new GSTextureOGL(GSTextureOGL::Backbuffer, w, h, 0, m_fbo_read, false);
-
+	m_gl_context->ResizeSurface(w, h);
+	m_backbuffer = new GSTextureOGL(GSTextureOGL::Backbuffer, m_gl_context->GetSurfaceWidth(),
+		m_gl_context->GetSurfaceHeight(), 0, m_fbo_read, false);
 	return true;
 }
 
 void GSDeviceOGL::SetVSync(int vsync)
 {
-	m_wnd->SetVSync(vsync);
+	m_gl_context->SetSwapInterval(vsync);
 }
 
 void GSDeviceOGL::Flip()
 {
-	m_wnd->Flip();
+	m_gl_context->SwapBuffers();
 
 	if (GLLoader::in_replayer)
 	{
@@ -666,44 +704,30 @@ void GSDeviceOGL::Flip()
 	}
 }
 
-void GSDeviceOGL::BeforeDraw()
-{
-}
-
-void GSDeviceOGL::AfterDraw()
-{
-}
-
 void GSDeviceOGL::DrawPrimitive()
 {
-	BeforeDraw();
-	m_va->DrawPrimitive();
-	AfterDraw();
-}
-
-void GSDeviceOGL::DrawPrimitive(int offset, int count)
-{
-	BeforeDraw();
-	m_va->DrawPrimitive(offset, count);
-	AfterDraw();
+	glDrawArrays(m_draw_topology, m_vertex.start, m_vertex.count);
 }
 
 void GSDeviceOGL::DrawIndexedPrimitive()
 {
-	BeforeDraw();
 	if (!m_disable_hw_gl_draw)
-		m_va->DrawIndexedPrimitive();
-	AfterDraw();
+	{
+		glDrawElementsBaseVertex(m_draw_topology, static_cast<u32>(m_index.count), GL_UNSIGNED_INT,
+			reinterpret_cast<void*>(static_cast<u32>(m_index.start) * sizeof(u32)), static_cast<GLint>(m_vertex.start));
+	}
 }
 
 void GSDeviceOGL::DrawIndexedPrimitive(int offset, int count)
 {
 	//ASSERT(offset + count <= (int)m_index.count);
 
-	BeforeDraw();
 	if (!m_disable_hw_gl_draw)
-		m_va->DrawIndexedPrimitive(offset, count);
-	AfterDraw();
+	{
+		glDrawElementsBaseVertex(m_draw_topology, count, GL_UNSIGNED_INT,
+			reinterpret_cast<void*>((static_cast<u32>(m_index.start) + static_cast<u32>(offset)) * sizeof(u32)),
+			static_cast<GLint>(m_vertex.start));
+	}
 }
 
 void GSDeviceOGL::ClearRenderTarget(GSTexture* t, const GSVector4& c)
@@ -1470,9 +1494,11 @@ void GSDeviceOGL::RenderOsd(GSTexture* dt)
 
 	// Note scaling could also be done in shader (require gl3/dx10)
 	size_t count = m_osd.Size();
-	GSVertexPT1* dst = (GSVertexPT1*)m_va->MapVB(count);
-	count = m_osd.GeneratePrimitives(dst, count);
-	m_va->UnmapVB();
+	auto res = m_vertex_stream_buffer->Map(sizeof(GSVertexPT1), static_cast<u32>(count) * sizeof(GSVertexPT1));
+	count = m_osd.GeneratePrimitives(reinterpret_cast<GSVertexPT1*>(res.pointer), count);
+	m_vertex.start = res.index_aligned;
+	m_vertex.count = count;
+	m_vertex_stream_buffer->Unmap(static_cast<u32>(count) * sizeof(GSVertexPT1));
 
 	DrawPrimitive();
 
@@ -1705,24 +1731,29 @@ void GSDeviceOGL::SetupDATE(GSTexture* rt, GSTexture* ds, const GSVertexPT1* ver
 	EndScene();
 }
 
-void GSDeviceOGL::EndScene()
-{
-	m_va->EndScene();
-}
-
 void GSDeviceOGL::IASetVertexBuffer(const void* vertices, size_t count)
 {
-	m_va->UploadVB(vertices, count);
+	const u32 size = static_cast<u32>(count) * sizeof(GSVertexPT1);
+	auto res = m_vertex_stream_buffer->Map(sizeof(GSVertexPT1), size);
+	std::memcpy(res.pointer, vertices, size);
+	m_vertex.start = res.index_aligned;
+	m_vertex.count = count;
+	m_vertex_stream_buffer->Unmap(size);
 }
 
 void GSDeviceOGL::IASetIndexBuffer(const void* index, size_t count)
 {
-	m_va->UploadIB(index, count);
+	const u32 size = static_cast<u32>(count) * sizeof(u32);
+	auto res = m_index_stream_buffer->Map(sizeof(u32), size);
+	m_index.start = res.index_aligned;
+	m_index.count = count;
+	std::memcpy(res.pointer, index, size);
+	m_index_stream_buffer->Unmap(size);
 }
 
 void GSDeviceOGL::IASetPrimitiveTopology(GLenum topology)
 {
-	m_va->SetTopology(topology);
+	m_draw_topology = topology;
 }
 
 void GSDeviceOGL::PSSetShaderResource(int i, GSTexture* sr)
@@ -1907,17 +1938,29 @@ void GSDeviceOGL::OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVecto
 	}
 }
 
+__fi static void WriteToStreamBuffer(GL::StreamBuffer* sb, u32 index, u32 align, const void* data, u32 size)
+{
+	const auto res = sb->Map(align, size);
+	std::memcpy(res.pointer, data, size);
+	sb->Unmap(size);
+
+	glBindBufferRange(GL_UNIFORM_BUFFER, index, sb->GetGLBufferId(), res.buffer_offset, size);
+}
+
 void GSDeviceOGL::SetupCB(const VSConstantBuffer* vs_cb, const PSConstantBuffer* ps_cb)
 {
 	GL_PUSH("UBO");
+
 	if (m_vs_cb_cache.Update(vs_cb))
 	{
-		m_vs_cb->upload(vs_cb);
+		WriteToStreamBuffer(m_vertex_uniform_stream_buffer.get(), g_vs_cb_index,
+			m_uniform_buffer_alignment, vs_cb, sizeof(VSConstantBuffer));
 	}
 
 	if (m_ps_cb_cache.Update(ps_cb))
 	{
-		m_ps_cb->upload(ps_cb);
+		WriteToStreamBuffer(m_fragment_uniform_stream_buffer.get(), g_ps_cb_index,
+			m_uniform_buffer_alignment, ps_cb, sizeof(PSConstantBuffer));
 	}
 }
 

@@ -1,4 +1,4 @@
-﻿/*  PCSX2 - PS2 Emulator for PCs
+/*  PCSX2 - PS2 Emulator for PCs
  *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
@@ -163,7 +163,7 @@ CtrlDisassemblyView::CtrlDisassemblyView(wxWindow* parent, DebugInterface* _cpu)
 	menu.Append(ID_DISASM_COPYINSTRUCTIONDISASM, L"Copy Instruction (Disasm)");
 	menu.Append(ID_DISASM_DISASSEMBLETOFILE, L"Disassemble to File");
 	menu.AppendSeparator();
-	menu.Append(ID_DISASM_ASSEMBLE, L"Assemble Opcode");
+	menu.Append(ID_DISASM_ASSEMBLE, L"Assemble Opcode(s)");
 	menu.AppendSeparator();
 	menu.Append(ID_DISASM_RUNTOHERE, L"Run to Cursor");
 	menu.Append(ID_DISASM_SETPCTOHERE, L"Jump to Cursor");
@@ -244,7 +244,7 @@ bool CtrlDisassemblyView::getDisasmAddressText(u32 address, char* dest, bool abb
 {
 	if (displaySymbols)
 	{
-		const std::string addressSymbol = symbolMap.GetLabelString(address);
+		const std::string addressSymbol = cpu->GetSymbolMap().GetLabelString(address);
 		if (!addressSymbol.empty())
 		{
 			for (int k = 0; addressSymbol[k] != 0; k++)
@@ -392,10 +392,10 @@ void CtrlDisassemblyView::drawBranchLine(wxDC& dc, std::map<u32, int>& addressPo
 	}
 }
 
-int getBackgroundColor(unsigned int address)
+int CtrlDisassemblyView::getBackgroundColor(unsigned int address)
 {
 	u32 colors[6] = {0xFFe0FFFF, 0xFFFFe0e0, 0xFFe8e8FF, 0xFFFFe0FF, 0xFFe0FFe0, 0xFFFFFFe0};
-	int n = symbolMap.GetFunctionNum(address);
+	int n = cpu->GetSymbolMap().GetFunctionNum(address);
 	if (n == -1)
 		return 0xFFFFFFFF;
 	return colors[n % 6];
@@ -670,10 +670,18 @@ void CtrlDisassemblyView::assembleOpcode(u32 address, std::string defaultText)
 	if (result)
 	{
 		SysClearExecutionCache();
-		cpu->write32(address, encoded);
 
-		if (address == curAddress)
-			gotoAddress(manager.getNthNextAddress(curAddress, 1));
+		if((selectRangeEnd - selectRangeStart) > 4)
+		{
+			for(u32 addr = selectRangeStart; addr < selectRangeEnd; addr += 0x4)
+			{
+				cpu->write32(addr,encoded);
+			}
+		}
+		else
+		{
+			cpu->write32(address, encoded);
+		}
 
 		redraw();
 	}
@@ -728,16 +736,16 @@ void CtrlDisassemblyView::onPopupClick(wxCommandEvent& evt)
 			break;
 		case ID_DISASM_RENAMEFUNCTION:
 		{
-			u32 funcBegin = symbolMap.GetFunctionStart(curAddress);
+			u32 funcBegin = cpu->GetSymbolMap().GetFunctionStart(curAddress);
 			if (funcBegin != 0xFFFFFFFF)
 			{
 				wxString newName = wxGetTextFromUser(L"Enter the new function name", L"New function name",
-					wxString(symbolMap.GetLabelString(funcBegin).c_str(), wxConvUTF8), this);
+					wxString(cpu->GetSymbolMap().GetLabelString(funcBegin).c_str(), wxConvUTF8), this);
 
 				if (!newName.empty())
 				{
 					const wxCharBuffer converted = newName.ToUTF8();
-					symbolMap.SetLabelName(converted, funcBegin);
+					cpu->GetSymbolMap().SetLabelName(converted, funcBegin);
 					postEvent(debEVT_MAPLOADED, 0);
 					redraw();
 				}
@@ -750,19 +758,19 @@ void CtrlDisassemblyView::onPopupClick(wxCommandEvent& evt)
 		}
 		case ID_DISASM_REMOVEFUNCTION:
 		{
-			u32 funcBegin = symbolMap.GetFunctionStart(curAddress);
+			u32 funcBegin = cpu->GetSymbolMap().GetFunctionStart(curAddress);
 			if (funcBegin != 0xFFFFFFFF)
 			{
-				u32 prevBegin = symbolMap.GetFunctionStart(funcBegin - 1);
+				u32 prevBegin = cpu->GetSymbolMap().GetFunctionStart(funcBegin - 1);
 				if (prevBegin != 0xFFFFFFFF)
 				{
-					u32 expandedSize = symbolMap.GetFunctionSize(prevBegin) + symbolMap.GetFunctionSize(funcBegin);
-					symbolMap.SetFunctionSize(prevBegin, expandedSize);
+					u32 expandedSize = cpu->GetSymbolMap().GetFunctionSize(prevBegin) + cpu->GetSymbolMap().GetFunctionSize(funcBegin);
+					cpu->GetSymbolMap().SetFunctionSize(prevBegin, expandedSize);
 				}
 
-				symbolMap.RemoveFunction(funcBegin, true);
-				symbolMap.SortSymbols();
-				symbolMap.UpdateActiveSymbols();
+				cpu->GetSymbolMap().RemoveFunction(funcBegin, true);
+				cpu->GetSymbolMap().SortSymbols();
+				cpu->GetSymbolMap().UpdateActiveSymbols();
 				manager.clear();
 
 				postEvent(debEVT_MAPLOADED, 0);
@@ -777,7 +785,7 @@ void CtrlDisassemblyView::onPopupClick(wxCommandEvent& evt)
 		}
 		case ID_DISASM_ADDFUNCTION:
 		{
-			u32 prevBegin = symbolMap.GetFunctionStart(curAddress);
+			u32 prevBegin = cpu->GetSymbolMap().GetFunctionStart(curAddress);
 			if (prevBegin != 0xFFFFFFFF)
 			{
 				if (prevBegin == curAddress)
@@ -787,15 +795,15 @@ void CtrlDisassemblyView::onPopupClick(wxCommandEvent& evt)
 				else
 				{
 					char symname[128];
-					u32 prevSize = symbolMap.GetFunctionSize(prevBegin);
+					u32 prevSize = cpu->GetSymbolMap().GetFunctionSize(prevBegin);
 					u32 newSize = curAddress - prevBegin;
-					symbolMap.SetFunctionSize(prevBegin, newSize);
+					cpu->GetSymbolMap().SetFunctionSize(prevBegin, newSize);
 
 					newSize = prevSize - newSize;
 					sprintf(symname, "u_un_%08X", curAddress);
-					symbolMap.AddFunction(symname, curAddress, newSize);
-					symbolMap.SortSymbols();
-					symbolMap.UpdateActiveSymbols();
+					cpu->GetSymbolMap().AddFunction(symname, curAddress, newSize);
+					cpu->GetSymbolMap().SortSymbols();
+					cpu->GetSymbolMap().UpdateActiveSymbols();
 					manager.clear();
 
 					postEvent(debEVT_MAPLOADED, 0);
@@ -806,9 +814,9 @@ void CtrlDisassemblyView::onPopupClick(wxCommandEvent& evt)
 				char symname[128];
 				int newSize = selectRangeEnd - selectRangeStart;
 				sprintf(symname, "u_un_%08X", selectRangeStart);
-				symbolMap.AddFunction(symname, selectRangeStart, newSize);
-				symbolMap.SortSymbols();
-				symbolMap.UpdateActiveSymbols();
+				cpu->GetSymbolMap().AddFunction(symname, selectRangeStart, newSize);
+				cpu->GetSymbolMap().SortSymbols();
+				cpu->GetSymbolMap().UpdateActiveSymbols();
 
 				postEvent(debEVT_MAPLOADED, 0);
 			}
@@ -1042,7 +1050,7 @@ void CtrlDisassemblyView::updateStatusBarText()
 							data = cpu->read32(line.info.dataAddress);
 						}
 
-						const std::string addressSymbol = symbolMap.GetLabelString(data);
+						const std::string addressSymbol = cpu->GetSymbolMap().GetLabelString(data);
 						if (!addressSymbol.empty())
 						{
 							sprintf(text, "[%08X] = %s (%08X)", line.info.dataAddress, addressSymbol.c_str(), data);
@@ -1082,7 +1090,7 @@ void CtrlDisassemblyView::updateStatusBarText()
 
 		if (line.info.isBranch)
 		{
-			const std::string addressSymbol = symbolMap.GetLabelString(line.info.branchTarget);
+			const std::string addressSymbol = cpu->GetSymbolMap().GetLabelString(line.info.branchTarget);
 			if (addressSymbol.empty())
 			{
 				sprintf(text, "%08X", line.info.branchTarget);
@@ -1095,12 +1103,12 @@ void CtrlDisassemblyView::updateStatusBarText()
 	}
 	else if (line.type == DISTYPE_DATA)
 	{
-		u32 start = symbolMap.GetDataStart(curAddress);
+		u32 start = cpu->GetSymbolMap().GetDataStart(curAddress);
 		if (start == 0xFFFFFFFF)
 			start = curAddress;
 
 		u32 diff = curAddress - start;
-		const std::string label = symbolMap.GetLabelString(start);
+		const std::string label = cpu->GetSymbolMap().GetLabelString(start);
 
 		if (!label.empty())
 		{
@@ -1130,13 +1138,13 @@ void CtrlDisassemblyView::mouseEvent(wxMouseEvent& evt)
 	if (type == wxEVT_LEFT_DOWN || type == wxEVT_LEFT_DCLICK || type == wxEVT_RIGHT_DOWN)
 	{
 		u32 newAddress = yToAddress(evt.GetY());
-		bool extend = wxGetKeyState(WXK_SHIFT);
+		bool setNewAddress = true;
 
-		if (type == wxEVT_RIGHT_DOWN)
+		if (type == wxEVT_RIGHT_DOWN && !wxGetKeyState(WXK_SHIFT))
 		{
 			// Maintain the current selection if right clicking into it.
 			if (newAddress >= selectRangeStart && newAddress < selectRangeEnd)
-				extend = true;
+				setNewAddress = false;
 		}
 		else
 		{
@@ -1144,7 +1152,9 @@ void CtrlDisassemblyView::mouseEvent(wxMouseEvent& evt)
 				toggleBreakpoint(false);
 		}
 
-		setCurAddress(newAddress, extend);
+		if(setNewAddress)
+			setCurAddress(newAddress, wxGetKeyState(WXK_SHIFT));
+
 		SetFocus();
 		SetFocusFromKbd();
 	}
@@ -1224,7 +1234,7 @@ std::string CtrlDisassemblyView::disassembleRange(u32 start, u32 size)
 	{
 		MIPSAnalyst::MipsOpcodeInfo info = MIPSAnalyst::GetOpcodeInfo(cpu, start + i);
 
-		if (info.isBranch && symbolMap.GetLabelString(info.branchTarget).empty())
+		if (info.isBranch && cpu->GetSymbolMap().GetLabelString(info.branchTarget).empty())
 		{
 			if (branchAddresses.find(info.branchTarget) == branchAddresses.end())
 			{
@@ -1258,7 +1268,7 @@ std::string CtrlDisassemblyView::disassembleRange(u32 start, u32 size)
 			result += buffer;
 		}
 
-		if (line.info.isBranch && !line.info.isBranchToRegister && symbolMap.GetLabelString(line.info.branchTarget).empty() && branchAddresses.find(line.info.branchTarget) != branchAddresses.end())
+		if (line.info.isBranch && !line.info.isBranchToRegister && cpu->GetSymbolMap().GetLabelString(line.info.branchTarget).empty() && branchAddresses.find(line.info.branchTarget) != branchAddresses.end())
 		{
 			sprintf(buffer, "pos_%08X", line.info.branchTarget);
 			line.params = line.params.substr(0, line.params.find("0x")) + buffer;

@@ -140,5 +140,4 @@ void InitNet();
 void ReconfigureLiveNet(ConfigDEV9* oldConfig);
 void TermNet();
 
-const char* NetApiToString(NetApi api);
-const wchar_t* NetApiToWstring(NetApi api);
+const wxChar* NetApiToWxString(NetApi api);

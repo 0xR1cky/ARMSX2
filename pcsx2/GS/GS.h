@@ -20,6 +20,7 @@
 
 #include "config.h"
 #include "common/Pcsx2Types.h"
+#include "common/WindowInfo.h"
 #include "GS_types.h"
 #include "Window/GSSetting.h"
 #include "SaveState.h"
@@ -45,25 +46,13 @@
 #endif
 
 #include "Renderers/OpenGL/GLLoader.h"
-#include "Renderers/OpenGL/PFN_GLLOADER_HPP.h"
 
 #ifdef _WIN32
-
-	// Note use GL/glcorearb.h on the future
-	// Requirements:
-	//	* Update GSWndWGL::GetProcAddress to query 1.0 and 1.1 symbols
-	//	* define all ENABLE_GL_VERSION_1_*
-	#include <GL/wglext.h>
 
 	#define DIRECTORY_SEPARATOR '\\'
 
 #else
 
-	// Note use GL/glcorearb.h on the future
-	// Requirements:
-	//	* Drop GLX that still include gl.h...
-	//	  EGL/OGL status on AMD GPU pro driver is unknown
-	//	* define all ENABLE_GL_VERSION_1_*
 	#include <sys/stat.h> // mkdir
 
 	#define DIRECTORY_SEPARATOR '/'
@@ -1765,6 +1754,7 @@ enum class CRCHackLevel : int8
 };
 
 struct HostKeyEvent;
+struct WindowInfo;
 
 #ifdef ENABLE_ACCURATE_BUFFER_EMULATION
 const GSVector2i default_rt_size(2048, 2048);
@@ -1776,11 +1766,10 @@ void GSsetBaseMem(uint8* mem);
 int GSinit();
 void GSshutdown();
 void GSclose();
-int _GSopen(void** dsp, const char* title, GSRendererType renderer, int threads);
+int _GSopen(const WindowInfo& wi, const char* title, GSRendererType renderer, int threads);
 void GSosdLog(const char* utf8, uint32 color);
 void GSosdMonitor(const char* key, const char* value, uint32 color);
-int GSopen2(void** dsp, uint32 flags);
-int GSopen(void** dsp, const char* title, int mt);
+int GSopen2(const WindowInfo & wi, uint32 flags);
 void GSreset();
 void GSgifSoftReset(uint32 mask);
 void GSwriteCSR(uint32 csr);
@@ -1798,15 +1787,19 @@ void GSkeyEvent(const HostKeyEvent& e);
 int GSfreeze(FreezeAction mode, freezeData* data);
 void GSconfigure();
 int GStest();
-void GSirqCallback(void (*irq)());
 bool GSsetupRecording(std::string& filename);
 void GSendRecording();
 void GSsetGameCRC(uint32 crc, int options);
-void GSgetLastTag(uint32* tag);
 void GSgetTitleInfo2(char* dest, size_t length);
 void GSsetFrameSkip(int frameskip);
 void GSsetVsync(int vsync);
 void GSsetExclusive(int enabled);
+
+#ifndef PCSX2_CORE
+// Needed for window resizing in wx. Can be safely called from the UI thread.
+void GSResizeWindow(int width, int height);
+bool GSCheckForWindowResize(int* new_width, int* new_height);
+#endif
 
 class GSApp
 {

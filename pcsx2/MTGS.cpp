@@ -25,6 +25,8 @@
 #include "Elfheader.h"
 #include "gui/Dialogs/ModalPopups.h"
 
+#include "common/WindowInfo.h"
+extern WindowInfo g_gs_window_info;
 
 // Uncomment this to enable profiling of the GS RingBufferCopy function.
 //#define PCSX2_GSRING_SAMPLING_STATS
@@ -226,12 +228,6 @@ union PacketTagType
 	};
 };
 
-static void dummyIrqCallback()
-{
-	// dummy, because MTGS doesn't need this mess!
-	// (and zerogs does >_<)
-}
-
 void SysMtgsThread::OpenGS()
 {
 	if (m_Opened)
@@ -242,9 +238,8 @@ void SysMtgsThread::OpenGS()
 
 	memcpy(RingBuffer.Regs, PS2MEM_GS, sizeof(PS2MEM_GS));
 	GSsetBaseMem(RingBuffer.Regs);
-	GSirqCallback(dummyIrqCallback);
 
-	pxAssertMsg((GSopen2((void**)pDsp, 1 | (renderswitch ? 4 : 0)) == 0), "GS failed to open!");
+	pxAssertMsg((GSopen2(g_gs_window_info, 1 | (renderswitch ? 4 : 0)) == 0), "GS failed to open!");
 
 	GSsetVsync(EmuConfig.GS.GetVsync());
 
@@ -436,10 +431,13 @@ void SysMtgsThread::ExecuteTaskInThread()
 				{
 					MTVU_LOG("MTGS - Waiting on semaXGkick!");
 					vu1Thread.KickStart(true);
-					busy.PartialRelease();
-					// Wait for MTVU to complete vu1 program
-					vu1Thread.semaXGkick.WaitWithoutYield();
-					busy.PartialAcquire();
+					if (!vu1Thread.semaXGkick.TryWait())
+					{
+						busy.PartialRelease();
+						// Wait for MTVU to complete vu1 program
+						vu1Thread.semaXGkick.WaitWithoutYield();
+						busy.PartialAcquire();
+					}
 					Gif_Path& path = gifUnit.gifPath[GIF_PATH_1];
 					GS_Packet gsPack = path.GetGSPacketMTVU(); // Get vu1 program's xgkick packet(s)
 					if (gsPack.size)

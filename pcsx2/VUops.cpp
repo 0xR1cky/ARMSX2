@@ -75,7 +75,7 @@ static __ri bool _vuFMACflush(VURegs* VU)
 			VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0xFF0) | (VU->fmac[i].statusflag & 0xF) | ((VU->fmac[i].statusflag & 0xF) << 6);
 		VU->VI[REG_MAC_FLAG].UL = VU->fmac[i].macflag;
 
-		VU->fmacreadpos = ++VU->fmacreadpos & 3;
+		VU->fmacreadpos = (VU->fmacreadpos + 1) & 3;
 		VU->fmaccount--;
 
 		didflush = true;
@@ -95,7 +95,7 @@ static __ri bool _vuIALUflush(VURegs* VU)
 		if ((VU->cycle - VU->ialu[i].sCycle) < VU->ialu[i].Cycle)
 			return didflush;
 
-		VU->ialureadpos = ++VU->ialureadpos & 3;
+		VU->ialureadpos = (VU->ialureadpos + 1) & 3;
 		VU->ialucount--;
 		didflush = true;
 	}
@@ -179,7 +179,7 @@ void _vuFlushAll(VURegs* VU)
 			VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0xFF0) | (VU->fmac[i].statusflag & 0xF) | ((VU->fmac[i].statusflag & 0xF) << 6);
 		VU->VI[REG_MAC_FLAG].UL = VU->fmac[i].macflag;
 
-		VU->fmacreadpos = ++VU->fmacreadpos & 3;
+		VU->fmacreadpos = (VU->fmacreadpos + 1) & 3;
 
 		if ((VU->cycle - VU->fmac[i].sCycle) < VU->fmac[i].Cycle)
 			VU->cycle = VU->fmac[i].sCycle + VU->fmac[i].Cycle;
@@ -189,7 +189,7 @@ void _vuFlushAll(VURegs* VU)
 
 	for (i = VU->ialureadpos; VU->ialucount > 0; i = (i + 1) & 3)
 	{
-		VU->ialureadpos = ++VU->ialureadpos & 3;
+		VU->ialureadpos = (VU->ialureadpos + 1) & 3;
 
 		if ((VU->cycle - VU->ialu[i].sCycle) < VU->ialu[i].Cycle)
 			VU->cycle = VU->ialu[i].sCycle + VU->ialu[i].Cycle;
@@ -220,7 +220,7 @@ __fi void _vuTestPipes(VURegs* VU)
 	}
 }
 
-static void __fastcall _vuFMACTestStall(VURegs* VU, int reg, int xyzw)
+static void __fastcall _vuFMACTestStall(VURegs* VU, u32 reg, u32 xyzw)
 {
 	u32 i = 0;
 
@@ -231,10 +231,8 @@ static void __fastcall _vuFMACTestStall(VURegs* VU, int reg, int xyzw)
 			continue;
 
 		// Check if the regs match
-		if ((VU->fmac[currentpipe].regupper == reg &&
-			VU->fmac[currentpipe].xyzwupper & xyzw)
-			|| (VU->fmac[currentpipe].reglower == reg &&
-				VU->fmac[currentpipe].xyzwlower & xyzw))
+		if ((VU->fmac[currentpipe].regupper == reg && VU->fmac[currentpipe].xyzwupper & xyzw)
+			|| (VU->fmac[currentpipe].reglower == reg && VU->fmac[currentpipe].xyzwlower & xyzw))
 		{
 			u32 newCycle = VU->fmac[currentpipe].Cycle + VU->fmac[currentpipe].sCycle;
 
@@ -398,7 +396,7 @@ static __ri void __fastcall _vuAddIALUStalls(VURegs* VU, _VURegsNum* VUregsn)
 	VU->ialu[i].Cycle = VUregsn->cycles;
 	VU->ialu[i].reg = VUregsn->VIwrite;
 
-	VU->ialuwritepos = ++VU->ialuwritepos & 3;
+	VU->ialuwritepos = (VU->ialuwritepos + 1) & 3;
 	VU->ialucount++;
 }
 
@@ -432,7 +430,7 @@ __fi void _vuAddLowerStalls(VURegs* VU, _VURegsNum* VUregsn)
 	}
 }
 
-__fi void _vuBackupVI(VURegs* VU, int reg)
+__fi void _vuBackupVI(VURegs* VU, u32 reg)
 {
 #ifdef VI_BACKUP
 	if (VU->VIBackupCycles && reg == VU->VIRegNumber)

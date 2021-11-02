@@ -23,23 +23,19 @@
 #include "Renderers/OpenGL/GSRendererOGL.h"
 #include "GSLzma.h"
 
-#include "Config.h"
 #include "common/pxStreams.h"
+#include "pcsx2/Config.h"
 
 #ifdef _WIN32
 
 #include "Renderers/DX11/GSRendererDX11.h"
 #include "Renderers/DX11/GSDevice11.h"
-#include "Window/GSWndDX.h"
-#include "Window/GSWndWGL.h"
 #include "Window/GSSettingsDlg.h"
 
 
 static HRESULT s_hr = E_FAIL;
 
 #else
-
-#include "GS/Window/GSWndEGL.h"
 
 #ifdef __APPLE__
 #include <gtk/gtk.h>
@@ -58,12 +54,18 @@ extern bool RunLinuxDialog();
 #undef None
 
 static GSRenderer* s_gs = NULL;
-static void (*s_irq)() = NULL;
 static uint8* s_basemem = NULL;
 static int s_vsync = 0;
 static bool s_exclusive = true;
 static std::string s_renderer_name;
 bool gsopen_done = false; // crash guard for GSgetTitleInfo2 and GSKeyEvent (replace with lock?)
+
+#ifndef PCSX2_CORE
+static std::atomic_bool s_gs_window_resized{false};
+static std::mutex s_gs_window_resized_lock;
+static int s_new_gs_window_width = 0;
+static int s_new_gs_window_height = 0;
+#endif
 
 void GSsetBaseMem(uint8* mem)
 {
@@ -127,6 +129,11 @@ void GSclose()
 {
 	gsopen_done = false;
 
+#ifndef PCSX2_CORE
+	// Make sure we don't have any leftover resize events from our last open.
+	s_gs_window_resized.store(false);
+#endif
+
 	if (s_gs == NULL)
 		return;
 
@@ -137,17 +144,11 @@ void GSclose()
 	delete s_gs->m_dev;
 
 	s_gs->m_dev = NULL;
-
-	if (s_gs->m_wnd)
-	{
-		s_gs->m_wnd->Detach();
-	}
 }
 
-int _GSopen(void** dsp, const char* title, GSRendererType renderer, int threads = -1)
+int _GSopen(const WindowInfo& wi, const char* title, GSRendererType renderer, int threads = -1)
 {
 	GSDevice* dev = NULL;
-	bool old_api = *dsp == NULL;
 
 	// Fresh start up or config file changed
 	if (renderer == GSRendererType::Undefined)
@@ -179,95 +180,7 @@ int _GSopen(void** dsp, const char* title, GSRendererType renderer, int threads 
 			theApp.SetCurrentRendererType(renderer);
 		}
 
-		std::shared_ptr<GSWnd> window;
-		{
-			// Select the window first to detect the GL requirement
-			std::vector<std::shared_ptr<GSWnd>> wnds;
-			switch (renderer)
-			{
-				case GSRendererType::OGL_HW:
-				case GSRendererType::OGL_SW:
-#if defined(__unix__)
-					// Note: EGL code use GLX otherwise maybe it could be also compatible with Windows
-					// Yes OpenGL code isn't complicated enough !
-					switch (GSWndEGL::SelectPlatform())
-					{
-#if GS_EGL_X11
-						case EGL_PLATFORM_X11_KHR:
-							wnds.push_back(std::make_shared<GSWndEGL_X11>());
-							break;
-#endif
-#if GS_EGL_WL
-						case EGL_PLATFORM_WAYLAND_KHR:
-							wnds.push_back(std::make_shared<GSWndEGL_WL>());
-							break;
-#endif
-						default:
-							break;
-					}
-#elif defined(__APPLE__)
-					// No windows available for macOS at the moment
-#else
-					wnds.push_back(std::make_shared<GSWndWGL>());
-#endif
-					break;
-				default:
-#ifdef _WIN32
-					wnds.push_back(std::make_shared<GSWndDX>());
-#elif defined(__APPLE__)
-					// No windows available for macOS at the moment
-#else
-					wnds.push_back(std::make_shared<GSWndEGL_X11>());
-#endif
-					break;
-			}
-
-			int w = theApp.GetConfigI("ModeWidth");
-			int h = theApp.GetConfigI("ModeHeight");
-#if defined(__unix__)
-			void* win_handle = (void*)((uptr*)(dsp) + 1);
-#else
-			void* win_handle = *dsp;
-#endif
-
-			for (auto& wnd : wnds)
-			{
-				try
-				{
-					if (old_api)
-					{
-						// old-style API expects us to create and manage our own window:
-						wnd->Create(title, w, h);
-
-						wnd->Show();
-
-						*dsp = wnd->GetDisplay();
-					}
-					else
-					{
-						wnd->Attach(win_handle, false);
-					}
-
-					window = wnd; // Previous code will throw if window isn't supported
-
-					break;
-				}
-				catch (GSRecoverableError)
-				{
-					wnd->Detach();
-				}
-			}
-
-			if (!window)
-			{
-				GSclose();
-
-				return -1;
-			}
-		}
-
 		std::string renderer_name;
-
 		switch (renderer)
 		{
 			default:
@@ -325,8 +238,6 @@ int _GSopen(void** dsp, const char* title, GSRendererType renderer, int threads 
 			if (s_gs == NULL)
 				return -1;
 		}
-
-		s_gs->m_wnd = window;
 	}
 	catch (std::exception& ex)
 	{
@@ -335,13 +246,9 @@ int _GSopen(void** dsp, const char* title, GSRendererType renderer, int threads 
 	}
 
 	s_gs->SetRegsMem(s_basemem);
-	s_gs->SetIrqCallback(s_irq);
 	s_gs->SetVSync(s_vsync);
 
-	if (!old_api)
-		s_gs->SetMultithreaded(true);
-
-	if (!s_gs->CreateDevice(dev))
+	if (!s_gs->CreateDevice(dev, wi))
 	{
 		// This probably means the user has DX11 configured with a video card that is only DX9
 		// compliant.  Cound mean drivr issues of some sort also, but to be sure, that's the most
@@ -375,7 +282,7 @@ void GSosdMonitor(const char* key, const char* value, uint32 color)
 		s_gs->m_dev->m_osd.Monitor(key, value);
 }
 
-int GSopen2(void** dsp, uint32 flags)
+int GSopen2(const WindowInfo& wi, uint32 flags)
 {
 	static bool stored_toggle_state = false;
 	const bool toggle_state = !!(flags & 4);
@@ -417,41 +324,7 @@ int GSopen2(void** dsp, uint32 flags)
 	}
 	stored_toggle_state = toggle_state;
 
-	int retval = _GSopen(dsp, "", current_renderer);
-
-	gsopen_done = true;
-
-	return retval;
-}
-
-int GSopen(void** dsp, const char* title, int mt)
-{
-	GSRendererType renderer = GSRendererType::Default;
-
-	// Legacy GUI expects to acquire vsync from the configuration files.
-
-	s_vsync = theApp.GetConfigI("vsync");
-
-	if (mt == 2)
-	{
-		// pcsx2 sent a switch renderer request
-		mt = 1;
-	}
-	else
-	{
-		// normal init
-
-		renderer = static_cast<GSRendererType>(theApp.GetConfigI("Renderer"));
-	}
-
-	*dsp = NULL;
-
-	int retval = _GSopen(dsp, title, renderer);
-
-	if (retval == 0 && s_gs)
-	{
-		s_gs->SetMultithreaded(!!mt);
-	}
+	int retval = _GSopen(wi, "", current_renderer);
 
 	gsopen_done = true;
 
@@ -601,23 +474,6 @@ void GSvsync(int field)
 {
 	try
 	{
-#ifdef _WIN32
-
-		if (s_gs->m_wnd->IsManaged())
-		{
-			MSG msg;
-
-			memset(&msg, 0, sizeof(msg));
-
-			while (msg.message != WM_QUIT && PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-		}
-
-#endif
-
 		s_gs->VSync(field);
 	}
 	catch (GSRecoverableError)
@@ -753,16 +609,6 @@ int GStest()
 	return 0;
 }
 
-void GSirqCallback(void (*irq)())
-{
-	s_irq = irq;
-
-	if (s_gs)
-	{
-		s_gs->SetIrqCallback(s_irq);
-	}
-}
-
 void pt(const char* str)
 {
 	struct tm* current;
@@ -813,11 +659,6 @@ void GSsetGameCRC(uint32 crc, int options)
 	s_gs->SetGameCRC(crc, options);
 }
 
-void GSgetLastTag(uint32* tag)
-{
-	s_gs->GetLastTag(tag);
-}
-
 void GSgetTitleInfo2(char* dest, size_t length)
 {
 	std::string s;
@@ -863,248 +704,25 @@ void GSsetExclusive(int enabled)
 	}
 }
 
-#if defined(__unix__) || defined(__APPLE__)
-
-inline unsigned long timeGetTime()
+#ifndef PCSX2_CORE
+void GSResizeWindow(int width, int height)
 {
-	struct timespec t;
-	clock_gettime(CLOCK_REALTIME, &t);
-	return (unsigned long)(t.tv_sec * 1000 + t.tv_nsec / 1000000);
+	std::unique_lock lock(s_gs_window_resized_lock);
+	s_new_gs_window_width = width;
+	s_new_gs_window_height = height;
+	s_gs_window_resized.store(true);
 }
 
-// Note
-void GSReplay(char* lpszCmdLine, int renderer)
+bool GSCheckForWindowResize(int* new_width, int* new_height)
 {
-	GLLoader::in_replayer = true;
-	// Required by multithread driver
-#ifndef __APPLE__
-	XInitThreads();
-#endif
+	if (!s_gs_window_resized.load())
+		return false;
 
-	GSinit();
-
-	GSRendererType m_renderer;
-	// Allow to easyly switch between SW/HW renderer -> this effectively removes the ability to select the renderer by function args
-	m_renderer = static_cast<GSRendererType>(theApp.GetConfigI("Renderer"));
-
-	if (m_renderer != GSRendererType::OGL_HW && m_renderer != GSRendererType::OGL_SW)
-	{
-		fprintf(stderr, "wrong renderer selected %d\n", static_cast<int>(m_renderer));
-		return;
-	}
-
-	struct Packet
-	{
-		uint8 type, param;
-		uint32 size, addr;
-		std::vector<uint8> buff;
-	};
-
-	std::list<Packet*> packets;
-	std::vector<uint8> buff;
-	uint8 regs[0x2000];
-
-	GSsetBaseMem(regs);
-
-	s_vsync = theApp.GetConfigI("vsync");
-	int finished = theApp.GetConfigI("linux_replay");
-	bool repack_dump = (finished < 0);
-
-	if (theApp.GetConfigI("dump"))
-	{
-		fprintf(stderr, "Dump is enabled. Replay will be disabled\n");
-		finished = 1;
-	}
-
-	long frame_number = 0;
-
-	void* hWnd = NULL;
-	int err = _GSopen((void**)&hWnd, "", m_renderer);
-	if (err != 0)
-	{
-		fprintf(stderr, "Error failed to GSopen\n");
-		return;
-	}
-	if (s_gs->m_wnd == NULL)
-		return;
-
-	{ // Read .gs content
-		std::string f(lpszCmdLine);
-		bool is_xz = (f.size() >= 4) && (f.compare(f.size() - 3, 3, ".xz") == 0);
-		if (is_xz)
-			f.replace(f.end() - 6, f.end(), "_repack.gs");
-		else
-			f.replace(f.end() - 3, f.end(), "_repack.gs");
-
-		GSDumpFile* file = is_xz ? (GSDumpFile*)new GSDumpLzma(lpszCmdLine, repack_dump ? f.c_str() : nullptr) : (GSDumpFile*)new GSDumpRaw(lpszCmdLine, repack_dump ? f.c_str() : nullptr);
-
-		uint32 crc;
-		file->Read(&crc, 4);
-		GSsetGameCRC(crc, 0);
-
-		freezeData fd;
-		file->Read(&fd.size, 4);
-		fd.data = new u8[fd.size];
-		file->Read(fd.data, fd.size);
-
-		GSfreeze(FreezeAction::Load, &fd);
-		delete[] fd.data;
-
-		file->Read(regs, 0x2000);
-
-		uint8 type;
-		while (file->Read(&type, 1))
-		{
-			Packet* p = new Packet();
-
-			p->type = type;
-
-			switch (type)
-			{
-				case 0:
-					file->Read(&p->param, 1);
-					file->Read(&p->size, 4);
-
-					switch (p->param)
-					{
-						case 0:
-							p->buff.resize(0x4000);
-							p->addr = 0x4000 - p->size;
-							file->Read(&p->buff[p->addr], p->size);
-							break;
-						case 1:
-						case 2:
-						case 3:
-							p->buff.resize(p->size);
-							file->Read(&p->buff[0], p->size);
-							break;
-					}
-
-					break;
-
-				case 1:
-					file->Read(&p->param, 1);
-					frame_number++;
-
-					break;
-
-				case 2:
-					file->Read(&p->size, 4);
-
-					break;
-
-				case 3:
-					p->buff.resize(0x2000);
-
-					file->Read(&p->buff[0], 0x2000);
-
-					break;
-			}
-
-			packets.push_back(p);
-
-			if (repack_dump && frame_number > -finished)
-				break;
-		}
-
-		delete file;
-	}
-
-	sleep(2);
-
-
-	frame_number = 0;
-
-	// Init vsync stuff
-	GSvsync(1);
-
-	while (finished > 0)
-	{
-		for (auto i = packets.begin(); i != packets.end(); i++)
-		{
-			Packet* p = *i;
-
-			switch (p->type)
-			{
-				case 0:
-
-					switch (p->param)
-					{
-						case 0:
-							GSgifTransfer1(&p->buff[0], p->addr);
-							break;
-						case 1:
-							GSgifTransfer2(&p->buff[0], p->size / 16);
-							break;
-						case 2:
-							GSgifTransfer3(&p->buff[0], p->size / 16);
-							break;
-						case 3:
-							GSgifTransfer(&p->buff[0], p->size / 16);
-							break;
-					}
-
-					break;
-
-				case 1:
-
-					GSvsync(p->param);
-					frame_number++;
-
-					break;
-
-				case 2:
-
-					if (buff.size() < p->size)
-						buff.resize(p->size);
-
-					GSreadFIFO2(&buff[0], p->size / 16);
-
-					break;
-
-				case 3:
-
-					memcpy(regs, &p->buff[0], 0x2000);
-
-					break;
-			}
-		}
-
-		if (finished >= 200)
-		{
-			; // Nop for Nvidia Profiler
-		}
-		else if (finished > 90)
-		{
-			sleep(1);
-		}
-		else
-		{
-			finished--;
-		}
-	}
-
-	static_cast<GSDeviceOGL*>(s_gs->m_dev)->GenerateProfilerData();
-
-#ifdef ENABLE_OGL_DEBUG_MEM_BW
-	unsigned long total_frame_nb = std::max(1l, frame_number) << 10;
-	fprintf(stderr, "memory bandwith. T: %f KB/f. V: %f KB/f. U: %f KB/f\n",
-		(float)g_real_texture_upload_byte / (float)total_frame_nb,
-		(float)g_vertex_upload_byte / (float)total_frame_nb,
-		(float)g_uniform_upload_byte / (float)total_frame_nb);
-#endif
-
-	for (auto i = packets.begin(); i != packets.end(); i++)
-	{
-		delete *i;
-	}
-
-	packets.clear();
-
-	sleep(2);
-
-	GSclose();
-	GSshutdown();
+	std::unique_lock lock(s_gs_window_resized_lock);
+	*new_width = s_new_gs_window_width;
+	*new_height = s_new_gs_window_height;
+	s_gs_window_resized.store(false);
+	return true;
 }
 #endif
 

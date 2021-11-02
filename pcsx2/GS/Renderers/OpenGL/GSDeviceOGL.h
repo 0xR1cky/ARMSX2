@@ -15,10 +15,11 @@
 
 #pragma once
 
+#include "common/GL/Context.h"
+#include "common/GL/StreamBuffer.h"
 #include "GS/Renderers/Common/GSDevice.h"
 #include "GSTextureOGL.h"
 #include "GS/GS.h"
-#include "GSVertexArrayOGL.h"
 #include "GSUniformBufferOGL.h"
 #include "GSShaderOGL.h"
 #include "GLState.h"
@@ -464,6 +465,7 @@ public:
 	static int m_shader_reg;
 
 private:
+	std::unique_ptr<GL::Context> m_gl_context;
 	int m_force_texture_clear;
 	int m_mipmap;
 	TriFiltering m_filter;
@@ -480,7 +482,16 @@ private:
 	GLuint m_fbo; // frame buffer container
 	GLuint m_fbo_read; // frame buffer container only for reading
 
-	GSVertexBufferStateOGL* m_va; // state of the vertex buffer/array
+	std::unique_ptr<GL::StreamBuffer> m_vertex_stream_buffer;
+	std::unique_ptr<GL::StreamBuffer> m_index_stream_buffer;
+	GLuint m_vertex_array_object = 0;
+	u32 m_vertex_buffer_base_vertex = 0;
+	u32 m_index_buffer_offset = 0;
+	GLenum m_draw_topology = 0;
+
+	std::unique_ptr<GL::StreamBuffer> m_vertex_uniform_stream_buffer;
+	std::unique_ptr<GL::StreamBuffer> m_fragment_uniform_stream_buffer;
+	GLint m_uniform_buffer_alignment = 0;
 
 	struct
 	{
@@ -545,24 +556,21 @@ private:
 
 	GLuint m_palette_ss;
 
-	GSUniformBufferOGL* m_vs_cb;
-	GSUniformBufferOGL* m_ps_cb;
-
 	VSConstantBuffer m_vs_cb_cache;
 	PSConstantBuffer m_ps_cb_cache;
 	MiscConstantBuffer m_misc_cb_cache;
 
 	std::unique_ptr<GSTexture> m_font;
 
-	GSTexture* CreateSurface(int type, int w, int h, int format);
-	GSTexture* FetchSurface(int type, int w, int h, int format);
+	GSTexture* CreateSurface(int type, int w, int h, int format) final;
+	GSTexture* FetchSurface(int type, int w, int h, int format) final;
 
 	void DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c) final;
 	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0) final;
 	void DoFXAA(GSTexture* sTex, GSTexture* dTex) final;
 	void DoShadeBoost(GSTexture* sTex, GSTexture* dTex) final;
 	void DoExternalFX(GSTexture* sTex, GSTexture* dTex) final;
-	void RenderOsd(GSTexture* dt);
+	void RenderOsd(GSTexture* dt) final;
 
 	void OMAttachRt(GSTextureOGL* rt = NULL);
 	void OMAttachDs(GSTextureOGL* ds = NULL);
@@ -581,17 +589,14 @@ public:
 	// Used by OpenGL, so the same calling convention is required.
 	static void APIENTRY DebugOutputToFile(GLenum gl_source, GLenum gl_type, GLuint id, GLenum gl_severity, GLsizei gl_length, const GLchar* gl_message, const void* userParam);
 
-	bool Create(const std::shared_ptr<GSWnd>& wnd);
-	bool Reset(int w, int h);
-	void Flip();
-	void SetVSync(int vsync);
+	bool Create(const WindowInfo& wi) override;
+	bool Reset(int w, int h) override;
+	void Flip() override;
+	void SetVSync(int vsync) override;
 
 	void DrawPrimitive() final;
-	void DrawPrimitive(int offset, int count);
 	void DrawIndexedPrimitive() final;
 	void DrawIndexedPrimitive(int offset, int count) final;
-	inline void BeforeDraw();
-	inline void AfterDraw();
 
 	void ClearRenderTarget(GSTexture* t, const GSVector4& c) final;
 	void ClearRenderTarget(GSTexture* t, uint32 c) final;
@@ -607,13 +612,10 @@ public:
 	void CopyRectConv(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, bool at_origin);
 	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, int shader = 0, bool linear = true) final;
 	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, GLuint ps, bool linear = true);
-	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha);
+	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha) final;
 	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, GLuint ps, int bs, OMColorMaskSelector cms, bool linear = true);
 
 	void SetupDATE(GSTexture* rt, GSTexture* ds, const GSVertexPT1* vertices, bool datm);
-
-	void BeginScene() final {}
-	void EndScene() final;
 
 	void IASetPrimitiveTopology(GLenum topology);
 	void IASetVertexBuffer(const void* vertices, size_t count);
@@ -628,8 +630,8 @@ public:
 	void OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector4i* scissor = NULL) final;
 	void OMSetColorMaskState(OMColorMaskSelector sel = OMColorMaskSelector());
 
-	virtual bool HasColorSparse() { return GLLoader::found_compatible_GL_ARB_sparse_texture2; }
-	virtual bool HasDepthSparse() { return GLLoader::found_compatible_sparse_depth; }
+	bool HasColorSparse() final { return GLLoader::found_compatible_GL_ARB_sparse_texture2; }
+	bool HasDepthSparse() final { return GLLoader::found_compatible_sparse_depth; }
 
 	void CreateTextureFX();
 	GLuint CompileVS(VSSelector sel);

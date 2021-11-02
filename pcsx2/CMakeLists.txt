@@ -70,6 +70,10 @@ if(TARGET SDL::SDL)
 	target_link_libraries(PCSX2_FLAGS INTERFACE SDL::SDL)
 endif()
 
+if(WAYLAND_CLIENT_FOUND)
+	target_compile_definitions(PCSX2 PRIVATE WAYLAND_BUILD)
+endif()
+
 if(WIN32)
 	# Resources
 	target_sources(PCSX2 PRIVATE
@@ -77,7 +81,6 @@ if(WIN32)
 		GS/GS.rc
 		PAD/Windows/PAD.rc
 		SPU2/Windows/SPU2.rc
-		DEV9/Win32/DEV9ghzdrk.rc
 		USB/usb-pad/dx/versionproxy.rc
 		USB/usb-pad/raw/raw-config.rc
 		windows/wxResources.rc
@@ -321,30 +324,6 @@ set(pcsx2SPU2Headers
 	SPU2/WavFile.h
 )
 
-if(NOT WIN32)
-
-	# DEV9 UI sources
-	compile_gresources( pcsx2DEV9UISources
-	                    pcsx2DEV9UIXML
-	                    TYPE EMBED_C
-	                    RESOURCES "DEV9/Linux/dev9.ui"
-	                    PREFIX "/net/pcsx2/dev9"
-	                    COMPRESS_ALL
-	                    STRIPBLANKS_ALL
-	)
-
-	# DEV9 UI headers
-	compile_gresources( pcsx2DEV9UIHeaders
-	                    pcsx2DEV9UIXML
-	                    TYPE EMBED_H
-	                    RESOURCES "DEV9/Linux/dev9.ui"
-	                    PREFIX "/net/pcsx2/dev9"
-	                    COMPRESS_ALL
-	                    STRIPBLANKS_ALL
-	)
-
-endif()
-
 # DEV9 sources
 set(pcsx2DEV9Sources
 	DEV9/ATA/Commands/ATA_Command.cpp
@@ -370,13 +349,13 @@ set(pcsx2DEV9Sources
 	DEV9/PacketReader/IP/IP_Packet.cpp
 	DEV9/PacketReader/EthernetFrame.cpp
 	DEV9/PacketReader/NetLib.cpp
+	DEV9/ConfigUI.cpp
 	DEV9/smap.cpp
 	DEV9/DEV9.cpp
 	DEV9/DEV9Config.cpp
 	DEV9/flash.cpp
 	DEV9/pcap_io.cpp
 	DEV9/net.cpp
-	${pcsx2DEV9UISources}
 	)
 
 # DEV9 headers
@@ -404,7 +383,6 @@ set(pcsx2DEV9Headers
 	DEV9/pcap_io.h
 	DEV9/SimpleQueue.h
 	DEV9/smap.h
-	${pcsx2DEV9UIHeaders}
 	)
 
 # USBNull
@@ -686,7 +664,6 @@ set(pcsx2GSSources
 	GS/Renderers/OpenGL/GSTextureCacheOGL.cpp
 	GS/Renderers/OpenGL/GSTextureOGL.cpp
 	GS/Window/GSSetting.cpp
-	GS/Window/GSWnd.cpp
 	)
 
 # GS headers
@@ -751,12 +728,10 @@ set(pcsx2GSHeaders
 	GS/Renderers/OpenGL/GSTextureCacheOGL.h
 	GS/Renderers/OpenGL/GSTextureOGL.h
 	GS/Renderers/OpenGL/GSUniformBufferOGL.h
-	GS/Renderers/OpenGL/GSVertexArrayOGL.h
 	GS/Window/GSCaptureDlg.h
 	GS/Window/GSDialog.h
 	GS/Window/GSSetting.h
 	GS/Window/GSSettingsDlg.h
-	GS/Window/GSWnd.h
 	)
 
 if(WIN32)
@@ -781,11 +756,9 @@ if(WIN32)
 		DEV9/Win32/DEV9WinConfig.cpp
 		DEV9/Win32/pcap_io_win32.cpp
 		DEV9/Win32/tap-win32.cpp
-		DEV9/Win32/Win32.cpp
 	)
 	list(APPEND pcsx2DEV9Headers
 		DEV9/Win32/pcap_io_win32_funcs.h
-		DEV9/Win32/resource.h
 		DEV9/Win32/tap.h
 	)
 
@@ -831,16 +804,12 @@ if(WIN32)
 		GS/Window/GSCaptureDlg.cpp
 		GS/Window/GSDialog.cpp
 		GS/Window/GSSettingsDlg.cpp
-		GS/Window/GSWndDX.cpp
-		GS/Window/GSWndWGL.cpp
 	)
 	list(APPEND pcsx2GSHeaders
 		GS/Renderers/DX11/GSDevice11.h
 		GS/Renderers/DX11/GSRendererDX11.h
 		GS/Renderers/DX11/GSTexture11.h
 		GS/Renderers/DX11/GSTextureCache11.h
-		GS/Window/GSWndDX.h
-		GS/Window/GSWndWGL.h
 	)
 else(WIN32)
 	list(APPEND pcsx2SPU2Sources
@@ -859,7 +828,6 @@ else(WIN32)
 
 	list(APPEND pcsx2DEV9Sources
 		DEV9/Linux/Config.cpp
-		DEV9/Linux/Linux.cpp
 	)
 
 	list(APPEND pcsx2USBSources
@@ -927,12 +895,10 @@ else(WIN32)
 	list(APPEND pcsx2GSSources
 		GS/GS_res.cpp
 		GS/Window/GSLinuxDialog.cpp
-		GS/Window/GSWndEGL.cpp
 	)
 
 	list(APPEND pcsx2GSHeaders
 		GS/GS_res.h
-		GS/Window/GSWndEGL.h
 	)
 endif(WIN32)
 
@@ -1419,20 +1385,24 @@ if(Linux)
 
 	target_link_libraries(PCSX2_FLAGS INTERFACE
 		PkgConfig::AIO
-		PkgConfig::EGL
 		PkgConfig::LIBUDEV
-		PkgConfig::X11_XCB
-		PkgConfig::XCB
-		X11::X11
 		ALSA::ALSA
+	)
+endif()
+
+if(UNIX AND NOT APPLE)
+	if(X11_API)
+		target_link_libraries(PCSX2_FLAGS INTERFACE
+			PkgConfig::X11_XCB
+			PkgConfig::XCB
+			X11::X11
 		)
-elseif(UNIX AND NOT APPLE)
-	target_link_libraries(PCSX2_FLAGS INTERFACE
-		X11::X11
-		PkgConfig::XCB
-		PkgConfig::EGL
-		PkgConfig::X11_XCB
+	endif()
+	if(WAYLAND_API)
+		target_link_libraries(PCSX2_FLAGS INTERFACE
+			${WAYLAND_CLIENT_LIBRARIES}
 		)
+	endif()
 endif()
 
 # Windows
@@ -1463,6 +1433,7 @@ endif()
 
 target_link_libraries(PCSX2_FLAGS INTERFACE
 	common
+	glad
 	fmt::fmt
 	yaml-cpp
 	chdr-static
