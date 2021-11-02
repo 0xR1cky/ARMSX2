@@ -2,6 +2,8 @@
 #include "PrecompiledHeader.h"
 #include "PadPS2.h"
 
+#include "./PAD/PadUtils.h"
+
 PadPS2::PadPS2() = default;
 PadPS2::~PadPS2() = default;
 
@@ -54,6 +56,26 @@ u8 PadPS2::GetDigitalByte2()
 	return digitalByte2;
 }
 
+u8 PadPS2::GetAnalogLeftX()
+{
+	return analogLeftX;
+}
+
+u8 PadPS2::GetAnalogLeftY()
+{
+	return analogLeftY;
+}
+
+u8 PadPS2::GetAnalogRightX()
+{
+	return analogRightX;
+}
+
+u8 PadPS2::GetAnalogRightY()
+{
+	return analogRightY;
+}
+
 void PadPS2::SetInConfigMode(bool b)
 {
 	config = b;
@@ -100,6 +122,26 @@ void PadPS2::SetDigitalByte1(u8 data)
 void PadPS2::SetDigitalByte2(u8 data)
 {
 	digitalByte2 = data;
+}
+
+void PadPS2::SetAnalogLeftX(u8 data)
+{
+	analogLeftX = data;
+}
+
+void PadPS2::SetAnalogLeftY(u8 data)
+{
+	analogLeftY = data;
+}
+
+void PadPS2::SetAnalogRightX(u8 data)
+{
+	analogRightX = data;
+}
+
+void PadPS2::SetAnalogRightY(u8 data)
+{
+	analogRightY = data;
 }
 
 void PadPS2::Debug_Poll()
@@ -198,4 +240,9 @@ void PadPS2::Debug_Poll()
 
 	SetDigitalByte1(digitalByte1);
 	SetDigitalByte2(digitalByte2);
+
+	SetAnalogLeftX(Normalize<SHORT>(state.Gamepad.sThumbLX));
+	SetAnalogLeftY(0xff - Normalize<SHORT>(state.Gamepad.sThumbLY));
+	SetAnalogRightX(Normalize<SHORT>(state.Gamepad.sThumbRX));
+	SetAnalogRightY(0xff - Normalize<SHORT>(state.Gamepad.sThumbRY));
 }

@@ -146,10 +146,16 @@ u8 PadPS2Protocol::Config(u8 data)
 	case 4:
 		break;
 	case 5:
+		ret = activePad->GetAnalogRightX();
+		break;
 	case 6:
+		ret = activePad->GetAnalogRightY();
+		break;
 	case 7:
+		ret = activePad->GetAnalogLeftX();
+		break;
 	case 8:
-		ret = 0x7f;
+		ret = activePad->GetAnalogLeftY();
 		break;
 	default:
 		ret = 0x00;

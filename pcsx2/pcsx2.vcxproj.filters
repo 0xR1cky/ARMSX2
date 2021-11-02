@@ -2945,6 +2945,9 @@
     <ClInclude Include="x86\iR5900Analysis.h">
       <Filter>System\Ps2\EmotionEngine\EE\Dynarec</Filter>
     </ClInclude>
+    <ClInclude Include="PAD\PadUtils.h">
+      <Filter>System\Ps2\PAD</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windows\wxResources.rc">

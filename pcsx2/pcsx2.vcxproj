@@ -815,6 +815,7 @@
     <ClInclude Include="MemoryCardFolder.h" />
     <ClInclude Include="PAD\Gamepad.h" />
     <ClInclude Include="PAD\PadTypes.h" />
+    <ClInclude Include="PAD\PadUtils.h" />
     <ClInclude Include="PAD\PS1\PadPS1.h" />
     <ClInclude Include="PAD\PS1\PadPS1Protocol.h" />
     <ClInclude Include="PAD\PS1\PadPS1Types.h" />
