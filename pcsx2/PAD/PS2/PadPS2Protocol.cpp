@@ -88,10 +88,16 @@ u8 PadPS2Protocol::Poll(u8 data)
 		ret = activePad->GetDigitalByte2();
 		break;
 	case 5:
+		ret = activePad->GetAnalogRightX();
+		break;
 	case 6:
+		ret = activePad->GetAnalogRightY();
+		break;
 	case 7:
+		ret = activePad->GetAnalogLeftX();
+		break;
 	case 8:
-		ret = 0x7f;
+		ret = activePad->GetAnalogLeftY();
 		break;
 	default:
 		ret = 0x00;
@@ -143,20 +149,6 @@ u8 PadPS2Protocol::Config(u8 data)
 		{
 			DevCon.Warning("%s(%02X) Unexpected enter/exit byte (%d > 1)", __FUNCTION__, data, data);
 		}
-	case 4:
-		break;
-	case 5:
-		ret = activePad->GetAnalogRightX();
-		break;
-	case 6:
-		ret = activePad->GetAnalogRightY();
-		break;
-	case 7:
-		ret = activePad->GetAnalogLeftX();
-		break;
-	case 8:
-		ret = activePad->GetAnalogLeftY();
-		break;
 	default:
 		ret = 0x00;
 		break;
