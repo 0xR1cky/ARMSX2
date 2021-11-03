@@ -252,14 +252,9 @@ u8 PadPS2Protocol::Constant1(u8 data)
 			{
 				return 0x00;
 			}
-			else if (activePad->GetPadPhysicalType() == PadPS2Physical::GUITAR)
-			{
-				return 0x01;
-			}
 			else
 			{
-				DevCon.Warning("%s(%02X) Unrecognized physical type (%02X)", __FUNCTION__, data, activePad->GetPadPhysicalType());
-				return 0x00;
+				return 0x01;
 			}
 		}
 	case 7:
@@ -273,14 +268,9 @@ u8 PadPS2Protocol::Constant1(u8 data)
 			{
 				return 0x00;
 			}
-			else if (activePad->GetPadPhysicalType() == PadPS2Physical::GUITAR)
-			{
-				return 0x01;
-			}
 			else
 			{
-				DevCon.Warning("%s(%02X) Unrecognized physical type (%02X)", __FUNCTION__, data, activePad->GetPadPhysicalType());
-				return 0x00;
+				return 0x01;
 			}
 		}
 	case 8:
