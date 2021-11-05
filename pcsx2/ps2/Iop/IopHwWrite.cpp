@@ -578,7 +578,7 @@ void __fastcall iopHwWrite32_Page8( u32 addr, mem32_t val )
 	{
 		if( masked_addr < 0x240 )
 		{
-			SIO2_LOG("%s(%08X, %08X) SIO2 SEND3 Write", __FUNCTION__, addr, val);
+			SIO2_LOG("%s(%08X, %08X) SIO2 SEND3 Write (cmd len = %d) (port = %d)", __FUNCTION__, addr, val, (val >> 8) & 0x1ff, val & 0x01);
 			const int parm = (masked_addr-0x200) / 4;
 			g_sio2.SetSend3(parm, val);
 		}

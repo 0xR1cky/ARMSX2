@@ -241,8 +241,8 @@ void PadPS2::Debug_Poll()
 	SetDigitalByte1(digitalByte1);
 	SetDigitalByte2(digitalByte2);
 
-	SetAnalogLeftX(Normalize<SHORT>(state.Gamepad.sThumbLX));
-	SetAnalogLeftY(0xff - Normalize<SHORT>(state.Gamepad.sThumbLY));
-	SetAnalogRightX(Normalize<SHORT>(state.Gamepad.sThumbRX));
-	SetAnalogRightY(0xff - Normalize<SHORT>(state.Gamepad.sThumbRY));
+	SetAnalogLeftX(Normalize<SHORT>(std::abs(state.Gamepad.sThumbLX) > 5000 ? state.Gamepad.sThumbLX : 0));
+	SetAnalogLeftY(0xff - Normalize<SHORT>(std::abs(state.Gamepad.sThumbLY) > 5000 ? state.Gamepad.sThumbLY : 0));
+	SetAnalogRightX(Normalize<SHORT>(std::abs(state.Gamepad.sThumbRX) > 5000 ? state.Gamepad.sThumbRX : 0));
+	SetAnalogRightY(0xff - Normalize<SHORT>(std::abs(state.Gamepad.sThumbRY) > 5000 ? state.Gamepad.sThumbRY : 0));
 }
