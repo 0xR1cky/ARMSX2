@@ -400,7 +400,7 @@ u8 PadPS2Protocol::ResponseBytes(u8 data)
 	case 4:
 		break;
 	case 5:
-		if (data == 0x3f)
+		if (data == 0x03)
 		{
 			activePad->SetAnalogLight(true);
 			activePad->SetPadType(PadPS2Type::DUALSHOCK2);
