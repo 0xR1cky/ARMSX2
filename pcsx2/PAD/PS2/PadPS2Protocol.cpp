@@ -188,19 +188,30 @@ u8 PadPS2Protocol::StatusInfo(u8 data)
 		return 0xff;
 	}
 
+	// Thanks PS2SDK!
 	switch (currentCommandByte)
 	{
-	case 3:
+	case 3: 
+		// Controller model, 3 = DS2, 1 = PS1/Guitar/Others
 		return static_cast<u8>(activePad->GetPadPhysicalType());
-	case 4:
-		return 0x02; // magic!
+	case 4: 
+		// "numModes", presumably the number of modes the controller has.
+		// These modes are actually returned later in Constant3.
+		return 0x02;
 	case 5:
+		// Is the analog light on or not.
 		return activePad->IsAnalogLightOn();
 	case 6:
+		// Number of actuators. Presumably vibration motors.
 		return 0x02;
 	case 7:
+		// "numActComb". There's references to command 0x47 as "comb"
+		// in old Lilypad code and PS2SDK, presumably this is the controller
+		// telling the PS2 how many times to invoke the 0x47 command (once,
+		// in contrast to the two runs of 0x46 and 0x4c)
 		return 0x01;
 	case 8:
+		// dud, seems unused.
 		return 0x00;
 	}
 }
