@@ -109,16 +109,6 @@ u8 PadPS2Protocol::Poll(u8 data)
 
 u8 PadPS2Protocol::Config(u8 data)
 {
-	// Returns are a bit weird for this one. According to documentation, the initial "enter config pls"
-	// command will get a response identical to a normal poll. Makes enough sense. Then after config
-	// mode is entered, further config mode commands will not return button states. Also makes sense as
-	// the only other config commands should be to exit, or illegal. What doesn't make sense is why
-	// returning button states should matter at all, because a game will not be entering config mode
-	// recreationally and should only ever do so at startup or after device plug/unplug events, for all
-	// of which, WHO CARES IF THIS ONE POLL NEVER HAPPENS! So, we're just going to arbitrarily return
-	// inactive pad states. Go team.
-	u8 ret = 0xff;
-
 	switch (currentCommandByte)
 	{
 	case 3:
@@ -149,12 +139,9 @@ u8 PadPS2Protocol::Config(u8 data)
 		{
 			DevCon.Warning("%s(%02X) Unexpected enter/exit byte (%d > 1)", __FUNCTION__, data, data);
 		}
-	default:
-		ret = 0x00;
-		break;
 	}
 
-	return ret;
+	return Poll(data);
 }
 
 u8 PadPS2Protocol::ModeSwitch(u8 data)
