@@ -2,8 +2,7 @@
 #pragma once
 
 #include "Sio2Types.h"
-#include "PAD/PS2/PadPS2Protocol.h"
-#include "Memcard/PS2/MemcardPS2Protocol.h"
+
 #include <array>
 
 // A note about fifoIn and fifoOut:
@@ -52,8 +51,7 @@ public:
 	Sio2();
 	~Sio2();
 
-	void FullReset();
-	void WriteReset();
+	void Reset();
 
 	void SetInterrupt();
 
@@ -83,4 +81,4 @@ public:
 	void SetIStat(u32 data);
 };
 
-extern Sio2 g_sio2;
+extern Sio2 g_Sio2;

@@ -119,8 +119,8 @@ mem8_t __fastcall iopHwRead8_Page8( u32 addr )
 
 	if (addr == HW_SIO2_FIFO_OUT)
 	{
-		SIO2_LOG("%s(%08X) SIO2 FIFO Read", __FUNCTION__, addr);
 		ret = g_sio2.Sio2Read();
+		SIO2_LOG("%s(%08X) SIO2 FIFO Read (%02X)", __FUNCTION__, addr, ret);
 	}
 	else
 	{

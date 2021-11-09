@@ -36,7 +36,7 @@ void psxHwReset() {
 	cdrReset();
 	cdvdReset();
 	psxRcntInit();
-	g_sio2.FullReset();
+	g_sio2.Reset();
 	g_sio0.Reset();
 }
 

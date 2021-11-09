@@ -2,7 +2,7 @@
 #include "PrecompiledHeader.h"
 #include "PadPS2Protocol.h"
 
-PadPS2Protocol g_padPS2Protocol;
+PadPS2Protocol g_PadPS2Protocol;
 
 // Reset mode and byte counters to not set and 0,
 // to prepare for the next command. Calling this

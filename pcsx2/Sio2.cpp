@@ -2,25 +2,23 @@
 #include "PrecompiledHeader.h" 
 #include "Sio2.h"
 
+#include "PAD/PS2/PadPS2Protocol.h"
+#include "Memcard/PS2/MemcardPS2Protocol.h"
+#include "Multitap/PS2/MultitapPS2Protocol.h"
 #include "IopDma.h"
 
-Sio2 g_sio2;
+Sio2 g_Sio2;
 
 Sio2::Sio2() = default;
 Sio2::~Sio2() = default;
 
-void Sio2::FullReset()
+void Sio2::Reset()
 {
 	// SIO2MAN provided by the BIOS resets SIO2_CTRL to 0x3bc. Thanks ps2tek!
 	g_sio2.SetCtrl(0x000003bc);
 	g_sio2.SetRecv1(Recv1::DISCONNECTED);
 	g_sio2.SetRecv2(Recv2::DEFAULT);
 	g_sio2.SetRecv3(Recv3::DEFAULT);
-}
-
-void Sio2::WriteReset()
-{
-	
 }
 
 void Sio2::SetInterrupt()
@@ -83,19 +81,25 @@ void Sio2::Sio2Write(u8 data)
 	{
 	case Sio2Mode::NOT_SET:
 		mode = static_cast<Sio2Mode>(data);
-		fifoOut.push_back(0xff);
+		fifoOut.push_back(0x00);
 		break;
 	case Sio2Mode::PAD:
 		g_sio2.SetRecv1(Recv1::CONNECTED);
-		pad = g_padPS2Protocol.GetPad(activePort, 0);
-		g_padPS2Protocol.SetActivePad(pad);
-		fifoOut.push_back(g_padPS2Protocol.SendToPad(data));
+		pad = g_PadPS2Protocol.GetPad(activePort, 0);
+		g_PadPS2Protocol.SetActivePad(pad);
+		fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
 		break;
 	case Sio2Mode::MULTITAP:
+		g_sio2.SetRecv1(Recv1::DISCONNECTED);
+		fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));
+		break;
 	case Sio2Mode::INFRARED:
+		g_sio2.SetRecv1(Recv1::DISCONNECTED);
+		fifoOut.push_back(0x00);
+		break;
 	case Sio2Mode::MEMCARD:
 		g_sio2.SetRecv1(Recv1::DISCONNECTED);
-		fifoOut.push_back(0xff);
+		fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
 		break;
 	default:
 		DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);
@@ -110,7 +114,7 @@ void Sio2::Sio2Write(u8 data)
 		switch (mode)
 		{
 		case Sio2Mode::PAD:
-			g_padPS2Protocol.Reset();
+			g_PadPS2Protocol.Reset();
 			break;
 		case Sio2Mode::MULTITAP:
 			break;

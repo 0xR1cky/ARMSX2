@@ -293,6 +293,11 @@
     </Filter>
     <Filter Include="Host">
       <UniqueIdentifier>{65f21394-287a-471b-a0c1-d8f0d5d95a81}</UniqueIdentifier>
+    <Filter Include="System\Ps2\Multitap">
+      <UniqueIdentifier>{c24e4005-7124-41b4-ad91-24080a9b7372}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\Multitap\PS2">
+      <UniqueIdentifier>{64b2d978-e326-4b04-9241-bb387c1f6982}</UniqueIdentifier>
     </Filter>
     <Filter Include="System\Ps2\GS\Renderers\Vulkan">
       <UniqueIdentifier>{98829aa9-bb81-4564-bd6e-128719c4faa0}</UniqueIdentifier>
@@ -1707,9 +1712,6 @@
     <ClCompile Include="Memcard\PS2\MemcardPS2.cpp">
       <Filter>System\Ps2\Memcard\PS2</Filter>
     </ClCompile>
-    <ClCompile Include="Memcard\Memcard.cpp">
-      <Filter>System\Ps2\Memcard</Filter>
-    </ClCompile>
     <ClCompile Include="Sio0.cpp">
       <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
@@ -1745,6 +1747,8 @@
     </ClCompile>
     <ClCompile Include="GS\Renderers\Vulkan\GSDeviceVK.cpp">
       <Filter>System\Ps2\GS\Renderers\Vulkan</Filter>
+    <ClCompile Include="Multitap\PS2\MultitapPS2Protocol.cpp">
+      <Filter>System\Ps2\Multitap\PS2</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\HW\GSTextureReplacements.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
@@ -2881,14 +2885,8 @@
     <ClInclude Include="Memcard\PS2\MemcardPS2Types.h">
       <Filter>System\Ps2\Memcard\PS2</Filter>
     </ClInclude>
-    <ClInclude Include="Memcard\Memcard.h">
-      <Filter>System\Ps2\Memcard</Filter>
-    </ClInclude>
     <ClInclude Include="Sio0.h">
       <Filter>System\Ps2\Iop</Filter>
-    </ClInclude>
-    <ClInclude Include="MemcardTypes.h">
-      <Filter>System\Ps2\Memcard</Filter>
     </ClInclude>
     <ClInclude Include="Sio0Types.h">
       <Filter>System\Ps2\Iop</Filter>
@@ -2947,6 +2945,12 @@
     </ClInclude>
     <ClInclude Include="PAD\PadUtils.h">
       <Filter>System\Ps2\PAD</Filter>
+    </ClInclude>
+    <ClInclude Include="Multitap\PS2\MultitapPS2Protocol.h">
+      <Filter>System\Ps2\Multitap\PS2</Filter>
+    </ClInclude>
+    <ClInclude Include="Multitap\PS2\MultitapPS2Types.h">
+      <Filter>System\Ps2\Multitap\PS2</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -15,4 +15,4 @@ public:
 	u8 SendToMemcard(u8 data);
 };
 
-extern MemcardPS2Protocol g_memcardPS2Protocol;
+extern MemcardPS2Protocol g_MemcardPS2Protocol;

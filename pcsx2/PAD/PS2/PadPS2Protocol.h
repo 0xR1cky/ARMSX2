@@ -41,4 +41,4 @@ public:
 	u8 SendToPad(u8 data);
 };
 
-extern PadPS2Protocol g_padPS2Protocol;
+extern PadPS2Protocol g_PadPS2Protocol;

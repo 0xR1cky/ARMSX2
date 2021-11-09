@@ -2,7 +2,7 @@
 #include "PrecompiledHeader.h"
 #include "MemcardPS2Protocol.h"
 
-MemcardPS2Protocol g_memcardPS2Protocol;
+MemcardPS2Protocol g_MemcardPS2Protocol;
 
 MemcardPS2Protocol::MemcardPS2Protocol() = default;
 MemcardPS2Protocol::~MemcardPS2Protocol() = default;

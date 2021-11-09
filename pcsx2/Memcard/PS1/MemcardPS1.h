@@ -1,7 +1,6 @@
 
 #pragma once
 
-#include "Memcard/Memcard.h"
 #include "MemcardPS1Types.h"
 #include <array>
 #include <fstream>

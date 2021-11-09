@@ -348,13 +348,13 @@
     <ClCompile Include="IopGte.cpp" />
     <ClCompile Include="PINE.cpp" />
     <ClCompile Include="FW.cpp" />
-    <ClCompile Include="Memcard\Memcard.cpp" />
     <ClCompile Include="Memcard\PS1\MemcardPS1.cpp" />
     <ClCompile Include="Memcard\PS1\MemcardPS1Protocol.cpp" />
     <ClCompile Include="Memcard\PS2\MemcardPS2.cpp" />
     <ClCompile Include="Memcard\PS2\MemcardPS2Protocol.cpp" />
     <ClCompile Include="MemoryCardFile.cpp" />
     <ClCompile Include="MemoryCardFolder.cpp" />
+    <ClCompile Include="Multitap\PS2\MultitapPS2Protocol.cpp" />
     <ClCompile Include="PAD\PS1\PadPS1.cpp" />
     <ClCompile Include="PAD\PS1\PadPS1Protocol.cpp" />
     <ClCompile Include="PAD\PS2\PadPS2.cpp" />
@@ -803,8 +803,6 @@
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="PINE.h" />
     <ClInclude Include="FW.h" />
-    <ClInclude Include="MemcardTypes.h" />
-    <ClInclude Include="Memcard\Memcard.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Protocol.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Types.h" />
@@ -814,6 +812,8 @@
     <ClInclude Include="MemoryCardFile.h" />
     <ClInclude Include="MemoryCardFolder.h" />
     <ClInclude Include="PAD\Gamepad.h" />
+    <ClInclude Include="Multitap\PS2\MultitapPS2Protocol.h" />
+    <ClInclude Include="Multitap\PS2\MultitapPS2Types.h" />
     <ClInclude Include="PAD\PadTypes.h" />
     <ClInclude Include="PAD\PadUtils.h" />
     <ClInclude Include="PAD\PS1\PadPS1.h" />
