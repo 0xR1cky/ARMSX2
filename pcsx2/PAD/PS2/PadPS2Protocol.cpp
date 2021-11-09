@@ -88,19 +88,20 @@ u8 PadPS2Protocol::Poll(u8 data)
 		ret = activePad->GetDigitalByte2();
 		break;
 	case 5:
-		ret = activePad->GetAnalogRightX();
+		ret = activePad->GetAnalog(PS2Analog::RIGHT_X);
 		break;
 	case 6:
-		ret = activePad->GetAnalogRightY();
+		ret = activePad->GetAnalog(PS2Analog::RIGHT_Y);
 		break;
 	case 7:
-		ret = activePad->GetAnalogLeftX();
+		ret = activePad->GetAnalog(PS2Analog::LEFT_X);
 		break;
 	case 8:
-		ret = activePad->GetAnalogLeftY();
+		ret = activePad->GetAnalog(PS2Analog::LEFT_Y);
 		break;
 	default:
-		ret = 0x00;
+		const size_t pressureIndex = currentCommandByte - 9;
+		ret = activePad->GetButton(static_cast<PS2Button>(pressureIndex));
 		break;
 	}
 

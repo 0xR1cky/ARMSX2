@@ -31,6 +31,68 @@ enum class PadPS2Physical
 	GUITAR = 0x01
 };
 
+struct ButtonStates
+{
+	// Pressure capable buttons
+
+	u8 right = 0x00;
+	u8 left = 0x00;
+	u8 up = 0x00;
+	u8 down = 0x00;
+	u8 triangle = 0x00;
+	u8 circle = 0x00;
+	u8 cross = 0x00;
+	u8 square = 0x00;
+	u8 l1 = 0x00;
+	u8 r1 = 0x00;
+	u8 l2 = 0x00;
+	u8 r2 = 0x00;
+
+	// Digital only buttons
+
+	u8 select = 0x00;
+	u8 l3 = 0x00;
+	u8 r3 = 0x00;
+	u8 start = 0x00;
+
+	// Analog axes
+
+	u8 leftX = 0x7f;
+	u8 leftY = 0x7f;
+	u8 rightX = 0x7f;
+	u8 rightY = 0x7f;
+};
+
+// Order matches the order used for pressures in 0x42 poll commands.
+// Last four items are not pressure capable.
+enum class PS2Button
+{
+	RIGHT = 0x00,
+	LEFT,
+	UP,
+	DOWN,
+	TRIANGLE,
+	CIRCLE,
+	CROSS,
+	SQUARE,
+	L1,
+	R1,
+	L2,
+	R2,
+	SELECT,
+	L3,
+	R3,
+	START
+};
+
+enum class PS2Analog
+{
+	LEFT_X = 0x00,
+	LEFT_Y,
+	RIGHT_X,
+	RIGHT_Y
+};
+
 namespace DigitalByte1
 {
 	static constexpr u8 SELECT = 0xfe;
@@ -54,3 +116,5 @@ namespace DigitalByte2
 	static constexpr u8 CROSS = 0xbf;
 	static constexpr u8 SQUARE = 0x7f;
 }
+
+

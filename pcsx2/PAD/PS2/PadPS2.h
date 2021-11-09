@@ -14,12 +14,7 @@ private:
 	bool configResponse = false;
 	PadPS2Type type = PadPS2Type::DIGITAL;
 	PadPS2Physical physical = PadPS2Physical::STANDARD;
-	u8 digitalByte1 = 0xff;
-	u8 digitalByte2 = 0xff;
-	u8 analogLeftX = 0x7f;
-	u8 analogLeftY = 0x7f;
-	u8 analogRightX = 0x7f;
-	u8 analogRightY = 0x7f;
+	ButtonStates buttonStates;
 
 	XINPUT_STATE state;
 public:
@@ -33,12 +28,11 @@ public:
 	bool IsConfigResponse();
 	PadPS2Type GetPadType();
 	PadPS2Physical GetPadPhysicalType();
+
 	u8 GetDigitalByte1();
 	u8 GetDigitalByte2();
-	u8 GetAnalogLeftX();
-	u8 GetAnalogLeftY();
-	u8 GetAnalogRightX();
-	u8 GetAnalogRightY();
+	u8 GetButton(PS2Button button);
+	u8 GetAnalog(PS2Analog analog);
 
 	void SetInConfigMode(bool b);
 	void SetAnalogLight(bool b);
@@ -47,12 +41,9 @@ public:
 	void SetConfigResponse(bool b);
 	void SetPadType(PadPS2Type type);
 	void SetPadPhysicalType(PadPS2Physical physical);
-	void SetDigitalByte1(u8 data);
-	void SetDigitalByte2(u8 data);
-	void SetAnalogLeftX(u8 data);
-	void SetAnalogLeftY(u8 data);
-	void SetAnalogRightX(u8 data);
-	void SetAnalogRightY(u8 data);
+
+	void SetButton(PS2Button button, u8 data);
+	void SetAnalog(PS2Analog analog, u8 data);
 
 	void Debug_Poll();
 };
