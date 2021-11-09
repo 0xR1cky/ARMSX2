@@ -236,7 +236,7 @@ void psxDma11(u32 madr, u32 bcr, u32 chcr) {
 	{
 		for (size_t byte = 0; byte < bytes; byte++)
 		{
-			g_sio2.Sio2Write(iopMemRead8(madr++));
+			g_Sio2.Sio2Write(iopMemRead8(madr++));
 		}
 	}
 
@@ -265,7 +265,7 @@ void psxDma12(u32 madr, u32 bcr, u32 chcr) {
 	{
 		for (size_t byte = 0; byte < bytes; byte++)
 		{
-			iopMemWrite8(madr++, g_sio2.Sio2Read());
+			iopMemWrite8(madr++, g_Sio2.Sio2Read());
 		}
 	}
 

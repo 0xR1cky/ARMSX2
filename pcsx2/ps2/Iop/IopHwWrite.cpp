@@ -157,7 +157,7 @@ void __fastcall iopHwWrite8_Page8( u32 addr, mem8_t val )
 	if (addr == HW_SIO2_FIFO_IN)	// sio2 serial data feed input
 	{
 		SIO2_LOG("%s(%08X, %02X) SIO2 FIFO Write", __FUNCTION__, addr, val);
-		g_sio2.Sio2Write(val);
+		g_Sio2.Sio2Write(val);
 	}
 	else
 	{
@@ -580,7 +580,7 @@ void __fastcall iopHwWrite32_Page8( u32 addr, mem32_t val )
 		{
 			SIO2_LOG("%s(%08X, %08X) SIO2 SEND3 Write (cmd len = %d) (port = %d)", __FUNCTION__, addr, val, (val >> 8) & 0x1ff, val & 0x01);
 			const int parm = (masked_addr-0x200) / 4;
-			g_sio2.SetSend3(parm, val);
+			g_Sio2.SetSend3(parm, val);
 		}
 		else if( masked_addr < 0x260 )
 		{
@@ -589,16 +589,16 @@ void __fastcall iopHwWrite32_Page8( u32 addr, mem32_t val )
 			// to Send2, third to Send1, etc.  And the following clever code does this:
 
 			const int parm = (masked_addr-0x240) / 8;
-			if(masked_addr & 4) g_sio2.SetSend2( parm, val ); else g_sio2.SetSend1( parm, val );
+			if(masked_addr & 4) g_Sio2.SetSend2( parm, val ); else g_Sio2.SetSend1( parm, val );
 		}
 		else if( masked_addr <= 0x280 )
 		{
 			switch( masked_addr )
 			{
-			mcase(HW_SIO2_CTRL):		g_sio2.SetCtrl( val );		SIO2_LOG("%s(%08X, %08X) SIO2 CTRL Write", __FUNCTION__, addr, val); break;
-			mcase(HW_SIO2_UNKNOWN1):	g_sio2.SetUnknown1( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 1 Write", __FUNCTION__, addr, val); break;
-			mcase(HW_SIO2_UNKNOWN2):	g_sio2.SetUnknown2( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 2 Write", __FUNCTION__, addr, val); break;
-			mcase(HW_SIO2_ISTAT):		g_sio2.SetIStat( val );		SIO2_LOG("%s(%08X, %08X) SIO2 ISTAT Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_CTRL):		g_Sio2.SetCtrl( val );		SIO2_LOG("%s(%08X, %08X) SIO2 CTRL Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_UNKNOWN1):	g_Sio2.SetUnknown1( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 1 Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_UNKNOWN2):	g_Sio2.SetUnknown2( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 2 Write", __FUNCTION__, addr, val); break;
+			mcase(HW_SIO2_ISTAT):		g_Sio2.SetIStat( val );		SIO2_LOG("%s(%08X, %08X) SIO2 ISTAT Write", __FUNCTION__, addr, val); break;
 
 			// Other SIO2 registers are read-only, no-ops on write.
 			default:

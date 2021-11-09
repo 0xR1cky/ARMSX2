@@ -15,10 +15,10 @@ Sio2::~Sio2() = default;
 void Sio2::Reset()
 {
 	// SIO2MAN provided by the BIOS resets SIO2_CTRL to 0x3bc. Thanks ps2tek!
-	g_sio2.SetCtrl(0x000003bc);
-	g_sio2.SetRecv1(Recv1::DISCONNECTED);
-	g_sio2.SetRecv2(Recv2::DEFAULT);
-	g_sio2.SetRecv3(Recv3::DEFAULT);
+	g_Sio2.SetCtrl(0x000003bc);
+	g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+	g_Sio2.SetRecv2(Recv2::DEFAULT);
+	g_Sio2.SetRecv3(Recv3::DEFAULT);
 }
 
 void Sio2::SetInterrupt()
@@ -84,21 +84,21 @@ void Sio2::Sio2Write(u8 data)
 		fifoOut.push_back(0x00);
 		break;
 	case Sio2Mode::PAD:
-		g_sio2.SetRecv1(Recv1::CONNECTED);
+		g_Sio2.SetRecv1(Recv1::CONNECTED);
 		pad = g_PadPS2Protocol.GetPad(activePort, 0);
 		g_PadPS2Protocol.SetActivePad(pad);
 		fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
 		break;
 	case Sio2Mode::MULTITAP:
-		g_sio2.SetRecv1(Recv1::DISCONNECTED);
+		g_Sio2.SetRecv1(Recv1::DISCONNECTED);
 		fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));
 		break;
 	case Sio2Mode::INFRARED:
-		g_sio2.SetRecv1(Recv1::DISCONNECTED);
+		g_Sio2.SetRecv1(Recv1::DISCONNECTED);
 		fifoOut.push_back(0x00);
 		break;
 	case Sio2Mode::MEMCARD:
-		g_sio2.SetRecv1(Recv1::DISCONNECTED);
+		g_Sio2.SetRecv1(Recv1::DISCONNECTED);
 		fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
 		break;
 	default:

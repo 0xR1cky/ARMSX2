@@ -139,9 +139,9 @@ u8 PadPS2Protocol::Config(u8 data)
 		{
 			DevCon.Warning("%s(%02X) Unexpected enter/exit byte (%d > 1)", __FUNCTION__, data, data);
 		}
+	default:
+		return Poll(data);
 	}
-
-	return Poll(data);
 }
 
 u8 PadPS2Protocol::ModeSwitch(u8 data)
@@ -173,8 +173,6 @@ u8 PadPS2Protocol::ModeSwitch(u8 data)
 	case 4:
 		activePad->SetAnalogLocked(data == 0x03);
 		break;
-	case 8:
-		return 0x00;
 	default:
 		return 0x00;
 	}
@@ -210,8 +208,7 @@ u8 PadPS2Protocol::StatusInfo(u8 data)
 		// telling the PS2 how many times to invoke the 0x47 command (once,
 		// in contrast to the two runs of 0x46 and 0x4c)
 		return 0x01;
-	case 8:
-		// dud, seems unused.
+	default:
 		return 0x00;
 	}
 }
@@ -281,7 +278,6 @@ u8 PadPS2Protocol::Constant1(u8 data)
 			return 0x14;
 		}
 	default:
-		DevCon.Warning("%s(%02X) Overran expected length (%d > 9)", __FUNCTION__, data, currentCommandByte);
 		return 0x00;
 	}
 }
@@ -296,31 +292,18 @@ u8 PadPS2Protocol::Constant2(u8 data)
 
 	switch (currentCommandByte)
 	{
-	case 3:
-	case 4:
-		return 0x00;
 	case 5:
 		return 0x02;
-	case 6:
-		return 0x00;
 	case 7:
 		if (activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD)
 		{
 			return 0x00;
 		}
-		else if (activePad->GetPadPhysicalType() == PadPS2Physical::GUITAR)
+		else
 		{
 			return 0x01;
 		}
-		else
-		{
-			DevCon.Warning("%s(%02X) Unrecognized physical type (%02X)", __FUNCTION__, data, activePad->GetPadPhysicalType());
-			return 0x00;
-		}
-	case 8:
-		return 0x00;
 	default:
-		DevCon.Warning("%s(%02X) Overran expected length (%d > 9)", __FUNCTION__, data, currentCommandByte);
 		return 0x00;
 	}
 }
@@ -337,17 +320,13 @@ u8 PadPS2Protocol::Constant3(u8 data)
 	{
 	case 3:
 		activePad->SetConstantStage(data);
-	case 4:
-	case 5:
 		return 0x00;
 	case 6:
 		// Since documentation doesn't bother explaining this one...
 		// (thanks padtest_ps2.elf for actually sheding some light on this!)
 		// This byte, on each run of the command, specifies one of the controller's operating modes.
 		// So far we know that (of the ones that actually matter) 0x04 = digital, 0x07 = analog.
-		// This seems to correspond with assertions which are made about the "pad modes" being
-		// 0x41 = digital, 0x73 = analog, 0x79 = dualshock 2. It does leave the question of if these
-		// "constant" commands should also have a value somewhere for the second nibble of the pad mode...
+		// This corresponds with the "pad modes" being 0x41 = digital, 0x73 = analog, 0x79 = dualshock 2. 
 		if (!activePad->GetConstantStage())
 		{
 			return 0x04;
@@ -356,12 +335,7 @@ u8 PadPS2Protocol::Constant3(u8 data)
 		{
 			return 0x07;
 		}
-	case 7:
-		return 0x00;
-	case 8:
-		return 0x00;
 	default:
-		DevCon.Warning("%s(%02X) Overran expected length (%d > 9)", __FUNCTION__, data, currentCommandByte);
 		return 0x00;
 	}
 }
@@ -394,8 +368,6 @@ u8 PadPS2Protocol::ResponseBytes(u8 data)
 			activePad->SetAnalogLight(true);
 			activePad->SetPadType(PadPS2Type::ANALOG);
 		}
-		break;
-	case 4:
 		break;
 	case 5:
 		if (data == 0x03)

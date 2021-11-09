@@ -119,7 +119,7 @@ mem8_t __fastcall iopHwRead8_Page8( u32 addr )
 
 	if (addr == HW_SIO2_FIFO_OUT)
 	{
-		ret = g_sio2.Sio2Read();
+		ret = g_Sio2.Sio2Read();
 		SIO2_LOG("%s(%08X) SIO2 FIFO Read (%02X)", __FUNCTION__, addr, ret);
 	}
 	else
@@ -412,7 +412,7 @@ mem32_t __fastcall iopHwRead32_Page8( u32 addr )
 		{
 			SIO2_LOG("%s(%08X) SIO2 SEND3 Read", __FUNCTION__, addr);
 			const int parm = (masked_addr-0x200) / 4;
-			ret = g_sio2.GetSend3( parm );
+			ret = g_Sio2.GetSend3( parm );
 		}
 		else if( masked_addr < 0x260 )
 		{
@@ -421,19 +421,19 @@ mem32_t __fastcall iopHwRead32_Page8( u32 addr )
 			// to Send2, third to Send1, etc.  And the following clever code does this:
 
 			const int parm = (masked_addr-0x240) / 8;
-			ret = (masked_addr & 4) ? g_sio2.GetSend2( parm ) : g_sio2.GetSend1( parm );
+			ret = (masked_addr & 4) ? g_Sio2.GetSend2( parm ) : g_Sio2.GetSend1( parm );
 		}
 		else if( masked_addr <= 0x280 )
 		{
 			switch( masked_addr )
 			{
-				mcase(HW_SIO2_CTRL):		ret = g_sio2.GetCtrl();		SIO2_LOG("%s(%08X) SIO2 CTRL Read", __FUNCTION__, addr); break;
-				mcase(HW_SIO2_RECV1):		ret = g_sio2.GetRecv1();	SIO2_LOG("%s(%08X) SIO2 RECV1 Read", __FUNCTION__, addr); break;
-				mcase(HW_SIO2_RECV2):		ret = g_sio2.GetRecv2();	SIO2_LOG("%s(%08X) SIO2 RECV2 Read", __FUNCTION__, addr); break;
-				mcase(HW_SIO2_RECV3):		ret = g_sio2.GetRecv3();	SIO2_LOG("%s(%08X) SIO2 RECV3 Read", __FUNCTION__, addr); break;
-				mcase(HW_SIO2_UNKNOWN1):	ret = g_sio2.GetUnknown1();	SIO2_LOG("%s(%08X) SIO2 Unknown 1 Read", __FUNCTION__, addr); break;
-				mcase(HW_SIO2_UNKNOWN2):	ret = g_sio2.GetUnknown2();	SIO2_LOG("%s(%08X) SIO2 Unknown 2 Read", __FUNCTION__, addr); break;
-				mcase(HW_SIO2_ISTAT):		ret = g_sio2.GetIStat();	SIO2_LOG("%s(%08X) SIO2 ISTAT Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_CTRL):		ret = g_Sio2.GetCtrl();		SIO2_LOG("%s(%08X) SIO2 CTRL Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_RECV1):		ret = g_Sio2.GetRecv1();	SIO2_LOG("%s(%08X) SIO2 RECV1 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_RECV2):		ret = g_Sio2.GetRecv2();	SIO2_LOG("%s(%08X) SIO2 RECV2 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_RECV3):		ret = g_Sio2.GetRecv3();	SIO2_LOG("%s(%08X) SIO2 RECV3 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_UNKNOWN1):	ret = g_Sio2.GetUnknown1();	SIO2_LOG("%s(%08X) SIO2 Unknown 1 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_UNKNOWN2):	ret = g_Sio2.GetUnknown2();	SIO2_LOG("%s(%08X) SIO2 Unknown 2 Read", __FUNCTION__, addr); break;
+				mcase(HW_SIO2_ISTAT):		ret = g_Sio2.GetIStat();	SIO2_LOG("%s(%08X) SIO2 ISTAT Read", __FUNCTION__, addr); break;
 
 				// Log any cases of FIFO Out access; this should never happen on 32 bit reads
 				// because this register is only ever (supposed to be) read or written to on
