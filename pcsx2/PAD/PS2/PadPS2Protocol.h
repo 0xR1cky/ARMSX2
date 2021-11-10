@@ -13,7 +13,6 @@ private:
 	PadPS2Array pads;
 	PadPS2* activePad = nullptr;
 	PadPS2Mode mode = PadPS2Mode::NOT_SET;
-	size_t activePort = 0;
 	size_t currentCommandByte = 1;
 
 	size_t GetResponseSize(PadPS2Type padPS2Type);
