@@ -236,7 +236,10 @@ void psxDma11(u32 madr, u32 bcr, u32 chcr) {
 	{
 		for (size_t byte = 0; byte < bytes; byte++)
 		{
-			g_Sio2.Sio2Write(iopMemRead8(madr++));
+			u8 data = iopMemRead8(madr);
+			SIO2_LOG("%s(%08X, %02X) SIO2 FIFO Write", __FUNCTION__, madr, data);
+			g_Sio2.Sio2Write(data);
+			madr++;
 		}
 	}
 
@@ -265,7 +268,9 @@ void psxDma12(u32 madr, u32 bcr, u32 chcr) {
 	{
 		for (size_t byte = 0; byte < bytes; byte++)
 		{
-			iopMemWrite8(madr++, g_Sio2.Sio2Read());
+			u8 data = g_Sio2.Sio2Read();
+			SIO2_LOG("%s(%08X, %02X) SIO2 FIFO Read", __FUNCTION__, madr, data);
+			iopMemWrite8(madr++, data);
 		}
 	}
 
