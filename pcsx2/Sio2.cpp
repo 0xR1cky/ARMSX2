@@ -81,7 +81,7 @@ void Sio2::Sio2Write(u8 data)
 	{
 	case Sio2Mode::NOT_SET:
 		mode = static_cast<Sio2Mode>(data);
-		fifoOut.push_back(0x00);
+		fifoOut.push_back(0xff);
 		break;
 	case Sio2Mode::PAD:
 		g_Sio2.SetRecv1(Recv1::CONNECTED);
@@ -98,7 +98,7 @@ void Sio2::Sio2Write(u8 data)
 		fifoOut.push_back(0x00);
 		break;
 	case Sio2Mode::MEMCARD:
-		g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+		g_Sio2.SetRecv1(Recv1::CONNECTED);
 		fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
 		break;
 	default:
@@ -121,6 +121,7 @@ void Sio2::Sio2Write(u8 data)
 		case Sio2Mode::INFRARED:
 			break;
 		case Sio2Mode::MEMCARD:
+			g_MemcardPS2Protocol.Reset();
 			break;
 		}
 
