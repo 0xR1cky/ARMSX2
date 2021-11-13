@@ -99,6 +99,8 @@ void Sio2::Sio2Write(u8 data)
 		break;
 	case Sio2Mode::MEMCARD:
 		g_Sio2.SetRecv1(Recv1::CONNECTED);
+		memcard = g_MemcardPS2Protocol.GetMemcard(activePort, 0);
+		g_MemcardPS2Protocol.SetActiveMemcard(memcard);
 		fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
 		break;
 	default:
