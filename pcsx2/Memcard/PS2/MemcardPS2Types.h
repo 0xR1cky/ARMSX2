@@ -26,3 +26,21 @@ enum class Terminator
 {
 	DEFAULT = 0x55
 };
+
+// Size of a sector, counted in bytes. Datatype is u16.
+enum class SectorSize
+{
+	STANDARD = 0x0200
+};
+
+// Size of an erase block, counted in sectors. Datatype is u16.
+enum class EraseBlockSize
+{
+	STANDARD = 0x10
+};
+
+// Size of a memcard, counted in sectors. Datatype is u32.
+enum class SectorCount
+{
+	STANDARD = 0x00004000
+};

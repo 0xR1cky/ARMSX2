@@ -15,6 +15,57 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 	return The2bTerminator(4);
 }
 
+u8 MemcardPS2Protocol::GetSpecs(u8 data)
+{
+	static u8 checksum = 0x00;
+	u8 ret = 0x00;
+
+	switch (currentCommandByte)
+	{
+		case 2:
+			return 0x2b;
+		case 3: // Sector size, LSB
+			ret = static_cast<u16>(activeMemcard->GetSectorSize()) & 0xff;
+			checksum ^= ret;
+			return ret;
+		case 4: // Sector size, MSB
+			ret = static_cast<u16>(activeMemcard->GetSectorSize()) >> 8;
+			checksum ^= ret;
+			return ret;
+		case 5: // Erase block size, LSB
+			ret = static_cast<u16>(activeMemcard->GetEraseBlockSize()) & 0xff;
+			checksum ^= ret;
+			return ret;
+		case 6: // Erase block size, MSB
+			ret = static_cast<u16>(activeMemcard->GetEraseBlockSize()) >> 8;
+			checksum ^= ret;
+			return ret;
+		case 7: // Sector count, LSB
+			ret = static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff;
+			checksum ^= ret;
+			return ret;
+		case 8: // Sector count, second byte
+			ret = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff00) >> 8;
+			checksum ^= ret;
+			return ret;
+		case 9: // Sector count, third byte
+			ret = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff0000) >> 16;
+			checksum ^= ret;
+			return ret;
+		case 10: // Sector count, MSB
+			ret = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff000000) >> 24;
+			checksum ^= ret;
+			return ret;
+		case 11:
+			return checksum;
+		case 12:
+			checksum = 0x00;
+			return activeMemcard->GetTerminator();
+		default:
+			return 0x00;
+	}
+}
+
 u8 MemcardPS2Protocol::SetTerminator(u8 data)
 {
 	static u8 oldTerminator = activeMemcard->GetTerminator();
@@ -203,6 +254,9 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 	{
 	case MemcardPS2Mode::PROBE:
 		ret = Probe(data);
+		break;
+	case MemcardPS2Mode::GET_SPECS:
+		ret = GetSpecs(data);
 		break;
 	case MemcardPS2Mode::SET_TERMINATOR:
 		ret = SetTerminator(data);

@@ -34,6 +34,7 @@ private:
 	size_t currentCommandByte = 1;
 
 	u8 Probe(u8 data);
+	u8 GetSpecs(u8 data);
 	u8 SetTerminator(u8 data);
 	u8 GetTerminator(u8 data);
 	u8 UnknownBoot(u8 data);

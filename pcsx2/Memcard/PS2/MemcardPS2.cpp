@@ -10,6 +10,21 @@ u8 MemcardPS2::GetTerminator()
 	return terminator;
 }
 
+SectorSize MemcardPS2::GetSectorSize()
+{
+	return sectorSize;
+}
+
+EraseBlockSize MemcardPS2::GetEraseBlockSize()
+{
+	return eraseBlockSize;
+}
+
+SectorCount MemcardPS2::GetSectorCount()
+{
+	return sectorCount;
+}
+
 void MemcardPS2::SetTerminator(u8 data)
 {
 	terminator = data;
