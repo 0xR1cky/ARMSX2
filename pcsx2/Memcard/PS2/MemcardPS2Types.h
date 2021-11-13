@@ -21,3 +21,8 @@ enum class MemcardPS2Mode
 	AUTH_F3 = 0xf3,
 	AUTH_F7 = 0xf7,
 };
+
+enum class Terminator
+{
+	DEFAULT = 0x55
+};

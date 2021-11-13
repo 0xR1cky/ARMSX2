@@ -15,6 +15,45 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 	return The2bTerminator(4);
 }
 
+u8 MemcardPS2Protocol::SetTerminator(u8 data)
+{
+	static u8 oldTerminator = activeMemcard->GetTerminator();
+
+	switch (currentCommandByte)
+	{
+	case 2:
+		oldTerminator = activeMemcard->GetTerminator();
+		activeMemcard->SetTerminator(data);
+		return 0x00;
+	case 3:
+		return 0x2b;
+	case 4:
+		return oldTerminator;
+	default:
+		return 0x00;
+	}
+}
+
+u8 MemcardPS2Protocol::GetTerminator(u8 data)
+{
+	switch (currentCommandByte)
+	{
+	case 2:
+		return 0x2b;
+	case 3:
+		return activeMemcard->GetTerminator();
+	case 4:
+		return static_cast<u8>(Terminator::DEFAULT);
+	default:
+		return 0x00;
+	}
+}
+
+u8 MemcardPS2Protocol::UnknownBoot(u8 data)
+{
+	return The2bTerminator(5);
+}
+
 // Well, this is certainly a funky one.
 // It appears as though this is a conditional "handshake or xor"
 // type of command. It has a 5 byte and 14 byte variant.
@@ -159,28 +198,21 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 
 	// We have a bit of a different strategy to play here than PS2 pads.
 	// Pads have a nice and predictable "header" group. But memcards, each
-	// mode has more or less its own "header". These cases are ordered 
-	// by their reply first, THEN by their command values!
+	// mode has more or less its own "header".
 	switch (mode)
 	{
 	case MemcardPS2Mode::PROBE:
 		ret = Probe(data);
 		break;
-/*
-	case MemcardPS2Mode::UNKNOWN_WRITE_DELETE:
-	case MemcardPS2Mode::GET_SPECS:
-	case MemcardPS2Mode::GET_TERMINATOR:
-	case MemcardPS2Mode::WRITE_DATA:
-	case MemcardPS2Mode::READ_DATA:
-	case MemcardPS2Mode::READ_WRITE_END:
-	case MemcardPS2Mode::ERASE_BLOCK:
-	case MemcardPS2Mode::SET_SECTOR_ERASE:
-	case MemcardPS2Mode::SET_SECTOR_WRITE:
-	case MemcardPS2Mode::SET_SECTOR_READ:
 	case MemcardPS2Mode::SET_TERMINATOR:
-	case MemcardPS2Mode::UNKNOWN_BOOT:
+		ret = SetTerminator(data);
 		break;
-*/
+	case MemcardPS2Mode::GET_TERMINATOR:
+		ret = GetTerminator(data);
+		break;
+	case MemcardPS2Mode::UNKNOWN_BOOT:
+		ret = UnknownBoot(data);
+		break;
 	case MemcardPS2Mode::AUTH_XOR:
 		ret = AuthXor(data);
 		break;

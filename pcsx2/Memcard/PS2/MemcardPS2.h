@@ -6,7 +6,7 @@
 class MemcardPS2
 {
 private:
-	u8 terminator = 0x55;
+	u8 terminator = static_cast<u8>(Terminator::DEFAULT);
 public:
 	MemcardPS2();
 	~MemcardPS2();
