@@ -19,61 +19,86 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 // It appears as though this is a conditional "handshake or xor"
 // type of command. It has a 5 byte and 14 byte variant.
 // 
-// 5 bytes:  0x81 0xf0 0x00 0x00 0x00
+// 5 bytes:  0x81 0xf0 dud  0x00 0x00
 // Response: 0x00 0x00 0x00 0x2b terminator
-// When the third byte sent is zero, the command is functionally identical to all the other auth
-// commands in that it basically does nothing but act as a heartbeat or handshake type of deal.
-// Zero padding on the front, 0x2b and terminator to complete.
+// Handshake mode, just close the response with 0x2b and terminator.
 // 
-// 14 bytes: 0x81 0xf0 0x?? 0x00 (0x?? 8 times) 0x00      0x00
-// Response: 0x00 0x00 0x00 0x2b (0x00 8 times) xorResult terminator
-// Here's where things get messy. When the third byte is nonzero, we begin XOR-ing things.
-// We still get a 0 sent for the fourth byte and are expected to reply 0x2b, after which
-// the XOR begins. It defaults to 0 and has the sent bytes (0x??) XOR'd against it incrementally.
-// The 13th sent byte should be 0 again, and expects the result of the XORs. Then lastly the
-// 14th byte also 0 expects the terminator to end the command.
-
+// 14 bytes: 0x81 0xf0 doXor dud  (xorMe 8 times) 0x00      0x00
+// Response: 0x00 0x00 0x00  0x2b (0x00 8 times)  xorResult terminator
+// Here's where things get messy. When the third byte is 0x01, 0x02, 0x04, 0x0f, 0x11 or 0x13,
+// we will XOR-ing things. Before the XOR begins, the fourth byte is ignored and its response
+// is 0x2b. Starting with the fifth byte the XOR begins. It defaults to 0 and has the sent bytes
+// (xorMe) XOR'd against it. The 13th sent byte should be 0 again, and expects the result of the
+// XORs. Then lastly the 14th byte also 0 expects the terminator to end the command. 
+//
+// BUT WAIT, THERE'S MORE!
+// For no discernable reason, certain values in the doXor field will be sent with a size specified
+// in RECV3 of 14, HOWEVER the PS2 will get VERY angry at us if we handle these as XORs. Instead,
+// they want us to respond with 0's, and then end on 0x2b and terminator. Attempts to do XORs on
+// these will cause the PS2 to stop executing 0xf0 commands and jump straight to 0x52 commands;
+// the PS2 thinks this memcard failed to respond correctly to PS2 commands and instead tries to
+// probe it as a PS1 memcard. The doXor values are grouped and labelled accordingly in the
+// function body.
 u8 MemcardPS2Protocol::AuthXor(u8 data)
 {
 	static bool doXor = false;
+	static bool isShort = false;
 	static u8 xorResult = 0x00;
 	
-	u8 ret = 0x00;
-
-	switch (currentCommandByte)
+	if (currentCommandByte == 2)
 	{
-	case 2:
-		// While we are saying doXor = true if data is any nonzero value,
-		// it is worth noting old code only did this for 0x01, 0x02, 0x04,
-		// 0x0f, 0x11 and 0x13.
-		doXor = data;
+		switch (data)
+		{
+		// When encountered, the command length in RECV3 is guaranteed to be 14,
+		// and the PS2 is expecting us to XOR the data it is about to send.
+		case 0x01: case 0x02: case 0x04:
+		case 0x0f: case 0x11: case 0x13:
+			doXor = true;
+			isShort = false;
+			break;
+		// When encountered, the command length in RECV3 is guaranteed to be 5,
+		// and there is no attempt to XOR anything.
+		case 0x00: case 0x03: case 0x05: case 0x08:
+		case 0x09: case 0x0a: case 0x0c: case 0x0d:
+		case 0x0e: case 0x10: case 0x12: case 0x14:
+			doXor = false;
+			isShort = true;
+			break;
+		// When encountered, the command length in RECV3 is guaranteed to be 14,
+		// and the PS2 is about to send us data, BUT the PS2 does NOT want us
+		// to send the XOR, it wants us to send the 0x2b and terminator as the
+		// last two bytes.
+		case 0x06: case 0x07: case 0x0b:
+			doXor = false;
+			isShort = false;
+			break;
+		default:
+			DevCon.Warning("%s(%02X) Unexpected doXor value, please report to the PCSX2 team", __FUNCTION__, data);
+			doXor = false;
+			isShort = false;
+			break;
+		}
 		xorResult = 0;
-		return ret;
-	case 3:
-		ret = 0x2b;
-		return;
-	case 4:
-		if (!doXor)
-		{
-			return activeMemcard->GetTerminator();
-		}
-	case 12:
-		if (doXor)
-		{
-			return xorResult;
-		}
-	case 13:
-		if (doXor)
-		{
-			return activeMemcard->GetTerminator();
-		}
-	// Fallthrough
-	default:
-		if (doXor)
-		{
-			xorResult ^= data;
-		}
 		return 0x00;
+	}
+	else if (doXor)
+	{
+		switch (currentCommandByte)
+		{
+		case 3:
+			return 0x2b;
+		case 12:
+			return xorResult;
+		case 13:
+			return activeMemcard->GetTerminator();
+		default:
+			xorResult ^= data;
+			return 0x00;
+		}
+	}
+	else
+	{
+		The2bTerminator(isShort ? 5 : 14);
 	}
 }
 
@@ -166,7 +191,7 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 		ret = AuthF7(data);
 		break;
 	default:
-		DevCon.Warning("%s(%02X) Unhandled PadPS2Mode (%02X) (currentCommandByte = %d)", __FUNCTION__, data, static_cast<u8>(mode), currentCommandByte);
+		DevCon.Warning("%s(%02X) Unhandled MemcardPS2Mode (%02X) (currentCommandByte = %d)", __FUNCTION__, data, static_cast<u8>(mode), currentCommandByte);
 		break;
 	}
 
