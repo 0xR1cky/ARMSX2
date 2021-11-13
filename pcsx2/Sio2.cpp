@@ -1,5 +1,5 @@
 
-#include "PrecompiledHeader.h" 
+#include "PrecompiledHeader.h"
 #include "Sio2.h"
 
 #include "PAD/PS2/PadPS2Protocol.h"
@@ -48,7 +48,7 @@ void Sio2::Sio2Write(u8 data)
 		}
 
 		const u32 s3 = send3.at(send3Position);
-		
+
 		// SEND3 is the source of truth for command length in SIO2. This applies to
 		// commands written directly via HW write, and also when a command is sent
 		// over DMA11 in a 36 byte payload. For direct writes, the IOP module
@@ -58,13 +58,13 @@ void Sio2::Sio2Write(u8 data)
 		// "shuts down" until the next CTRL write signals that we're done with the
 		// write and starting a new one. Also, in the case of DMA11's 36 byte payloads,
 		// this ensures that once we reach the end of the contents described by SEND3,
-		// the rest of the payload is still "received" to make DMA11 happy, but not 
+		// the rest of the payload is still "received" to make DMA11 happy, but not
 		// mistakenly executed as a command when it is just padding.
 		//
 		// Note, in any such case, we are going to queue a 0 byte as a reply. For IOP
 		// modules written by jackasses, this is because for each write, even erroneous,
 		// there is a read, so we need *something*. For DMA11, this just pads out the
-		// data that DMA12 will then scoop up. 
+		// data that DMA12 will then scoop up.
 		if (s3 == 0)
 		{
 			fifoOut.push_back(0x00);
@@ -79,33 +79,33 @@ void Sio2::Sio2Write(u8 data)
 
 	switch (mode)
 	{
-	case Sio2Mode::NOT_SET:
-		mode = static_cast<Sio2Mode>(data);
-		fifoOut.push_back(0xff);
-		break;
-	case Sio2Mode::PAD:
-		g_Sio2.SetRecv1(Recv1::CONNECTED);
-		pad = g_PadPS2Protocol.GetPad(activePort, 0);
-		g_PadPS2Protocol.SetActivePad(pad);
-		fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
-		break;
-	case Sio2Mode::MULTITAP:
-		g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-		fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));
-		break;
-	case Sio2Mode::INFRARED:
-		g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-		fifoOut.push_back(0x00);
-		break;
-	case Sio2Mode::MEMCARD:
-		g_Sio2.SetRecv1(Recv1::CONNECTED);
-		memcard = g_MemcardPS2Protocol.GetMemcard(activePort, 0);
-		g_MemcardPS2Protocol.SetActiveMemcard(memcard);
-		fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
-		break;
-	default:
-		DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);
-		break;
+		case Sio2Mode::NOT_SET:
+			mode = static_cast<Sio2Mode>(data);
+			fifoOut.push_back(0xff);
+			break;
+		case Sio2Mode::PAD:
+			g_Sio2.SetRecv1(Recv1::CONNECTED);
+			pad = g_PadPS2Protocol.GetPad(activePort, 0);
+			g_PadPS2Protocol.SetActivePad(pad);
+			fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
+			break;
+		case Sio2Mode::MULTITAP:
+			g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+			fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));
+			break;
+		case Sio2Mode::INFRARED:
+			g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+			fifoOut.push_back(0x00);
+			break;
+		case Sio2Mode::MEMCARD:
+			g_Sio2.SetRecv1(Recv1::CONNECTED);
+			memcard = g_MemcardPS2Protocol.GetMemcard(activePort, 0);
+			g_MemcardPS2Protocol.SetActiveMemcard(memcard);
+			fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
+			break;
+		default:
+			DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);
+			break;
 	}
 
 	if (++processedLength >= commandLength)
@@ -115,16 +115,16 @@ void Sio2::Sio2Write(u8 data)
 
 		switch (mode)
 		{
-		case Sio2Mode::PAD:
-			g_PadPS2Protocol.Reset();
-			break;
-		case Sio2Mode::MULTITAP:
-			break;
-		case Sio2Mode::INFRARED:
-			break;
-		case Sio2Mode::MEMCARD:
-			g_MemcardPS2Protocol.Reset();
-			break;
+			case Sio2Mode::PAD:
+				g_PadPS2Protocol.Reset();
+				break;
+			case Sio2Mode::MULTITAP:
+				break;
+			case Sio2Mode::INFRARED:
+				break;
+			case Sio2Mode::MEMCARD:
+				g_MemcardPS2Protocol.Reset();
+				break;
 		}
 
 		mode = Sio2Mode::NOT_SET;
@@ -221,8 +221,8 @@ void Sio2::SetSend3(u8 index, u32 data)
 void Sio2::SetCtrl(u32 data)
 {
 	ctrl = data;
-	
-	// Bit 0 signals to start transfer. Interrupt is raised after this bit is set. 
+
+	// Bit 0 signals to start transfer. Interrupt is raised after this bit is set.
 	if (ctrl & Sio2Ctrl::START_TRANSFER)
 	{
 		SetInterrupt();
