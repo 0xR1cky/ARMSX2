@@ -4,7 +4,6 @@
 enum class Sio2Mode
 {
 	NOT_SET = 0xff,
-	DUD = 0x00,
 	PAD = 0x01,
 	MULTITAP = 0x21,
 	INFRARED = 0x61,

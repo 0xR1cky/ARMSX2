@@ -17,22 +17,23 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 
 u8 MemcardPS2Protocol::SetSector(u8 data)
 {
-	static u32 newAddress = 0;
+	static u32 newSector = 0;
 
 	switch (currentCommandByte)
 	{
 		case 2:
-			newAddress = data;
+			readWriteEraseCounter = 0;
+			newSector = data;
 			break;
 		case 3:
-			newAddress |= (data << 8);
+			newSector |= (data << 8);
 			break;
 		case 4:
-			newAddress |= (data << 16);
+			newSector |= (data << 16);
 			break;
 		case 5:
-			newAddress |= (data << 24);
-			activeMemcard->SetSectorAddress(newAddress);
+			newSector |= (data << 24);
+			activeMemcard->SetSector(newSector);
 			break;
 		default:
 			break;
@@ -123,6 +124,41 @@ u8 MemcardPS2Protocol::GetTerminator(u8 data)
 			return static_cast<u8>(Terminator::DEFAULT);
 		default:
 			return 0x00;
+	}
+}
+
+u8 MemcardPS2Protocol::ReadData(u8 data)
+{
+	static u8 checksum = 0x00;
+	static std::array<u8, 128> buf{};
+
+	switch (currentCommandByte)
+	{
+		case 0:
+		case 1:
+			return 0x00;
+		case 2:
+			checksum = 0x00;
+			return 0x2b;
+		case 3:
+			buf = activeMemcard->Read(readWriteEraseCounter++);
+			return activeMemcard->GetTerminator();
+		case 132:
+			return checksum;
+		case 133:
+			return activeMemcard->GetTerminator();
+		default:
+			// Sanity check, actually should not be possible but
+			// in case of emergency
+			if (currentCommandByte > 131)
+			{
+				DevCon.Warning("%s(%02X) Read overflow!!!");
+				return 0x00;
+			}
+
+			u8 ret = buf.at(currentCommandByte - 4);
+			checksum ^= ret;
+			return ret;
 	}
 }
 
@@ -313,6 +349,9 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 			break;
 		case MemcardPS2Mode::GET_TERMINATOR:
 			ret = GetTerminator(data);
+			break;
+		case MemcardPS2Mode::READ_DATA:
+			ret = ReadData(data);
 			break;
 		case MemcardPS2Mode::UNKNOWN_BOOT:
 			ret = UnknownBoot(data);

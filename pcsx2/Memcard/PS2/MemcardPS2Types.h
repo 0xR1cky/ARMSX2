@@ -44,3 +44,5 @@ enum class SectorCount
 {
 	STANDARD = 0x00004000
 };
+
+constexpr size_t ECC_BYTES = 16;

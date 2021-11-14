@@ -32,12 +32,20 @@ private:
 	MemcardPS2* activeMemcard;
 	MemcardPS2Mode mode = MemcardPS2Mode::NOT_SET;
 	size_t currentCommandByte = 1;
+	// Used to keep track of how far we are in reads and writes. 
+	// A game will expect to read an entire sector at once (by
+	// default this is 512 bytes, but it is changeable). The reads
+	// are done in 128 byte chunks, each read being a separate command.
+	// This variable lets us track which command we are on and offset
+	// our read/write/erase address accordingly.
+	size_t readWriteEraseCounter = 0;
 
 	u8 Probe(u8 data);
 	u8 SetSector(u8 data);
 	u8 GetSpecs(u8 data);
 	u8 SetTerminator(u8 data);
 	u8 GetTerminator(u8 data);
+	u8 ReadData(u8 data);
 	u8 UnknownBoot(u8 data);
 	u8 AuthXor(u8 data);	
 	u8 AuthF3(u8 data);

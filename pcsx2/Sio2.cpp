@@ -80,26 +80,17 @@ void Sio2::Sio2Write(u8 data)
 	switch (mode)
 	{
 		case Sio2Mode::NOT_SET:
-			mode = static_cast<Sio2Mode>(data);
-			fifoOut.push_back(0xff);
-			break;
-		// Strangely, when commands come in over DMA11, they are sometimes zero padded or entirely zeros.
-		// Dud mode will basically keep SIO2 counting against SEND3 lengths and keep zeros going into
-		// fifoOut, without actually doing anything.
-		case Sio2Mode::DUD:
-			g_Sio2.SetRecv1(Recv1::CONNECTED);
-
 			if (data)
 			{
 				mode = static_cast<Sio2Mode>(data);
 				fifoOut.push_back(0xff);
+				break;
 			}
 			else
 			{
 				fifoOut.push_back(0x00);
+				return;
 			}
-			
-			break;
 		case Sio2Mode::PAD:
 			g_Sio2.SetRecv1(Recv1::CONNECTED);
 			pad = g_PadPS2Protocol.GetPad(activePort, 0);
