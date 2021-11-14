@@ -4,6 +4,7 @@
 #include "MemcardPS2.h"
 #include "SioTypes.h"
 #include <array>
+#include <queue>
 
 using MemcardPS2Array = std::array<std::array<std::unique_ptr<MemcardPS2>, MAX_SLOTS>, MAX_PORTS>;
 
@@ -32,13 +33,8 @@ private:
 	MemcardPS2* activeMemcard;
 	MemcardPS2Mode mode = MemcardPS2Mode::NOT_SET;
 	size_t currentCommandByte = 1;
-	// Used to keep track of how far we are in reads and writes. 
-	// A game will expect to read an entire sector at once (by
-	// default this is 512 bytes, but it is changeable). The reads
-	// are done in 128 byte chunks, each read being a separate command.
-	// This variable lets us track which command we are on and offset
-	// our read/write/erase address accordingly.
-	size_t readWriteEraseCounter = 0;
+	// Temporary buffer to copy sector contents to.
+	std::queue<u8> sectorBuffer;
 
 	u8 Probe(u8 data);
 	u8 SetSector(u8 data);

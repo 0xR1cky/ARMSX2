@@ -4,6 +4,7 @@
 #include "MemcardPS2Types.h"
 #include <vector>
 #include <array>
+#include <queue>
 
 class MemcardPS2
 {
@@ -28,6 +29,7 @@ public:
 	void SetTerminator(u8 data);
 	void SetSector(u32 data);
 
-	std::array<u8, 128> Read(size_t offset);
-	void Write(size_t offset, std::array<u8, 128> data);
+	std::queue<u8> ReadSector();
+	void WriteSector(std::queue<u8> data);
+	void EraseSector();
 };

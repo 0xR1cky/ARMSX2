@@ -45,16 +45,17 @@ void MemcardPS2::SetSector(u32 data)
 	sector = data;
 }
 
-std::array<u8, 128> MemcardPS2::Read(size_t offset)
+std::queue<u8> MemcardPS2::ReadSector()
 {
-	const u32 address = sector * (static_cast<u16>(sectorSize) + ECC_BYTES) + (offset * 128);
-	std::array<u8, 128> ret{};
+	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+	const size_t address = sector * sectorSizeWithECC;
+	std::queue<u8> ret;
 
-	if (address >= 0 && address + 128 < memcardData.size())
+	if (address >= 0 && address + sectorSizeWithECC < memcardData.size())
 	{
-		for (size_t i = 0; i < 128; i++)
+		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
-			ret.at(i) = memcardData.at(address + i);
+			ret.push(memcardData.at(address + i));
 		}
 	}
 	else
@@ -65,19 +66,46 @@ std::array<u8, 128> MemcardPS2::Read(size_t offset)
 	return ret;
 }
 
-void MemcardPS2::Write(size_t offset, std::array<u8, 128> data)
+void MemcardPS2::WriteSector(std::queue<u8> data)
 {
-	const u32 address = sector * (static_cast<u16>(sectorSize) + ECC_BYTES) + (offset * 128);
+	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+	const size_t address = sector * sectorSizeWithECC;
 
-	if (address >= 0 && address + 128 < memcardData.size())
+	if (address >= 0 && address + sectorSizeWithECC < memcardData.size())
 	{
-		for (size_t i = 0; i < 128; i++)
+		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
-			memcardData.at(address + i) = data.at(i);
+			u8 toWrite = 0xff;
+
+			if (!data.empty())
+			{
+				toWrite = data.front();
+				data.pop();
+			}
+
+			memcardData.at(address + i) = toWrite;
 		}
 	}
 	else
 	{
 		DevCon.Warning("%s(%d) Calculated write address out of bounds");
+	}
+}
+
+void MemcardPS2::EraseSector()
+{
+	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+	const size_t address = sector * sectorSizeWithECC;
+
+	if (address >= 0 && address + sectorSizeWithECC < memcardData.size())
+	{
+		for (size_t i = 0; i < sectorSizeWithECC; i++)
+		{
+			memcardData.at(address + i) = 0xff;
+		}
+	}
+	else
+	{
+		DevCon.Warning("%s(%d) Calculated erase address out of bounds");
 	}
 }

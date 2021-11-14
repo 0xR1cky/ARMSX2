@@ -22,7 +22,6 @@ u8 MemcardPS2Protocol::SetSector(u8 data)
 	switch (currentCommandByte)
 	{
 		case 2:
-			readWriteEraseCounter = 0;
 			newSector = data;
 			break;
 		case 3:
@@ -130,7 +129,6 @@ u8 MemcardPS2Protocol::GetTerminator(u8 data)
 u8 MemcardPS2Protocol::ReadData(u8 data)
 {
 	static u8 checksum = 0x00;
-	static std::array<u8, 128> buf{};
 
 	switch (currentCommandByte)
 	{
@@ -141,7 +139,10 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 			checksum = 0x00;
 			return 0x2b;
 		case 3:
-			buf = activeMemcard->Read(readWriteEraseCounter++);
+			if (sectorBuffer.empty())
+			{
+				sectorBuffer = activeMemcard->ReadSector();
+			}
 			return activeMemcard->GetTerminator();
 		case 132:
 			return checksum;
@@ -156,7 +157,14 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 				return 0x00;
 			}
 
-			u8 ret = buf.at(currentCommandByte - 4);
+			u8 ret = 0xff;
+			
+			if (!sectorBuffer.empty())
+			{
+				ret = sectorBuffer.front();
+				sectorBuffer.pop();
+			}
+			
 			checksum ^= ret;
 			return ret;
 	}
