@@ -37,12 +37,15 @@ private:
 	std::queue<u8> sectorBuffer;
 
 	u8 Probe(u8 data);
+	u8 UnknownWriteDeleteEnd(u8 data);
 	u8 SetSector(u8 data);
 	u8 GetSpecs(u8 data);
 	u8 SetTerminator(u8 data);
 	u8 GetTerminator(u8 data);
+	u8 WriteData(u8 data);
 	u8 ReadData(u8 data);
 	u8 ReadWriteEnd(u8 data);
+	u8 EraseBlock(u8 data);
 	u8 UnknownBoot(u8 data);
 	u8 AuthXor(u8 data);	
 	u8 AuthF3(u8 data);

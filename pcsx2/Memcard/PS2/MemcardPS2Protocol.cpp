@@ -15,6 +15,23 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 	return The2bTerminator(4);
 }
 
+u8 MemcardPS2Protocol::UnknownWriteDeleteEnd(u8 data)
+{
+	const size_t sectorSizeWithECC = (static_cast<u16>(activeMemcard->GetSectorSize()) + ECC_BYTES);
+
+	// Sanity check, should always pass
+	if (currentCommandByte == 1 && sectorBuffer.size() == sectorSizeWithECC)
+	{
+		activeMemcard->WriteSector(sectorBuffer);
+	}
+	else
+	{
+		DevCon.Warning("%s(%02X) Mismatched sectorBuffer and memcard sector sizes (sectorBuffer.size() %d != sectorSizeWithECC %d), skipping sector write (data will be lost)", __FUNCTION__, data, sectorBuffer.size(), sectorSizeWithECC);
+	}
+	
+	return The2bTerminator(4);
+}
+
 u8 MemcardPS2Protocol::SetSector(u8 data)
 {
 	static u32 newSector = 0;
@@ -126,6 +143,36 @@ u8 MemcardPS2Protocol::GetTerminator(u8 data)
 	}
 }
 
+u8 MemcardPS2Protocol::WriteData(u8 data)
+{
+	switch (currentCommandByte)
+	{
+		case 0:
+		case 1:
+		case 131:
+		case 132:
+			return 0x00;
+		case 2:
+			return 0x2b;
+		case 3:
+			sectorBuffer.push(data);
+			// fallthrough
+		case 133:
+			return activeMemcard->GetTerminator();
+		default:
+			// Sanity check, actually should not be possible but
+			// in case of emergency
+			if (currentCommandByte > 133)
+			{
+				DevCon.Warning("%s(%02X) Write overflow!!!", __FUNCTION__, data);
+				return 0x00;
+			}
+
+			sectorBuffer.push(data);
+			return 0x00;
+	}
+}
+
 u8 MemcardPS2Protocol::ReadData(u8 data)
 {
 	static u8 checksum = 0x00;
@@ -172,6 +219,16 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 
 u8 MemcardPS2Protocol::ReadWriteEnd(u8 data)
 {
+	return The2bTerminator(4);
+}
+
+u8 MemcardPS2Protocol::EraseBlock(u8 data)
+{
+	if (currentCommandByte == 1)
+	{
+		activeMemcard->EraseSector();
+	}
+
 	return The2bTerminator(4);
 }
 
@@ -345,6 +402,9 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 		case MemcardPS2Mode::PROBE:
 			ret = Probe(data);
 			break;
+		case MemcardPS2Mode::UNKNOWN_WRITE_DELETE_END:
+			ret = UnknownWriteDeleteEnd(data);
+			break;
 		case MemcardPS2Mode::SET_ERASE_SECTOR:
 			ret = SetSector(data);
 			break;
@@ -363,11 +423,17 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 		case MemcardPS2Mode::GET_TERMINATOR:
 			ret = GetTerminator(data);
 			break;
+		case MemcardPS2Mode::WRITE_DATA:
+			ret = WriteData(data);
+			break;
 		case MemcardPS2Mode::READ_DATA:
 			ret = ReadData(data);
 			break;
 		case MemcardPS2Mode::READ_WRITE_END:
 			ret = ReadWriteEnd(data);
+			break;
+		case MemcardPS2Mode::ERASE_BLOCK:
+			ret = EraseBlock(data);
 			break;
 		case MemcardPS2Mode::UNKNOWN_BOOT:
 			ret = UnknownBoot(data);
