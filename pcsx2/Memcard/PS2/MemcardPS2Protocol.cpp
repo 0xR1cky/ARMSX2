@@ -198,9 +198,9 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 		default:
 			// Sanity check, actually should not be possible but
 			// in case of emergency
-			if (currentCommandByte > 131)
+			if (currentCommandByte > 133)
 			{
-				DevCon.Warning("%s(%02X) Read overflow!!!");
+				DevCon.Warning("%s(%02X) Read overflow!!!", __FUNCTION__, data);
 				return 0x00;
 			}
 
