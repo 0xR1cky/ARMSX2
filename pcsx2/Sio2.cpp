@@ -83,6 +83,23 @@ void Sio2::Sio2Write(u8 data)
 			mode = static_cast<Sio2Mode>(data);
 			fifoOut.push_back(0xff);
 			break;
+		// Strangely, when commands come in over DMA11, they are sometimes zero padded or entirely zeros.
+		// Dud mode will basically keep SIO2 counting against SEND3 lengths and keep zeros going into
+		// fifoOut, without actually doing anything.
+		case Sio2Mode::DUD:
+			g_Sio2.SetRecv1(Recv1::CONNECTED);
+
+			if (data)
+			{
+				mode = static_cast<Sio2Mode>(data);
+				fifoOut.push_back(0xff);
+			}
+			else
+			{
+				fifoOut.push_back(0x00);
+			}
+			
+			break;
 		case Sio2Mode::PAD:
 			g_Sio2.SetRecv1(Recv1::CONNECTED);
 			pad = g_PadPS2Protocol.GetPad(activePort, 0);
@@ -128,6 +145,7 @@ void Sio2::Sio2Write(u8 data)
 		}
 
 		mode = Sio2Mode::NOT_SET;
+		DevCon.WriteLn("%s(%02X) Command finished, SIO2 mode reset", __FUNCTION__, data);
 	}
 }
 
@@ -204,18 +222,24 @@ void Sio2::SetSend2(u8 index, u32 data)
 
 void Sio2::SetSend3(u8 index, u32 data)
 {
-	send3.at(index) = data;
-
 	// When SEND3 is first written, clear out the previous
 	// FIFO contents in preparation for what's coming next.
 	// Also reset the send3Position so that the next DMA11
-	// or HW writes start reading SEND3 from the top.
+	// or HW writes start reading SEND3 from the top. Also
+	// zero out all the SEND3 registers.
 	if (index == 0)
 	{
 		fifoPosition = 0;
 		fifoOut.clear();
 		send3Position = 0;
+
+		for (size_t i = 0; i < send3.size(); i++)
+		{
+			send3.at(i) = 0;
+		}
 	}
+
+	send3.at(index) = data;
 }
 
 void Sio2::SetCtrl(u32 data)
