@@ -136,7 +136,7 @@ void Sio2::Sio2Write(u8 data)
 		}
 
 		mode = Sio2Mode::NOT_SET;
-		DevCon.WriteLn("%s(%02X) Command finished, SIO2 mode reset", __FUNCTION__, data);
+//		DevCon.WriteLn("%s(%02X) Command finished, SIO2 mode reset", __FUNCTION__, data);
 	}
 }
 

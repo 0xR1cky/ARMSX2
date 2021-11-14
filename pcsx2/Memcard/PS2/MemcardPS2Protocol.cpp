@@ -170,6 +170,11 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 	}
 }
 
+u8 MemcardPS2Protocol::ReadWriteEnd(u8 data)
+{
+	return The2bTerminator(4);
+}
+
 u8 MemcardPS2Protocol::UnknownBoot(u8 data)
 {
 	return The2bTerminator(5);
@@ -360,6 +365,9 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 			break;
 		case MemcardPS2Mode::READ_DATA:
 			ret = ReadData(data);
+			break;
+		case MemcardPS2Mode::READ_WRITE_END:
+			ret = ReadWriteEnd(data);
 			break;
 		case MemcardPS2Mode::UNKNOWN_BOOT:
 			ret = UnknownBoot(data);
