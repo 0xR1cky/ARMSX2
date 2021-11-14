@@ -223,7 +223,7 @@ void psxDma10(u32 madr, u32 bcr, u32 chcr)
 
 void psxDma11(u32 madr, u32 bcr, u32 chcr) {
 	const size_t blocks = (bcr >> 16);
-	const size_t bytes = (bcr & 0xffff);
+	const size_t bytes = (bcr & 0xffff) * 4;
 	SIO2_LOG("DMA 11 // SIO2 in // madr = %08X // bcr = %08X // chcr = %08X // size = %d", madr, bcr, chcr, blocks * bytes);
 
 	if (chcr != 0x01000201)
@@ -254,7 +254,7 @@ void psxDMA11Interrupt()
 
 void psxDma12(u32 madr, u32 bcr, u32 chcr) {
 	const size_t blocks = (bcr >> 16);
-	const size_t bytes = (bcr & 0xffff);
+	const size_t bytes = (bcr & 0xffff) * 4;
 	SIO2_LOG("DMA 12 // SIO2 out // madr = %08X // bcr = %08X // chcr = %08X // size = %d", madr, bcr, chcr, blocks * bytes);
 
 	if (chcr != 0x41000200)
