@@ -15,6 +15,32 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 	return The2bTerminator(4);
 }
 
+u8 MemcardPS2Protocol::SetSector(u8 data)
+{
+	static u32 newAddress = 0;
+
+	switch (currentCommandByte)
+	{
+		case 2:
+			newAddress = data;
+			break;
+		case 3:
+			newAddress |= (data << 8);
+			break;
+		case 4:
+			newAddress |= (data << 16);
+			break;
+		case 5:
+			newAddress |= (data << 24);
+			activeMemcard->SetSectorAddress(newAddress);
+			break;
+		default:
+			break;
+	}
+
+	return The2bTerminator(9);
+}
+
 u8 MemcardPS2Protocol::GetSpecs(u8 data)
 {
 	static u8 checksum = 0x00;
@@ -269,6 +295,15 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 	{
 		case MemcardPS2Mode::PROBE:
 			ret = Probe(data);
+			break;
+		case MemcardPS2Mode::SET_ERASE_SECTOR:
+			ret = SetSector(data);
+			break;
+		case MemcardPS2Mode::SET_WRITE_SECTOR:
+			ret = SetSector(data);
+			break;
+		case MemcardPS2Mode::SET_READ_SECTOR:
+			ret = SetSector(data);
 			break;
 		case MemcardPS2Mode::GET_SPECS:
 			ret = GetSpecs(data);

@@ -10,6 +10,7 @@ private:
 	SectorSize sectorSize = SectorSize::STANDARD;
 	EraseBlockSize eraseBlockSize = EraseBlockSize::STANDARD;
 	SectorCount sectorCount = SectorCount::STANDARD;
+	u32 sectorAddress = 0x00000000;
 
 public:
 	MemcardPS2();
@@ -19,6 +20,8 @@ public:
 	SectorSize GetSectorSize();
 	EraseBlockSize GetEraseBlockSize();
 	SectorCount GetSectorCount();
+	u32 GetSectorAddress();
 
 	void SetTerminator(u8 data);
+	void SetSectorAddress(u32 data);
 };

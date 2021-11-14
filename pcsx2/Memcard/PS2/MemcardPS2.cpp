@@ -25,7 +25,17 @@ SectorCount MemcardPS2::GetSectorCount()
 	return sectorCount;
 }
 
+u32 MemcardPS2::GetSectorAddress()
+{
+	return sectorAddress;
+}
+
 void MemcardPS2::SetTerminator(u8 data)
 {
 	terminator = data;
+}
+
+void MemcardPS2::SetSectorAddress(u32 data)
+{
+	sectorAddress = data;
 }
