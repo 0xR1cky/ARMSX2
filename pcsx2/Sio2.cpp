@@ -106,6 +106,7 @@ void Sio2::Sio2Write(u8 data)
 			fifoOut.push_back(0x00);
 			break;
 		case Sio2Mode::MEMCARD:
+			//DevCon.WriteLn("%s(%02X) ", __FUNCTION__, data); 
 			g_Sio2.SetRecv1(Recv1::CONNECTED);
 			memcard = g_MemcardPS2Protocol.GetMemcard(activePort, 0);
 			g_MemcardPS2Protocol.SetActiveMemcard(memcard);
@@ -132,11 +133,11 @@ void Sio2::Sio2Write(u8 data)
 				break;
 			case Sio2Mode::MEMCARD:
 				g_MemcardPS2Protocol.Reset();
+				//DevCon.WriteLn("%s(%02X) SIO2 mode reset", __FUNCTION__, data);
 				break;
 		}
 
 		mode = Sio2Mode::NOT_SET;
-//		DevCon.WriteLn("%s(%02X) Command finished, SIO2 mode reset", __FUNCTION__, data);
 	}
 }
 

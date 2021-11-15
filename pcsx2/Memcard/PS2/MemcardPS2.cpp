@@ -66,7 +66,7 @@ std::queue<u8> MemcardPS2::ReadSector()
 	return ret;
 }
 
-void MemcardPS2::WriteSector(std::queue<u8> data)
+void MemcardPS2::WriteSector(std::queue<u8>& data)
 {
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
 	const size_t address = sector * sectorSizeWithECC;

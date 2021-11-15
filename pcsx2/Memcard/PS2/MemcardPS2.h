@@ -30,6 +30,6 @@ public:
 	void SetSector(u32 data);
 
 	std::queue<u8> ReadSector();
-	void WriteSector(std::queue<u8> data);
+	void WriteSector(std::queue<u8>& data);
 	void EraseSector();
 };

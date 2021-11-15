@@ -26,6 +26,8 @@ namespace Recv1
 {
 	static constexpr u32 DISCONNECTED = 0x1d100;
 	static constexpr u32 CONNECTED = 0x1100;
+	static constexpr u32 WRITING = 0x1600;
+	static constexpr u32 READING = 0x1700;
 }
 
 namespace Recv2
@@ -36,4 +38,5 @@ namespace Recv2
 namespace Recv3
 {
 	static constexpr u32 DEFAULT = 0x0;
+	static constexpr u32 READ_WRITE_END = 0x8c;
 }

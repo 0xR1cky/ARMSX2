@@ -2,6 +2,8 @@
 #include "PrecompiledHeader.h"
 #include "MemcardPS2Protocol.h"
 
+#include "Sio2.h"
+
 MemcardPS2Protocol g_MemcardPS2Protocol;
 
 // This define is purely a convenience thing so I don't have to put
@@ -17,18 +19,6 @@ u8 MemcardPS2Protocol::Probe(u8 data)
 
 u8 MemcardPS2Protocol::UnknownWriteDeleteEnd(u8 data)
 {
-	const size_t sectorSizeWithECC = (static_cast<u16>(activeMemcard->GetSectorSize()) + ECC_BYTES);
-
-	// Sanity check, should always pass
-	if (currentCommandByte == 1 && sectorBuffer.size() == sectorSizeWithECC)
-	{
-		activeMemcard->WriteSector(sectorBuffer);
-	}
-	else
-	{
-		DevCon.Warning("%s(%02X) Mismatched sectorBuffer and memcard sector sizes (sectorBuffer.size() %d != sectorSizeWithECC %d), skipping sector write (data will be lost)", __FUNCTION__, data, sectorBuffer.size(), sectorSizeWithECC);
-	}
-	
 	return The2bTerminator(4);
 }
 
@@ -40,6 +30,7 @@ u8 MemcardPS2Protocol::SetSector(u8 data)
 	{
 		case 2:
 			newSector = data;
+			lastSectorMode = mode;
 			break;
 		case 3:
 			newSector |= (data << 8);
@@ -145,18 +136,48 @@ u8 MemcardPS2Protocol::GetTerminator(u8 data)
 
 u8 MemcardPS2Protocol::WriteData(u8 data)
 {
+	static u8 writeSize = 0;
+	static u8 bytesWritten = 0;
+	static u8 checksum = 0x00;
+
 	switch (currentCommandByte)
 	{
 		case 0:
 		case 1:
 		case 131:
-		case 132:
 			return 0x00;
 		case 2:
+			writeSize = data;
 			return 0x2b;
 		case 3:
 			sectorBuffer.push(data);
-			// fallthrough
+			checksum = data;
+			bytesWritten = 1;
+			return data;
+		case 20:
+			if (writeSize == ECC_BYTES)
+			{
+				return checksum;
+			}
+			else if (bytesWritten++ < writeSize)
+			{
+				sectorBuffer.push(data);
+				checksum ^= data;
+			}
+			return data;
+		case 21:
+			if (writeSize == ECC_BYTES)
+			{
+				return activeMemcard->GetTerminator();
+			}
+			else if (bytesWritten++ < writeSize)
+			{
+				sectorBuffer.push(data);
+				checksum ^= data;				
+			}
+			return data;
+		case 132:
+			return checksum;
 		case 133:
 			return activeMemcard->GetTerminator();
 		default:
@@ -168,8 +189,18 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 				return 0x00;
 			}
 
-			sectorBuffer.push(data);
-			return 0x00;
+			if (bytesWritten++ < writeSize)
+			{
+				sectorBuffer.push(data);
+				checksum ^= data;
+			}
+
+			if (writeSize == ECC_BYTES && bytesWritten == writeSize)
+			{
+				activeMemcard->WriteSector(sectorBuffer);
+			}
+			
+			return data;
 	}
 }
 
@@ -219,6 +250,18 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 
 u8 MemcardPS2Protocol::ReadWriteEnd(u8 data)
 {
+/*
+	switch (lastSectorMode)
+	{
+		case MemcardPS2Mode::SET_WRITE_SECTOR:
+			g_Sio2.SetRecv1(Recv1::WRITING);
+			break;
+		case MemcardPS2Mode::SET_READ_SECTOR:
+			g_Sio2.SetRecv1(Recv1::READING);
+			break;
+	}
+	g_Sio2.SetRecv3(Recv3::READ_WRITE_END);
+*/
 	return The2bTerminator(4);
 }
 
