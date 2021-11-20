@@ -595,15 +595,26 @@ void __fastcall iopHwWrite32_Page8( u32 addr, mem32_t val )
 		{
 			switch( masked_addr )
 			{
-			mcase(HW_SIO2_CTRL):		g_Sio2.SetCtrl( val );		SIO2_LOG("%s(%08X, %08X) SIO2 CTRL Write", __FUNCTION__, addr, val); break;
-			mcase(HW_SIO2_UNKNOWN1):	g_Sio2.SetUnknown1( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 1 Write", __FUNCTION__, addr, val); break;
-			mcase(HW_SIO2_UNKNOWN2):	g_Sio2.SetUnknown2( val );	SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 2 Write", __FUNCTION__, addr, val); break;
-			mcase(HW_SIO2_ISTAT):		g_Sio2.SetIStat( val );		SIO2_LOG("%s(%08X, %08X) SIO2 ISTAT Write", __FUNCTION__, addr, val); break;
-
-			// Other SIO2 registers are read-only, no-ops on write.
-			default:
-				psxHu32(addr) = val;
-				break;
+				mcase(HW_SIO2_CTRL):
+					SIO2_LOG("%s(%08X, %08X) SIO2 CTRL Write", __FUNCTION__, addr, val); 
+					g_Sio2.SetCtrl(val); 
+					break;
+				mcase(HW_SIO2_UNKNOWN1):
+					SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 1 Write", __FUNCTION__, addr, val);
+					g_Sio2.SetUnknown1(val);
+					break;
+				mcase(HW_SIO2_UNKNOWN2):
+					SIO2_LOG("%s(%08X, %08X) SIO2 Unknown 2 Write", __FUNCTION__, addr, val);
+					g_Sio2.SetUnknown2( val );
+					break;
+				mcase(HW_SIO2_ISTAT):
+					SIO2_LOG("%s(%08X, %08X) SIO2 ISTAT Write", __FUNCTION__, addr, val);
+					g_Sio2.SetIStat( val );
+					break;
+				// Other SIO2 registers are read-only, no-ops on write.
+				default:
+					psxHu32(addr) = val;
+					break;
 			}
 		}
 		else if( masked_addr >= pgmsk(HW_FW_START) && masked_addr <= pgmsk(HW_FW_END) )
