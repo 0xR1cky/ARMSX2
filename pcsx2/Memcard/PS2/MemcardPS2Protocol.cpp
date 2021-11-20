@@ -206,6 +206,8 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 
 u8 MemcardPS2Protocol::ReadData(u8 data)
 {
+	static u8 readSize = 0;
+	static u8 bytesRead = 0;
 	static u8 checksum = 0x00;
 
 	switch (currentCommandByte)
@@ -214,14 +216,43 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 		case 1:
 			return 0x00;
 		case 2:
-			checksum = 0x00;
-			return 0x2b;
+			readSize = data;
+			return 0x00;
 		case 3:
 			if (sectorBuffer.empty())
 			{
 				sectorBuffer = activeMemcard->ReadSector();
 			}
-			return activeMemcard->GetTerminator();
+			return 0x2b;
+		case 4:
+			checksum = sectorBuffer.front();
+			sectorBuffer.pop();
+			bytesRead = 1;
+			return checksum;
+		case 20:
+			if (readSize == ECC_BYTES)
+			{
+				return checksum;
+			}
+			else if (bytesRead++ < readSize)
+			{
+				const u8 ret = sectorBuffer.front();
+				checksum ^= ret;
+				sectorBuffer.pop();
+				return ret;
+			}
+		case 21:
+			if (readSize == ECC_BYTES)
+			{
+				return activeMemcard->GetTerminator();
+			}
+			else if (bytesRead++ < readSize)
+			{
+				const u8 ret = sectorBuffer.front();
+				checksum ^= ret;
+				sectorBuffer.pop();
+				return ret;
+			}
 		case 132:
 			return checksum;
 		case 133:
@@ -236,11 +267,14 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 			}
 
 			u8 ret = 0xff;
-			
-			if (!sectorBuffer.empty())
+
+			if (bytesRead++ < readSize)
 			{
-				ret = sectorBuffer.front();
-				sectorBuffer.pop();
+				if (!sectorBuffer.empty())
+				{
+					ret = sectorBuffer.front();
+					sectorBuffer.pop();
+				}
 			}
 			
 			checksum ^= ret;
