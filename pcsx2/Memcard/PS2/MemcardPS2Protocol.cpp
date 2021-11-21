@@ -470,6 +470,10 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 	if (currentCommandByte == 1)
 	{
 		mode = static_cast<MemcardPS2Mode>(data);
+		debug_fifoin.clear();
+		debug_fifoin.push_back(0xff);
+		debug_fifoout.clear();
+		debug_fifoout.push_back(0xff);
 	}
 
 	// We have a bit of a different strategy to play here than PS2 pads.
@@ -531,6 +535,14 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 	}
 
 	currentCommandByte++;
+	debug_fifoin.push_back(data);
+	debug_fifoout.push_back(ret);
+
+	if (currentCommandByte > 133)
+	{
+		currentCommandByte = currentCommandByte;
+	}
+
 	return ret;
 }
 

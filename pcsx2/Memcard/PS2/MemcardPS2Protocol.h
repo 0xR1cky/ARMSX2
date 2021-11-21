@@ -36,6 +36,8 @@ private:
 	// Temporary buffer to copy sector contents to.
 	std::queue<u8> sectorBuffer;
 	MemcardPS2Mode lastSectorMode = MemcardPS2Mode::NOT_SET;
+	std::vector<u8> debug_fifoin;
+	std::vector<u8> debug_fifoout;
 
 	u8 Probe(u8 data);
 	u8 UnknownWriteDeleteEnd(u8 data);
