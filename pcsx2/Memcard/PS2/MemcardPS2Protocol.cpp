@@ -415,6 +415,8 @@ u8 MemcardPS2Protocol::AuthXor(u8 data)
 	{
 		The2bTerminator(isShort ? 5 : 14);
 	}
+
+	return 0x00;
 }
 
 u8 MemcardPS2Protocol::AuthF3(u8 data)
