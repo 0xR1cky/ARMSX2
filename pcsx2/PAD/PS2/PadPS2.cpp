@@ -239,6 +239,7 @@ void PadPS2::SetAnalog(PS2Analog analog, u8 data)
 
 void PadPS2::Debug_Poll()
 {
+#ifdef _WIN32
 	DWORD res = XInputGetState(0, &state);
 
 	if (res != ERROR_SUCCESS)
@@ -270,4 +271,5 @@ void PadPS2::Debug_Poll()
 	SetAnalog(PS2Analog::LEFT_Y, 0xff - Normalize<SHORT>(std::abs(state.Gamepad.sThumbLY) > 5000 ? state.Gamepad.sThumbLY : 0));
 	SetAnalog(PS2Analog::RIGHT_X, Normalize<SHORT>(std::abs(state.Gamepad.sThumbRX) > 5000 ? state.Gamepad.sThumbRX : 0));
 	SetAnalog(PS2Analog::RIGHT_Y, 0xff - Normalize<SHORT>(std::abs(state.Gamepad.sThumbRY) > 5000 ? state.Gamepad.sThumbRY : 0));
+#endif
 }
