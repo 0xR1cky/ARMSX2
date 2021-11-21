@@ -110,6 +110,8 @@ u8 PadPS2::GetButton(PS2Button button)
 		return buttonStates.r3;
 	case PS2Button::START:
 		return buttonStates.start;
+	default:
+		return 0xff;
 	}
 }
 
@@ -125,6 +127,8 @@ u8 PadPS2::GetAnalog(PS2Analog analog)
 		return buttonStates.rightX;
 	case PS2Analog::RIGHT_Y:
 		return buttonStates.rightY;
+	default:
+		return 0xff;
 	}
 }
 
