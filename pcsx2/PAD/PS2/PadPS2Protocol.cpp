@@ -175,8 +175,10 @@ u8 PadPS2Protocol::ModeSwitch(u8 data)
 		activePad->SetAnalogLocked(data == 0x03);
 		break;
 	default:
-		return 0x00;
+		break;
 	}
+
+	return 0x00;
 }
 
 u8 PadPS2Protocol::StatusInfo(u8 data)
