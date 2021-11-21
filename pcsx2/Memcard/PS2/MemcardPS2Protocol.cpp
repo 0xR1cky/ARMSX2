@@ -144,12 +144,13 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 	{
 		case 0:
 		case 1:
-		case 131:
 			return 0x00;
 		case 2:
 			writeSize = data;
-			return 0x2b;
+			return 0x00;
 		case 3:
+			return 0x2b;
+		case 4:
 			sectorBuffer.push(data);
 			checksum = data;
 			bytesWritten = 1;
