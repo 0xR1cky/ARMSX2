@@ -2953,6 +2953,9 @@
     <ClInclude Include="Multitap\PS2\MultitapPS2Types.h">
       <Filter>System\Ps2\Multitap\PS2</Filter>
     </ClInclude>
+    <ClInclude Include="PAD\Windows\PAD.h">
+      <Filter>System\Ps2\PAD</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windows\wxResources.rc">
