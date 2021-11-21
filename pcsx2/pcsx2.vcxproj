@@ -811,7 +811,6 @@
     <ClInclude Include="Memcard\PS2\MemcardPS2Types.h" />
     <ClInclude Include="MemoryCardFile.h" />
     <ClInclude Include="MemoryCardFolder.h" />
-    <ClInclude Include="PAD\Gamepad.h" />
     <ClInclude Include="Multitap\PS2\MultitapPS2Protocol.h" />
     <ClInclude Include="Multitap\PS2\MultitapPS2Types.h" />
     <ClInclude Include="PAD\PadTypes.h" />
@@ -823,6 +822,7 @@
     <ClInclude Include="PAD\PS2\PadPS2Protocol.h" />
     <ClInclude Include="PAD\PS2\PadPS2Types.h" />
     <ClInclude Include="PAD\Windows\PAD.h" />
+    <ClInclude Include="PAD\Gamepad.h" />
     <ClInclude Include="PAD\Windows\PADConfig.h" />
     <ClInclude Include="PAD\Windows\DeviceEnumerator.h" />
     <ClInclude Include="PAD\Windows\Diagnostics.h" />
