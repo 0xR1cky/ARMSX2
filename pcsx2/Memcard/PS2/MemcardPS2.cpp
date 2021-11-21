@@ -51,7 +51,7 @@ std::queue<u8> MemcardPS2::ReadSector()
 	const size_t address = sector * sectorSizeWithECC;
 	std::queue<u8> ret;
 
-	if (address >= 0 && address + sectorSizeWithECC < memcardData.size())
+	if (address + sectorSizeWithECC < memcardData.size())
 	{
 		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
@@ -71,7 +71,7 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
 	const size_t address = sector * sectorSizeWithECC;
 
-	if (address >= 0 && address + sectorSizeWithECC < memcardData.size())
+	if (address + sectorSizeWithECC < memcardData.size())
 	{
 		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
@@ -97,7 +97,7 @@ void MemcardPS2::EraseSector()
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
 	const size_t address = sector * sectorSizeWithECC;
 
-	if (address >= 0 && address + sectorSizeWithECC < memcardData.size())
+	if (address + sectorSizeWithECC < memcardData.size())
 	{
 		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
