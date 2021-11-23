@@ -1766,6 +1766,9 @@
     <ClCompile Include="PAD\Devices\PadXInput.cpp">
       <Filter>System\Ps2\PAD\Devices</Filter>
     </ClCompile>
+    <ClCompile Include="PAD\Devices\PadKeyboard.cpp">
+      <Filter>System\Ps2\PAD\Devices</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Patch.h">
@@ -2964,6 +2967,9 @@
     </ClInclude>
     <ClInclude Include="GS.h" />
     <ClInclude Include="PAD\Devices\PadXInput.h">
+      <Filter>System\Ps2\PAD\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\Devices\PadKeyboard.h">
       <Filter>System\Ps2\PAD\Devices</Filter>
     </ClInclude>
     <ClInclude Include="PAD\Devices\Devices.h">
