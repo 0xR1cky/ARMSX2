@@ -314,6 +314,8 @@
     </Filter>
     <Filter Include="System\Ps2\GS\Shaders\Direct3D11">
       <UniqueIdentifier>{eb697f5b-85f5-424a-a7e4-8d8b73d3426e}</UniqueIdentifier>
+    <Filter Include="System\Ps2\PAD\Devices">
+      <UniqueIdentifier>{5b8db70a-7c6c-4d75-ab2e-204387fff638}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -1759,6 +1761,10 @@
     </ClCompile>
     <ClCompile Include="x86\iR5900Analysis.cpp">
       <Filter>System\Ps2\EmotionEngine\EE\Dynarec</Filter>
+    </ClInclude>
+    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.cpp" />
+    <ClCompile Include="PAD\Devices\PadXInput.cpp">
+      <Filter>System\Ps2\PAD\Devices</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -2955,6 +2961,13 @@
     </ClInclude>
     <ClInclude Include="PAD\Windows\PAD.h">
       <Filter>System\Ps2\PAD</Filter>
+    </ClInclude>
+    <ClInclude Include="GS.h" />
+    <ClInclude Include="PAD\Devices\PadXInput.h">
+      <Filter>System\Ps2\PAD\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\Devices\Devices.h">
+      <Filter>System\Ps2\PAD\Devices</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

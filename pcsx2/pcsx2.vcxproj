@@ -355,6 +355,7 @@
     <ClCompile Include="MemoryCardFile.cpp" />
     <ClCompile Include="MemoryCardFolder.cpp" />
     <ClCompile Include="Multitap\PS2\MultitapPS2Protocol.cpp" />
+    <ClCompile Include="PAD\Devices\PadXInput.cpp" />
     <ClCompile Include="PAD\PS1\PadPS1.cpp" />
     <ClCompile Include="PAD\PS1\PadPS1Protocol.cpp" />
     <ClCompile Include="PAD\PS2\PadPS2.cpp" />
@@ -813,6 +814,8 @@
     <ClInclude Include="MemoryCardFolder.h" />
     <ClInclude Include="Multitap\PS2\MultitapPS2Protocol.h" />
     <ClInclude Include="Multitap\PS2\MultitapPS2Types.h" />
+    <ClInclude Include="PAD\Devices\Devices.h" />
+    <ClInclude Include="PAD\Devices\PadXInput.h" />
     <ClInclude Include="PAD\PadTypes.h" />
     <ClInclude Include="PAD\PadUtils.h" />
     <ClInclude Include="PAD\PS1\PadPS1.h" />

@@ -2,10 +2,7 @@
 #pragma once
 
 #include "PadPS2Types.h"
-
-#ifdef _WIN32
-#include "Xinput.h"
-#endif
+#include "../Devices/Devices.h"
 
 class PadPS2
 {
@@ -18,10 +15,6 @@ private:
 	PadPS2Type type = PadPS2Type::DIGITAL;
 	PadPS2Physical physical = PadPS2Physical::STANDARD;
 	ButtonStates buttonStates;
-
-#ifdef _WIN32
-	XINPUT_STATE state;
-#endif
 
 public:
 	PadPS2();
@@ -52,4 +45,8 @@ public:
 	void SetAnalog(PS2Analog analog, u8 data);
 
 	void Debug_Poll();
+
+#ifdef _WIN32
+	XINPUT_STATE state;
+#endif
 };

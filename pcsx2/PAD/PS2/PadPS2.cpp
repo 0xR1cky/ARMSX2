@@ -244,36 +244,6 @@ void PadPS2::SetAnalog(PS2Analog analog, u8 data)
 void PadPS2::Debug_Poll()
 {
 #ifdef _WIN32
-	DWORD res = XInputGetState(0, &state);
-
-	if (res != ERROR_SUCCESS)
-	{
-		DevCon.Warning("%s Xinput error %d", __FUNCTION__, res);
-		return;
-	}
-
-	WORD xinputButtons = state.Gamepad.wButtons;
-	
-	SetButton(PS2Button::SELECT, (xinputButtons & XINPUT_GAMEPAD_BACK ? 0xff : 0));
-	SetButton(PS2Button::L3, (xinputButtons & XINPUT_GAMEPAD_LEFT_THUMB ? 0xff : 0));
-	SetButton(PS2Button::R3, (xinputButtons & XINPUT_GAMEPAD_RIGHT_THUMB ? 0xff : 0));
-	SetButton(PS2Button::START, (xinputButtons & XINPUT_GAMEPAD_START ? 0xff : 0));
-	SetButton(PS2Button::UP, (xinputButtons & XINPUT_GAMEPAD_DPAD_UP ? 0xff : 0));
-	SetButton(PS2Button::RIGHT, (xinputButtons & XINPUT_GAMEPAD_DPAD_RIGHT ? 0xff : 0));
-	SetButton(PS2Button::DOWN, (xinputButtons & XINPUT_GAMEPAD_DPAD_DOWN ? 0xff : 0));
-	SetButton(PS2Button::LEFT, (xinputButtons & XINPUT_GAMEPAD_DPAD_LEFT ? 0xff : 0));
-	SetButton(PS2Button::L2, state.Gamepad.bLeftTrigger);
-	SetButton(PS2Button::R2, state.Gamepad.bRightTrigger);
-	SetButton(PS2Button::L1, (xinputButtons & XINPUT_GAMEPAD_LEFT_SHOULDER ? 0xff : 0));
-	SetButton(PS2Button::R1, (xinputButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER ? 0xff : 0));
-	SetButton(PS2Button::TRIANGLE, (xinputButtons & XINPUT_GAMEPAD_Y ? 0xff : 0));
-	SetButton(PS2Button::CIRCLE, (xinputButtons & XINPUT_GAMEPAD_B ? 0xff : 0));
-	SetButton(PS2Button::CROSS, (xinputButtons & XINPUT_GAMEPAD_A ? 0xff : 0));
-	SetButton(PS2Button::SQUARE, (xinputButtons & XINPUT_GAMEPAD_X ? 0xff : 0));
-
-	SetAnalog(PS2Analog::LEFT_X, Normalize<SHORT>(std::abs(state.Gamepad.sThumbLX) > 5000 ? state.Gamepad.sThumbLX : 0));
-	SetAnalog(PS2Analog::LEFT_Y, 0xff - Normalize<SHORT>(std::abs(state.Gamepad.sThumbLY) > 5000 ? state.Gamepad.sThumbLY : 0));
-	SetAnalog(PS2Analog::RIGHT_X, Normalize<SHORT>(std::abs(state.Gamepad.sThumbRX) > 5000 ? state.Gamepad.sThumbRX : 0));
-	SetAnalog(PS2Analog::RIGHT_Y, 0xff - Normalize<SHORT>(std::abs(state.Gamepad.sThumbRY) > 5000 ? state.Gamepad.sThumbRY : 0));
+	XInput_Poll(this);
 #endif
 }
