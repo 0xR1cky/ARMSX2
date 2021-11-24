@@ -92,14 +92,15 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 	}
 }
 
-void MemcardPS2::EraseSector()
+void MemcardPS2::EraseBlock()
 {
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+	const size_t eraseBlockSizeWithECC = sectorSizeWithECC * static_cast<u16>(eraseBlockSize);
 	const size_t address = sector * sectorSizeWithECC;
 
-	if (address + sectorSizeWithECC < memcardData.size())
+	if (address + eraseBlockSizeWithECC < memcardData.size())
 	{
-		for (size_t i = 0; i < sectorSizeWithECC; i++)
+		for (size_t i = 0; i < eraseBlockSizeWithECC; i++)
 		{
 			memcardData.at(address + i) = 0xff;
 		}

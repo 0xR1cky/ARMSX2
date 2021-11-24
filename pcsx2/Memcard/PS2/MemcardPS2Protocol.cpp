@@ -304,7 +304,7 @@ u8 MemcardPS2Protocol::EraseBlock(u8 data)
 {
 	if (currentCommandByte == 1)
 	{
-		activeMemcard->EraseSector();
+		activeMemcard->EraseBlock();
 	}
 
 	return The2bTerminator(4);

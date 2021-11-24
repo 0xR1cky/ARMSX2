@@ -31,5 +31,5 @@ public:
 
 	std::queue<u8> ReadSector();
 	void WriteSector(std::queue<u8>& data);
-	void EraseSector();
+	void EraseBlock();
 };
