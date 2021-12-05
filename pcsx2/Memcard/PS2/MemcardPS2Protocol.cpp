@@ -149,11 +149,20 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 			writeSize = data;
 			return 0x00;
 		case 3:
-			return 0x2b;
-		case 4:
 			sectorBuffer.push(data);
 			checksum = data;
 			bytesWritten = 1;
+			return 0x2b;
+		case 19:
+			if (writeSize == ECC_BYTES)
+			{
+				return 0x00;
+			}
+			else if (bytesWritten++ < writeSize)
+			{
+				sectorBuffer.push(data);
+				checksum ^= data;
+			}
 			return data;
 		case 20:
 			if (writeSize == ECC_BYTES)
@@ -177,6 +186,8 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 				checksum ^= data;				
 			}
 			return data;
+		case 131:
+			return 0x00;
 		case 132:
 			return checksum;
 		case 133:
@@ -201,7 +212,7 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 				activeMemcard->WriteSector(sectorBuffer);
 			}
 			
-			return data;
+			return 0x00;
 	}
 }
 
@@ -254,6 +265,11 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 				sectorBuffer.pop();
 				return ret;
 			}
+			else
+			{
+				DevCon.Warning("%s(%02X) Sanity check, please report to PCSX2 team if this message is found", __FUNCTION__, data);
+				return 0x00;
+			}
 		case 132:
 			return checksum;
 		case 133:
@@ -285,18 +301,6 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 
 u8 MemcardPS2Protocol::ReadWriteEnd(u8 data)
 {
-/*
-	switch (lastSectorMode)
-	{
-		case MemcardPS2Mode::SET_WRITE_SECTOR:
-			g_Sio2.SetRecv1(Recv1::WRITING);
-			break;
-		case MemcardPS2Mode::SET_READ_SECTOR:
-			g_Sio2.SetRecv1(Recv1::READING);
-			break;
-	}
-	g_Sio2.SetRecv3(Recv3::READ_WRITE_END);
-*/
 	return The2bTerminator(4);
 }
 
@@ -405,6 +409,9 @@ u8 MemcardPS2Protocol::AuthXor(u8 data)
 			case 12:
 				return xorResult;
 			case 13:
+				// Reset after completion, prevents below default label
+				// from running on currentCommandByte = 1.
+				doXor = false; 
 				return activeMemcard->GetTerminator();
 			default:
 				xorResult ^= data;
