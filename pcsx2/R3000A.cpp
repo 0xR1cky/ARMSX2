@@ -179,7 +179,8 @@ static __fi void _psxTestInterrupts()
 	IopTestEvent(IopEvt_SIF0,		sif0Interrupt);	// SIF0
 	IopTestEvent(IopEvt_SIF1,		sif1Interrupt);	// SIF1
 	IopTestEvent(IopEvt_SIF2,		sif2Interrupt);	// SIF2
-	/*
+	
+/*
 	if (psxHu32(HW_ICFG) & (1 << 3))
 	{
 		if (!(psxRegs.interrupt & (1 << IopEvt_SIO))) return;
@@ -195,7 +196,8 @@ static __fi void _psxTestInterrupts()
 			psxSetNextBranch(psxRegs.sCycle[IopEvt_SIO], psxRegs.eCycle[IopEvt_SIO]);
 		
 	}
-	*/
+*/
+	
 	IopTestEvent(IopEvt_CdvdRead,	cdvdReadInterrupt);
 	IopTestEvent(IopEvt_CdvdSectorReady, cdvdSectorReady);
 
