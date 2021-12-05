@@ -51,7 +51,7 @@ std::queue<u8> MemcardPS2::ReadSector()
 	const size_t address = sector * sectorSizeWithECC;
 	std::queue<u8> ret;
 
-	if (address + sectorSizeWithECC < memcardData.size())
+	if (address + sectorSizeWithECC <= memcardData.size())
 	{
 		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
@@ -60,7 +60,7 @@ std::queue<u8> MemcardPS2::ReadSector()
 	}
 	else
 	{
-		DevCon.Warning("%s(%d) Calculated read address out of bounds");
+		DevCon.Warning("%s() Calculated read address out of bounds", __FUNCTION__);
 	}
 
 	return ret;
@@ -71,7 +71,7 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
 	const size_t address = sector * sectorSizeWithECC;
 
-	if (address + sectorSizeWithECC < memcardData.size())
+	if (address + sectorSizeWithECC <= memcardData.size())
 	{
 		for (size_t i = 0; i < sectorSizeWithECC; i++)
 		{
@@ -88,7 +88,7 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 	}
 	else
 	{
-		DevCon.Warning("%s(%d) Calculated write address out of bounds");
+		DevCon.Warning("%s(queue) Calculated write address out of bounds", __FUNCTION__);
 	}
 }
 
@@ -98,7 +98,7 @@ void MemcardPS2::EraseBlock()
 	const size_t eraseBlockSizeWithECC = sectorSizeWithECC * static_cast<u16>(eraseBlockSize);
 	const size_t address = sector * sectorSizeWithECC;
 
-	if (address + eraseBlockSizeWithECC < memcardData.size())
+	if (address + eraseBlockSizeWithECC <= memcardData.size())
 	{
 		for (size_t i = 0; i < eraseBlockSizeWithECC; i++)
 		{
@@ -107,6 +107,6 @@ void MemcardPS2::EraseBlock()
 	}
 	else
 	{
-		DevCon.Warning("%s(%d) Calculated erase address out of bounds");
+		DevCon.Warning("%s() Calculated erase address out of bounds", __FUNCTION__);
 	}
 }
