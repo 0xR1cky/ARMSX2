@@ -1769,6 +1769,13 @@
     <ClCompile Include="PAD\Devices\PadKeyboard.cpp">
       <Filter>System\Ps2\PAD\Devices</Filter>
     </ClCompile>
+    <ClCompile Include="PAD\Devices\PadKeyboard.h" />
+    <ClCompile Include="Memcard\MemcardConfig.cpp">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClCompile>
+    <ClCompile Include="Memcard\MemcardConfigSlot.cpp">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Patch.h">
@@ -2969,11 +2976,14 @@
     <ClInclude Include="PAD\Devices\PadXInput.h">
       <Filter>System\Ps2\PAD\Devices</Filter>
     </ClInclude>
-    <ClInclude Include="PAD\Devices\PadKeyboard.h">
-      <Filter>System\Ps2\PAD\Devices</Filter>
-    </ClInclude>
     <ClInclude Include="PAD\Devices\Devices.h">
       <Filter>System\Ps2\PAD\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\MemcardConfig.h">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\MemcardConfigSlot.h">
+      <Filter>System\Ps2\Memcard</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

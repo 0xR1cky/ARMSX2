@@ -19,6 +19,7 @@ void Sio2::Reset()
 	g_Sio2.SetRecv1(Recv1::DISCONNECTED);
 	g_Sio2.SetRecv2(Recv2::DEFAULT);
 	g_Sio2.SetRecv3(Recv3::DEFAULT);
+	g_MemcardPS2Protocol.FullReset();
 }
 
 void Sio2::SetInterrupt()
@@ -106,10 +107,9 @@ void Sio2::Sio2Write(u8 data)
 			fifoOut.push_back(0x00);
 			break;
 		case Sio2Mode::MEMCARD:
-			//DevCon.WriteLn("%s(%02X) ", __FUNCTION__, data); 
-			g_Sio2.SetRecv1(Recv1::CONNECTED);
 			memcard = g_MemcardPS2Protocol.GetMemcard(activePort, 0);
 			g_MemcardPS2Protocol.SetActiveMemcard(memcard);
+			g_Sio2.SetRecv1(memcard->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
 			fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
 			break;
 		default:
@@ -132,7 +132,7 @@ void Sio2::Sio2Write(u8 data)
 			case Sio2Mode::INFRARED:
 				break;
 			case Sio2Mode::MEMCARD:
-				g_MemcardPS2Protocol.Reset();
+				g_MemcardPS2Protocol.SoftReset();
 				//DevCon.WriteLn("%s(%02X) SIO2 mode reset", __FUNCTION__, data);
 				break;
 		}

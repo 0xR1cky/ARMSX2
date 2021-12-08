@@ -348,6 +348,8 @@
     <ClCompile Include="IopGte.cpp" />
     <ClCompile Include="PINE.cpp" />
     <ClCompile Include="FW.cpp" />
+    <ClCompile Include="Memcard\MemcardConfig.cpp" />
+    <ClCompile Include="Memcard\MemcardConfigSlot.cpp" />
     <ClCompile Include="Memcard\PS1\MemcardPS1.cpp" />
     <ClCompile Include="Memcard\PS1\MemcardPS1Protocol.cpp" />
     <ClCompile Include="Memcard\PS2\MemcardPS2.cpp" />
@@ -805,6 +807,8 @@
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="PINE.h" />
     <ClInclude Include="FW.h" />
+    <ClInclude Include="Memcard\MemcardConfig.h" />
+    <ClInclude Include="Memcard\MemcardConfigSlot.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Protocol.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Types.h" />

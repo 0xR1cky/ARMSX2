@@ -5,10 +5,14 @@
 #include <vector>
 #include <array>
 #include <queue>
+#include "ghc/filesystem.h"
 
 class MemcardPS2
 {
 private:
+	int port, slot;
+	bool isSlottedIn = false;
+	
 	u8 terminator = static_cast<u8>(Terminator::DEFAULT);
 	SectorSize sectorSize = SectorSize::STANDARD;
 	EraseBlockSize eraseBlockSize = EraseBlockSize::STANDARD;
@@ -17,8 +21,15 @@ private:
 	std::vector<u8> memcardData;
 
 public:
-	MemcardPS2();
+	MemcardPS2(int port, int slot);
 	~MemcardPS2();
+
+	void Reset();
+	bool IsSlottedIn();
+	void SetSlottedIn(bool value);
+	void InitializeOnFileSystem();
+	void LoadFromFileSystem();
+	void WriteSectorToFileSystem(u32 address, size_t length);
 
 	u8 GetTerminator();
 	SectorSize GetSectorSize();

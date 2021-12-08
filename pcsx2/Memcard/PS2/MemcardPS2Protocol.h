@@ -57,7 +57,8 @@ public:
 	MemcardPS2Protocol();
 	~MemcardPS2Protocol();
 
-	void Reset();
+	void FullReset();
+	void SoftReset();
 	MemcardPS2Mode GetMemcardMode();
 	MemcardPS2* GetMemcard(size_t port, size_t slot);
 	void SetActiveMemcard(MemcardPS2* memcard);

@@ -440,14 +440,27 @@ MemcardPS2Protocol::MemcardPS2Protocol()
 	{
 		for (size_t j = 0; j < MAX_SLOTS; j++)
 		{
-			memcards.at(i).at(j) = std::make_unique<MemcardPS2>();
+			memcards.at(i).at(j) = std::make_unique<MemcardPS2>(i, j);
 		}
 	}
 }
 
 MemcardPS2Protocol::~MemcardPS2Protocol() = default;
 
-void MemcardPS2Protocol::Reset()
+void MemcardPS2Protocol::FullReset()
+{
+	SoftReset();
+
+	for (size_t i = 0; i < MAX_PORTS; i++)
+	{
+		for (size_t j = 0; j < MAX_SLOTS; j++)
+		{
+			memcards.at(i).at(j)->Reset();
+		}
+	}
+}
+
+void MemcardPS2Protocol::SoftReset()
 {
 	mode = MemcardPS2Mode::NOT_SET;
 	currentCommandByte = 1;
