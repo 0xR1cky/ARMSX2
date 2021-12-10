@@ -171,7 +171,7 @@ std::queue<u8> MemcardPS2::ReadSector()
 	}
 	else
 	{
-		DevCon.Warning("%s() Calculated read address out of bounds", __FUNCTION__);
+		DevCon.Warning("%s() Calculated read address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
 	}
 
 	return ret;
@@ -201,7 +201,7 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 	}
 	else
 	{
-		DevCon.Warning("%s(queue) Calculated write address out of bounds", __FUNCTION__);
+		DevCon.Warning("%s(queue) Calculated write address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
 	}
 }
 
@@ -220,6 +220,6 @@ void MemcardPS2::EraseBlock()
 	}
 	else
 	{
-		DevCon.Warning("%s() Calculated erase address out of bounds", __FUNCTION__);
+		DevCon.Warning("%s() Calculated erase address out of bounds (%08X > %08X)", __FUNCTION__, address + eraseBlockSizeWithECC, memcardData.size());
 	}
 }
