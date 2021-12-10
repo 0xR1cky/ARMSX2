@@ -25,22 +25,33 @@ u8 MemcardPS2Protocol::UnknownWriteDeleteEnd(u8 data)
 u8 MemcardPS2Protocol::SetSector(u8 data)
 {
 	static u32 newSector = 0;
+	static u8 checksum = 0;
 
 	switch (currentCommandByte)
 	{
 		case 2:
 			newSector = data;
+			checksum = data;
 			lastSectorMode = mode;
 			break;
 		case 3:
 			newSector |= (data << 8);
+			checksum ^= data;
 			break;
 		case 4:
 			newSector |= (data << 16);
+			checksum ^= data;
 			break;
 		case 5:
 			newSector |= (data << 24);
+			checksum ^= data;
 			activeMemcard->SetSector(newSector);
+			break;
+		case 6:
+			if (checksum != data)
+			{
+				Console.Warning("%s(%02X) Warning! Memcard sector checksum failed! (Expected %02X != Actual %02X) Please report to the PCSX2 team!", __FUNCTION__, data, data, checksum);
+			}
 			break;
 		default:
 			break;
