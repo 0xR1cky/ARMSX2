@@ -14,11 +14,38 @@ Sio2::~Sio2() = default;
 
 void Sio2::Reset()
 {
+	mode = Sio2Mode::NOT_SET;
+	
+	for (size_t j = 0; j < 16; j++)
+	{
+		g_Sio2.SetSend3(j, 0);
+	}
+
+	for (size_t i = 0; i < 4; i++)
+	{
+		g_Sio2.SetSend1(i, 0);
+		g_Sio2.SetSend2(i, 0);
+	}
+
+	fifoPosition = 0;
+	fifoOut.clear();
+
 	// SIO2MAN provided by the BIOS resets SIO2_CTRL to 0x3bc. Thanks ps2tek!
-	g_Sio2.SetCtrl(0x000003bc);
-	g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-	g_Sio2.SetRecv2(Recv2::DEFAULT);
-	g_Sio2.SetRecv3(Recv3::DEFAULT);
+	SetCtrl(0x000003bc);
+	SetRecv1(Recv1::DISCONNECTED);
+	SetRecv2(Recv2::DEFAULT);
+	SetRecv3(Recv3::DEFAULT);
+	SetUnknown1(0);
+	SetUnknown2(0);
+	SetIStat(0);
+	
+	activePort = 0;
+	activeSlot = 0;
+	send3Read = false;
+	send3Position = 0;
+	commandLength = 0;
+	processedLength = 0;
+
 	g_MemcardPS2Protocol.FullReset();
 }
 
