@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2021 PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -13,26 +13,25 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/// Base defines and typedefs that are needed by all code in PCSX2
+/// Prefer this over including Pcsx2Defs.h to make sure everyone gets all the defines, as missing defines fail silently
+
 #pragma once
 
-using namespace Xbyak;
+#include "common/Pcsx2Defs.h"
+#include "GS/config.h"
 
-#ifdef _M_AMD64
-// Yeah let use mips naming ;)
-	#ifdef _WIN64
-		#define a0 rcx
-		#define a1 rdx
-		#define a2 r8
-		#define a3 r9
-		#define t0 rdi
-		#define t1 rsi
+#if defined(__GNUC__)
+	// Convert gcc see define into GS (windows) define
+	#if defined(__AVX2__)
+		#define _M_SSE 0x501
+	#elif defined(__AVX__)
+		#define _M_SSE 0x500
+	#elif defined(__SSE4_1__)
+		#define _M_SSE 0x401
 	#else
-		#define a0 rdi
-		#define a1 rsi
-		#define a2 rdx
-		#define a3 rcx
-		#define t0 r8
-		#define t1 r9
+		#error PCSX2 requires compiling for at least SSE 4.1
 	#endif
+#elif _M_SSE < 0x401
+	#error PCSX2 requires compiling for at least SSE 4.1
 #endif
-

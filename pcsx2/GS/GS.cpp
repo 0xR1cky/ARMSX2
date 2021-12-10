@@ -14,8 +14,10 @@
  */
 
 #include "PrecompiledHeader.h"
+#include "GS/Window/GSwxDialog.h"
 #include "GS.h"
 #include "GSUtil.h"
+#include "GSExtra.h"
 #include "Renderers/SW/GSRendererSW.h"
 #include "Renderers/Null/GSRendererNull.h"
 #include "Renderers/Null/GSDeviceNull.h"
@@ -30,19 +32,10 @@
 
 #include "Renderers/DX11/GSRendererDX11.h"
 #include "Renderers/DX11/GSDevice11.h"
-#include "Window/GSSettingsDlg.h"
+#include "GS/Renderers/DX11/D3D.h"
 
 
 static HRESULT s_hr = E_FAIL;
-
-#else
-
-#ifdef __APPLE__
-#include <gtk/gtk.h>
-#include <CoreFoundation/CoreFoundation.h>
-#endif
-
-extern bool RunLinuxDialog();
 
 #endif
 
@@ -54,7 +47,7 @@ extern bool RunLinuxDialog();
 #undef None
 
 static GSRenderer* s_gs = NULL;
-static uint8* s_basemem = NULL;
+static u8* s_basemem = NULL;
 static int s_vsync = 0;
 static bool s_exclusive = true;
 static std::string s_renderer_name;
@@ -67,7 +60,7 @@ static int s_new_gs_window_width = 0;
 static int s_new_gs_window_height = 0;
 #endif
 
-void GSsetBaseMem(uint8* mem)
+void GSsetBaseMem(u8* mem)
 {
 	s_basemem = mem;
 
@@ -156,7 +149,12 @@ int _GSopen(const WindowInfo& wi, const char* title, GSRendererType renderer, in
 		renderer = static_cast<GSRendererType>(theApp.GetConfigI("Renderer"));
 #ifdef _WIN32
 		if (renderer == GSRendererType::Default)
-			renderer = GSUtil::GetBestRenderer();
+		{
+			if (D3D::ShouldPreferD3D())
+				renderer = GSRendererType::DX1011_HW;
+			else
+				renderer = GSRendererType::OGL_HW;
+		}
 #endif
 	}
 
@@ -270,19 +268,19 @@ int _GSopen(const WindowInfo& wi, const char* title, GSRendererType renderer, in
 	return 0;
 }
 
-void GSosdLog(const char* utf8, uint32 color)
+void GSosdLog(const char* utf8, u32 color)
 {
 	if (s_gs && s_gs->m_dev)
 		s_gs->m_dev->m_osd.Log(utf8);
 }
 
-void GSosdMonitor(const char* key, const char* value, uint32 color)
+void GSosdMonitor(const char* key, const char* value, u32 color)
 {
 	if (s_gs && s_gs->m_dev)
 		s_gs->m_dev->m_osd.Monitor(key, value);
 }
 
-int GSopen2(const WindowInfo& wi, uint32 flags)
+int GSopen2(const WindowInfo& wi, u32 flags)
 {
 	static bool stored_toggle_state = false;
 	const bool toggle_state = !!(flags & 4);
@@ -306,7 +304,12 @@ int GSopen2(const WindowInfo& wi, uint32 flags)
 				const auto config_renderer = static_cast<GSRendererType>(theApp.GetConfigI("Renderer"));
 
 				if (current_renderer == config_renderer)
-					current_renderer = GSUtil::GetBestRenderer();
+				{
+					if (D3D::ShouldPreferD3D())
+						current_renderer = GSRendererType::DX1011_HW;
+					else
+						current_renderer = GSRendererType::OGL_HW;
+				}
 				else
 					current_renderer = config_renderer;
 			}
@@ -342,7 +345,7 @@ void GSreset()
 	}
 }
 
-void GSgifSoftReset(uint32 mask)
+void GSgifSoftReset(u32 mask)
 {
 	try
 	{
@@ -353,7 +356,7 @@ void GSgifSoftReset(uint32 mask)
 	}
 }
 
-void GSwriteCSR(uint32 csr)
+void GSwriteCSR(u32 csr)
 {
 	try
 	{
@@ -364,7 +367,7 @@ void GSwriteCSR(uint32 csr)
 	}
 }
 
-void GSinitReadFIFO(uint8* mem)
+void GSinitReadFIFO(u8* mem)
 {
 	GL_PERF("Init Read FIFO1");
 	try
@@ -380,7 +383,7 @@ void GSinitReadFIFO(uint8* mem)
 	}
 }
 
-void GSreadFIFO(uint8* mem)
+void GSreadFIFO(u8* mem)
 {
 	try
 	{
@@ -395,7 +398,7 @@ void GSreadFIFO(uint8* mem)
 	}
 }
 
-void GSinitReadFIFO2(uint8* mem, uint32 size)
+void GSinitReadFIFO2(u8* mem, u32 size)
 {
 	GL_PERF("Init Read FIFO2");
 	try
@@ -411,7 +414,7 @@ void GSinitReadFIFO2(uint8* mem, uint32 size)
 	}
 }
 
-void GSreadFIFO2(uint8* mem, uint32 size)
+void GSreadFIFO2(u8* mem, u32 size)
 {
 	try
 	{
@@ -426,7 +429,7 @@ void GSreadFIFO2(uint8* mem, uint32 size)
 	}
 }
 
-void GSgifTransfer(const uint8* mem, uint32 size)
+void GSgifTransfer(const u8* mem, u32 size)
 {
 	try
 	{
@@ -437,33 +440,33 @@ void GSgifTransfer(const uint8* mem, uint32 size)
 	}
 }
 
-void GSgifTransfer1(uint8* mem, uint32 addr)
+void GSgifTransfer1(u8* mem, u32 addr)
 {
 	try
 	{
-		s_gs->Transfer<0>(const_cast<uint8*>(mem) + addr, (0x4000 - addr) / 16);
+		s_gs->Transfer<0>(const_cast<u8*>(mem) + addr, (0x4000 - addr) / 16);
 	}
 	catch (GSRecoverableError)
 	{
 	}
 }
 
-void GSgifTransfer2(uint8* mem, uint32 size)
+void GSgifTransfer2(u8* mem, u32 size)
 {
 	try
 	{
-		s_gs->Transfer<1>(const_cast<uint8*>(mem), size);
+		s_gs->Transfer<1>(const_cast<u8*>(mem), size);
 	}
 	catch (GSRecoverableError)
 	{
 	}
 }
 
-void GSgifTransfer3(uint8* mem, uint32 size)
+void GSgifTransfer3(u8* mem, u32 size)
 {
 	try
 	{
-		s_gs->Transfer<2>(const_cast<uint8*>(mem), size);
+		s_gs->Transfer<2>(const_cast<u8*>(mem), size);
 	}
 	catch (GSRecoverableError)
 	{
@@ -485,7 +488,7 @@ void GSvsync(int field)
 	}
 }
 
-uint32 GSmakeSnapshot(char* path)
+u32 GSmakeSnapshot(char* path)
 {
 	try
 	{
@@ -562,39 +565,12 @@ void GSconfigure()
 		theApp.SetConfigDir();
 		theApp.Init();
 
-#ifdef _WIN32
-		GSDialog::InitCommonControls();
-		if (GSSettingsDlg().DoModal() == IDOK)
-		{
-			// Force a reload of the gs state
-			theApp.SetCurrentRendererType(GSRendererType::Undefined);
-		}
-
-#elif defined(__APPLE__)
-		// Rest of macOS UI doesn't use GTK so we need to init it now
-		gtk_init(nullptr, nullptr);
-		// GTK expects us to be using its event loop, rather than Cocoa's
-		// If we call its stuff right now, it'll attempt to drain a static autorelease pool that was already drained by Cocoa (see https://github.com/GNOME/gtk/blob/8c1072fad1cb6a2e292fce2441b4a571f173ce0f/gdk/quartz/gdkeventloop-quartz.c#L640-L646)
-		// We can convince it that touching that pool would be unsafe by running all GTK calls within a CFRunLoop
-		// (Blocks submitted to the main queue by dispatch_async are run by its CFRunLoop)
-		dispatch_async(dispatch_get_main_queue(), ^{
-		  if (RunLinuxDialog())
-		  {
-			  theApp.ReloadConfig();
-			  // Force a reload of the gs state
-			  theApp.SetCurrentRendererType(GSRendererType::Undefined);
-		  }
-		});
-#else
-
-		if (RunLinuxDialog())
+		if (RunwxDialog())
 		{
 			theApp.ReloadConfig();
 			// Force a reload of the gs state
 			theApp.SetCurrentRendererType(GSRendererType::Undefined);
 		}
-
-#endif
 	}
 	catch (GSRecoverableError)
 	{
@@ -654,7 +630,7 @@ void GSendRecording()
 	pt(" - Capture ended\n");
 }
 
-void GSsetGameCRC(uint32 crc, int options)
+void GSsetGameCRC(u32 crc, int options)
 {
 	s_gs->SetGameCRC(crc, options);
 }
@@ -762,7 +738,10 @@ const std::string root_hw("/tmp/GS_HW_dump32/");
 
 void* vmalloc(size_t size, bool code)
 {
-	return VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, code ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);
+	void* ptr = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, code ? PAGE_EXECUTE_READWRITE : PAGE_READWRITE);
+	if (!ptr)
+		throw std::bad_alloc();
+	return ptr;
 }
 
 void vmfree(void* ptr, size_t size)
@@ -771,15 +750,15 @@ void vmfree(void* ptr, size_t size)
 }
 
 static HANDLE s_fh = NULL;
-static uint8* s_Next[8];
+static u8* s_Next[8];
 
 void* fifo_alloc(size_t size, size_t repeat)
 {
 	ASSERT(s_fh == NULL);
 
-	if (repeat >= countof(s_Next))
+	if (repeat >= std::size(s_Next))
 	{
-		fprintf(stderr, "Memory mapping overflow (%zu >= %u)\n", repeat, static_cast<unsigned>(countof(s_Next)));
+		fprintf(stderr, "Memory mapping overflow (%zu >= %u)\n", repeat, static_cast<unsigned>(std::size(s_Next)));
 		return vmalloc(size * repeat, false); // Fallback to default vmalloc
 	}
 
@@ -795,8 +774,8 @@ void* fifo_alloc(size_t size, size_t repeat)
 	void* fifo = MapViewOfFile(s_fh, FILE_MAP_ALL_ACCESS, 0, 0, size);
 	for (size_t i = 1; i < repeat; i++)
 	{
-		void* base = (uint8*)fifo + size * i;
-		s_Next[i] = (uint8*)MapViewOfFileEx(s_fh, FILE_MAP_ALL_ACCESS, 0, 0, size, base);
+		void* base = (u8*)fifo + size * i;
+		s_Next[i] = (u8*)MapViewOfFileEx(s_fh, FILE_MAP_ALL_ACCESS, 0, 0, size, base);
 		errorID = ::GetLastError();
 		if (s_Next[i] != base)
 		{
@@ -833,7 +812,7 @@ void fifo_free(void* ptr, size_t size, size_t repeat)
 
 	UnmapViewOfFile(ptr);
 
-	for (size_t i = 1; i < countof(s_Next); i++)
+	for (size_t i = 1; i < std::size(s_Next); i++)
 	{
 		if (s_Next[i] != 0)
 		{
@@ -869,7 +848,10 @@ void* vmalloc(size_t size, bool code)
 #endif
 	}
 
-	return mmap(NULL, size, prot, flags, -1, 0);
+	void* ptr = mmap(NULL, size, prot, flags, -1, 0);
+	if (ptr == MAP_FAILED)
+		throw std::bad_alloc();
+	return ptr;
 }
 
 void vmfree(void* ptr, size_t size)
@@ -906,8 +888,8 @@ void* fifo_alloc(size_t size, size_t repeat)
 
 	for (size_t i = 1; i < repeat; i++)
 	{
-		void* base = (uint8*)fifo + size * i;
-		uint8* next = (uint8*)mmap(base, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, s_shm_fd, 0);
+		void* base = (u8*)fifo + size * i;
+		u8* next = (u8*)mmap(base, size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_FIXED, s_shm_fd, 0);
 		if (next != base)
 			fprintf(stderr, "Fail to mmap contiguous segment\n");
 	}
@@ -1106,16 +1088,16 @@ void GSApp::Init()
 	m_section = "Settings";
 
 #ifdef _WIN32
-	m_gs_renderers.push_back(GSSetting(static_cast<uint32>(GSRendererType::DX1011_HW), "Direct3D 11", ""));
-	m_gs_renderers.push_back(GSSetting(static_cast<uint32>(GSRendererType::OGL_HW), "OpenGL", ""));
-	m_gs_renderers.push_back(GSSetting(static_cast<uint32>(GSRendererType::OGL_SW), "Software", ""));
+	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::DX1011_HW), "Direct3D 11", ""));
+	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::OGL_HW), "OpenGL", ""));
+	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::OGL_SW), "Software", ""));
 #else // Linux
-	m_gs_renderers.push_back(GSSetting(static_cast<uint32>(GSRendererType::OGL_HW), "OpenGL", ""));
-	m_gs_renderers.push_back(GSSetting(static_cast<uint32>(GSRendererType::OGL_SW), "Software", ""));
+	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::OGL_HW), "OpenGL", ""));
+	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::OGL_SW), "Software", ""));
 #endif
 
 	// The null renderer goes third, it has use for benchmarking purposes in a release build
-	m_gs_renderers.push_back(GSSetting(static_cast<uint32>(GSRendererType::Null), "Null", ""));
+	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::Null), "Null", ""));
 
 	m_gs_interlace.push_back(GSSetting(0, "None", ""));
 	m_gs_interlace.push_back(GSSetting(1, "Weave tff", "saw-tooth"));
@@ -1145,14 +1127,14 @@ void GSApp::Init()
 	m_gs_dithering.push_back(GSSetting(2, "Unscaled", "Default"));
 	m_gs_dithering.push_back(GSSetting(1, "Scaled", ""));
 
-	m_gs_bifilter.push_back(GSSetting(static_cast<uint32>(BiFiltering::Nearest), "Nearest", ""));
-	m_gs_bifilter.push_back(GSSetting(static_cast<uint32>(BiFiltering::Forced_But_Sprite), "Bilinear", "Forced excluding sprite"));
-	m_gs_bifilter.push_back(GSSetting(static_cast<uint32>(BiFiltering::Forced), "Bilinear", "Forced"));
-	m_gs_bifilter.push_back(GSSetting(static_cast<uint32>(BiFiltering::PS2), "Bilinear", "PS2"));
+	m_gs_bifilter.push_back(GSSetting(static_cast<u32>(BiFiltering::Nearest), "Nearest", ""));
+	m_gs_bifilter.push_back(GSSetting(static_cast<u32>(BiFiltering::Forced_But_Sprite), "Bilinear", "Forced excluding sprite"));
+	m_gs_bifilter.push_back(GSSetting(static_cast<u32>(BiFiltering::Forced), "Bilinear", "Forced"));
+	m_gs_bifilter.push_back(GSSetting(static_cast<u32>(BiFiltering::PS2), "Bilinear", "PS2"));
 
-	m_gs_trifilter.push_back(GSSetting(static_cast<uint32>(TriFiltering::None), "None", "Default"));
-	m_gs_trifilter.push_back(GSSetting(static_cast<uint32>(TriFiltering::PS2), "Trilinear", ""));
-	m_gs_trifilter.push_back(GSSetting(static_cast<uint32>(TriFiltering::Forced), "Trilinear", "Ultra/Slow"));
+	m_gs_trifilter.push_back(GSSetting(static_cast<u32>(TriFiltering::None), "None", "Default"));
+	m_gs_trifilter.push_back(GSSetting(static_cast<u32>(TriFiltering::PS2), "Trilinear", ""));
+	m_gs_trifilter.push_back(GSSetting(static_cast<u32>(TriFiltering::Forced), "Trilinear", "Ultra/Slow"));
 
 	m_gs_generic_list.push_back(GSSetting(-1, "Automatic", "Default"));
 	m_gs_generic_list.push_back(GSSetting(0, "Force-Disabled", ""));
@@ -1185,14 +1167,14 @@ void GSApp::Init()
 		GSSetting(CRCHackLevel::Aggressive, "Aggressive", ""),
 	};
 
-	m_gs_acc_blend_level.push_back(GSSetting(0, "None", "Fastest"));
+	m_gs_acc_blend_level.push_back(GSSetting(0, "Minimum", "Fastest"));
 	m_gs_acc_blend_level.push_back(GSSetting(1, "Basic", "Recommended"));
 	m_gs_acc_blend_level.push_back(GSSetting(2, "Medium", ""));
 	m_gs_acc_blend_level.push_back(GSSetting(3, "High", ""));
 	m_gs_acc_blend_level.push_back(GSSetting(4, "Full", "Very Slow"));
 	m_gs_acc_blend_level.push_back(GSSetting(5, "Ultra", "Ultra Slow"));
 
-	m_gs_acc_blend_level_d3d11.push_back(GSSetting(0, "None", "Fastest"));
+	m_gs_acc_blend_level_d3d11.push_back(GSSetting(0, "Minimum", "Fastest"));
 	m_gs_acc_blend_level_d3d11.push_back(GSSetting(1, "Basic", "Recommended"));
 	m_gs_acc_blend_level_d3d11.push_back(GSSetting(2, "Medium", "Debug"));
 	m_gs_acc_blend_level_d3d11.push_back(GSSetting(3, "High", "Debug"));
@@ -1207,9 +1189,10 @@ void GSApp::Init()
 	// Avoid to clutter the ini file with useless options
 #ifdef _WIN32
 	// Per OS option.
-	m_default_configuration["Adapter"]                                    = "default";
+	m_default_configuration["adapter_index"]                              = "0";
 	m_default_configuration["CaptureFileName"]                            = "";
 	m_default_configuration["CaptureVideoCodecDisplayName"]               = "";
+	m_default_configuration["debug_d3d"]                                  = "0";
 	m_default_configuration["dx_break_on_severity"]                       = "0";
 	// D3D Blending option
 	m_default_configuration["accurate_blending_unit_d3d11"]               = "1";
@@ -1226,7 +1209,7 @@ void GSApp::Init()
 	m_default_configuration["capture_threads"]                            = "4";
 	m_default_configuration["CaptureHeight"]                              = "480";
 	m_default_configuration["CaptureWidth"]                               = "640";
-	m_default_configuration["crc_hack_level"]                             = std::to_string(static_cast<int8>(CRCHackLevel::Automatic));
+	m_default_configuration["crc_hack_level"]                             = std::to_string(static_cast<s8>(CRCHackLevel::Automatic));
 	m_default_configuration["CrcHacksExclusions"]                         = "";
 	m_default_configuration["debug_glsl_shader"]                          = "0";
 	m_default_configuration["debug_opengl"]                               = "0";
@@ -1235,7 +1218,7 @@ void GSApp::Init()
 	m_default_configuration["dump"]                                       = "0";
 	m_default_configuration["extrathreads"]                               = "2";
 	m_default_configuration["extrathreads_height"]                        = "4";
-	m_default_configuration["filter"]                                     = std::to_string(static_cast<int8>(BiFiltering::PS2));
+	m_default_configuration["filter"]                                     = std::to_string(static_cast<s8>(BiFiltering::PS2));
 	m_default_configuration["force_texture_clear"]                        = "0";
 	m_default_configuration["fxaa"]                                       = "0";
 	m_default_configuration["interlace"]                                  = "7";
@@ -1262,22 +1245,19 @@ void GSApp::Init()
 	m_default_configuration["osd_monitor_enabled"]                        = "0";
 	m_default_configuration["osd_max_log_messages"]                       = "2";
 	m_default_configuration["override_geometry_shader"]                   = "-1";
-	m_default_configuration["override_GL_ARB_compute_shader"]             = "-1";
 	m_default_configuration["override_GL_ARB_copy_image"]                 = "-1";
 	m_default_configuration["override_GL_ARB_clear_texture"]              = "-1";
 	m_default_configuration["override_GL_ARB_clip_control"]               = "-1";
 	m_default_configuration["override_GL_ARB_direct_state_access"]        = "-1";
 	m_default_configuration["override_GL_ARB_draw_buffers_blend"]         = "-1";
-	m_default_configuration["override_GL_ARB_get_texture_sub_image"]      = "-1";
 	m_default_configuration["override_GL_ARB_gpu_shader5"]                = "-1";
-	m_default_configuration["override_GL_ARB_multi_bind"]                 = "-1";
 	m_default_configuration["override_GL_ARB_shader_image_load_store"]    = "-1";
-	m_default_configuration["override_GL_ARB_shader_storage_buffer_object"] = "-1";
 	m_default_configuration["override_GL_ARB_sparse_texture"]             = "-1";
 	m_default_configuration["override_GL_ARB_sparse_texture2"]            = "-1";
-	m_default_configuration["override_GL_ARB_texture_view"]               = "-1";
-	m_default_configuration["override_GL_ARB_vertex_attrib_binding"]      = "-1";
 	m_default_configuration["override_GL_ARB_texture_barrier"]            = "-1";
+#ifdef GL_EXT_TEX_SUB_IMAGE
+	m_default_configuration["override_GL_ARB_get_texture_sub_image"]      = "-1";
+#endif
 	m_default_configuration["paltex"]                                     = "0";
 	m_default_configuration["png_compression_level"]                      = std::to_string(Z_BEST_SPEED);
 	m_default_configuration["preload_frame_with_gs_data"]                 = "0";
@@ -1315,7 +1295,7 @@ void GSApp::Init()
 	m_default_configuration["UserHacks_TCOffsetX"]                        = "0";
 	m_default_configuration["UserHacks_TCOffsetY"]                        = "0";
 	m_default_configuration["UserHacks_TextureInsideRt"]                  = "0";
-	m_default_configuration["UserHacks_TriFilter"]                        = std::to_string(static_cast<int8>(TriFiltering::None));
+	m_default_configuration["UserHacks_TriFilter"]                        = std::to_string(static_cast<s8>(TriFiltering::None));
 	m_default_configuration["UserHacks_WildHack"]                         = "0";
 	m_default_configuration["wrap_gs_mem"]                                = "0";
 	m_default_configuration["vsync"]                                      = "0";
@@ -1392,7 +1372,7 @@ void GSApp::SetConfigDir()
 	// core settings aren't populated yet, thus we do populate it if needed either when
 	// opening GS settings or init -- govanify
 	wxString iniName(L"GS.ini");
-	m_ini = EmuFolders::Settings.Combine(iniName).GetFullPath();
+	m_ini = EmuFolders::Settings.Combine(iniName).GetFullPath().ToUTF8();
 }
 
 std::string GSApp::GetConfigS(const char* entry)
@@ -1402,12 +1382,12 @@ std::string GSApp::GetConfigS(const char* entry)
 
 	if (def != m_default_configuration.end())
 	{
-		GetIniString(m_section.c_str(), entry, def->second.c_str(), buff, countof(buff), m_ini.c_str());
+		GetIniString(m_section.c_str(), entry, def->second.c_str(), buff, std::size(buff), m_ini.c_str());
 	}
 	else
 	{
 		fprintf(stderr, "Option %s doesn't have a default value\n", entry);
-		GetIniString(m_section.c_str(), entry, "", buff, countof(buff), m_ini.c_str());
+		GetIniString(m_section.c_str(), entry, "", buff, std::size(buff), m_ini.c_str());
 	}
 
 	return {buff};

@@ -369,6 +369,17 @@ vec4 fetch_red()
     return sample_p(rt.r) * 255.0f;
 }
 
+vec4 fetch_green()
+{
+#if PS_DEPTH_FMT == 1 || PS_DEPTH_FMT == 2
+    int depth = (fetch_raw_depth() >> 8) & 0xFF;
+    vec4 rt = vec4(depth) / 255.0f;
+#else
+    vec4 rt = fetch_raw_color();
+#endif
+    return sample_p(rt.g) * 255.0f;
+}
+
 vec4 fetch_blue()
 {
 #if PS_DEPTH_FMT == 1 || PS_DEPTH_FMT == 2
@@ -378,12 +389,6 @@ vec4 fetch_blue()
     vec4 rt = fetch_raw_color();
 #endif
     return sample_p(rt.b) * 255.0f;
-}
-
-vec4 fetch_green()
-{
-    vec4 rt = fetch_raw_color();
-    return sample_p(rt.g) * 255.0f;
 }
 
 vec4 fetch_alpha()
@@ -611,7 +616,7 @@ void ps_fbmask(inout vec4 C)
 #endif
 }
 
-void ps_dither(inout vec4 C)
+void ps_dither(inout vec3 C)
 {
 #if PS_DITHER
     #if PS_DITHER == 2
@@ -619,7 +624,35 @@ void ps_dither(inout vec4 C)
     #else
     ivec2 fpos = ivec2(gl_FragCoord.xy / ScalingFactor.x);
     #endif
-    C.rgb += DitherMatrix[fpos.y&3][fpos.x&3];
+    C += DitherMatrix[fpos.y&3][fpos.x&3];
+#endif
+}
+
+void ps_color_clamp_wrap(inout vec3 C)
+{
+    // When dithering the bottom 3 bits become meaningless and cause lines in the picture
+    // so we need to limit the color depth on dithered items
+#if SW_BLEND || PS_DITHER
+
+    // Correct the Color value based on the output format
+#if PS_COLCLIP == 0 && PS_HDR == 0
+    // Standard Clamp
+    C = clamp(C, vec3(0.0f), vec3(255.0f));
+#endif
+
+    // FIXME rouding of negative float?
+    // compiler uses trunc but it might need floor
+
+    // Warning: normally blending equation is mult(A, B) = A * B >> 7. GPU have the full accuracy
+    // GS: Color = 1, Alpha = 255 => output 1
+    // GPU: Color = 1/255, Alpha = 255/255 * 255/128 => output 1.9921875
+#if PS_DFMT == FMT_16
+    // In 16 bits format, only 5 bits of colors are used. It impacts shadows computation of Castlevania
+    C = vec3(ivec3(C) & ivec3(0xF8));
+#elif PS_COLCLIP == 1 && PS_HDR == 0
+    C = vec3(ivec3(C) & ivec3(0xFF));
+#endif
+
 #endif
 }
 
@@ -627,7 +660,6 @@ void ps_blend(inout vec4 Color, float As)
 {
 #if SW_BLEND
     vec4 RT = trunc(texelFetch(RtSampler, ivec2(gl_FragCoord.xy), 0) * 255.0f + 0.1f);
-    vec4 Color_pabe = Color;
 
 #if PS_DFMT == FMT_24
     float Ad = 1.0f;
@@ -681,30 +713,7 @@ void ps_blend(inout vec4 Color, float As)
 
     // PABE
 #if PS_PABE
-    Color.rgb = (Color_pabe.a >= 128.0f) ? Color.rgb : Color_pabe.rgb;
-#endif
-
-    // Dithering
-    ps_dither(Color);
-
-    // Correct the Color value based on the output format
-#if PS_COLCLIP == 0 && PS_HDR == 0
-    // Standard Clamp
-    Color.rgb = clamp(Color.rgb, vec3(0.0f), vec3(255.0f));
-#endif
-
-    // FIXME rouding of negative float?
-    // compiler uses trunc but it might need floor
-
-    // Warning: normally blending equation is mult(A, B) = A * B >> 7. GPU have the full accuracy
-    // GS: Color = 1, Alpha = 255 => output 1
-    // GPU: Color = 1/255, Alpha = 255/255 * 255/128 => output 1.9921875
-#if PS_DFMT == FMT_16
-    // In 16 bits format, only 5 bits of colors are used. It impacts shadows computation of Castlevania
-
-    Color.rgb = vec3(ivec3(Color.rgb) & ivec3(0xF8));
-#elif PS_COLCLIP == 1 && PS_HDR == 0
-    Color.rgb = vec3(ivec3(Color.rgb) & ivec3(0xFF));
+    Color.rgb = (As >= 1.0f) ? Color.rgb : Cs;
 #endif
 
 #endif
@@ -835,31 +844,15 @@ void ps_main()
     return;
 #endif
 
-#if !SW_BLEND
-    ps_dither(C);
-#endif
-
     ps_blend(C, alpha_blend);
+
+    ps_dither(C.rgb);
+
+    // Color clamp/wrap needs to be done after sw blending and dithering
+    ps_color_clamp_wrap(C.rgb);
 
     ps_fbmask(C);
 
-// When dithering the bottom 3 bits become meaningless and cause lines in the picture
-// so we need to limit the color depth on dithered items
-// SW_BLEND already deals with this so no need to do in those cases
-#if !SW_BLEND && PS_DITHER && PS_DFMT == FMT_16 && PS_COLCLIP == 0
-    C.rgb = clamp(C.rgb, vec3(0.0f), vec3(255.0f));
-    C.rgb = uvec3(uvec3(C.rgb) & uvec3(0xF8));
-#endif
-
-// #if PS_HDR == 1
-    // Use negative value to avoid overflow of the texture (in accumulation mode)
-    // Note: code were initially done for an Half-Float texture. Due to overflow
-    // the texture was upgraded to a full float. Maybe this code is useless now!
-    // Good testcase is castlevania
-    // if (any(greaterThan(C.rgb, vec3(128.0f)))) {
-        // C.rgb = (C.rgb - 256.0f);
-    // }
-// #endif
     SV_Target0 = C / 255.0f;
     SV_Target1 = vec4(alpha_blend);
 

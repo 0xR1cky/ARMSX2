@@ -17,7 +17,7 @@
 #include "GSTexture11.h"
 #include "GS/GSPng.h"
 
-GSTexture11::GSTexture11(wil::com_ptr_nothrow<ID3D11Texture2D> texture)
+GSTexture11::GSTexture11(wil::com_ptr_nothrow<ID3D11Texture2D> texture, GSTexture::Format format)
 	: m_texture(std::move(texture)), m_layer(0)
 {
 	ASSERT(m_texture);
@@ -31,15 +31,15 @@ GSTexture11::GSTexture11(wil::com_ptr_nothrow<ID3D11Texture2D> texture)
 	m_size.y = (int)m_desc.Height;
 
 	if (m_desc.BindFlags & D3D11_BIND_RENDER_TARGET)
-		m_type = RenderTarget;
+		m_type = Type::RenderTarget;
 	else if (m_desc.BindFlags & D3D11_BIND_DEPTH_STENCIL)
-		m_type = DepthStencil;
+		m_type = Type::DepthStencil;
 	else if (m_desc.BindFlags & D3D11_BIND_SHADER_RESOURCE)
-		m_type = Texture;
+		m_type = Type::Texture;
 	else if (m_desc.Usage == D3D11_USAGE_STAGING)
-		m_type = Offscreen;
+		m_type = Type::Offscreen;
 
-	m_format = (int)m_desc.Format;
+	m_format = format;
 
 	m_max_layer = m_desc.MipLevels;
 }
@@ -80,7 +80,7 @@ bool GSTexture11::Map(GSMap& m, const GSVector4i* r, int layer)
 
 		if (SUCCEEDED(m_ctx->Map(m_texture.get(), subresource, D3D11_MAP_READ_WRITE, 0, &map)))
 		{
-			m.bits = (uint8*)map.pData;
+			m.bits = (u8*)map.pData;
 			m.pitch = (int)map.RowPitch;
 
 			m_layer = layer;
@@ -152,14 +152,14 @@ bool GSTexture11::Save(const std::string& fn)
 			m_ctx->Unmap(dst.get(), 0);
 		});
 
-		const uint8* s = static_cast<const uint8*>(sm.pData);
-		uint8* d = static_cast<uint8*>(dm.pData);
+		const u8* s = static_cast<const u8*>(sm.pData);
+		u8* d = static_cast<u8*>(dm.pData);
 
-		for (uint32 y = 0; y < desc.Height; y++, s += sm.RowPitch, d += dm.RowPitch)
+		for (u32 y = 0; y < desc.Height; y++, s += sm.RowPitch, d += dm.RowPitch)
 		{
-			for (uint32 x = 0; x < desc.Width; x++)
+			for (u32 x = 0; x < desc.Width; x++)
 			{
-				reinterpret_cast<uint32*>(d)[x] = static_cast<uint32>(ldexpf(reinterpret_cast<const float*>(s)[x * 2], 32));
+				reinterpret_cast<u32*>(d)[x] = static_cast<u32>(ldexpf(reinterpret_cast<const float*>(s)[x * 2], 32));
 			}
 		}
 
@@ -193,7 +193,7 @@ bool GSTexture11::Save(const std::string& fn)
 	}
 
 	int compression = theApp.GetConfigI("png_compression_level");
-	bool success = GSPng::Save(format, fn, static_cast<uint8*>(sm.pData), desc.Width, desc.Height, sm.RowPitch, compression);
+	bool success = GSPng::Save(format, fn, static_cast<u8*>(sm.pData), desc.Width, desc.Height, sm.RowPitch, compression);
 
 	m_ctx->Unmap(res.get(), 0);
 

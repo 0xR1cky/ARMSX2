@@ -15,17 +15,30 @@
 
 #pragma once
 
-#include "GS/Renderers/HW/GSTextureCache.h"
-#include "GSDeviceOGL.h"
+#include <xmmintrin.h>
+#include <emmintrin.h>
 
-class GSTextureCacheOGL final : public GSTextureCache
+#include <tmmintrin.h>
+#include <smmintrin.h>
+
+#if _M_SSE >= 0x500
+	#include <immintrin.h>
+#endif
+
+#if !defined(_MSC_VER)
+// http://svn.reactos.org/svn/reactos/trunk/reactos/include/crt/mingw32/intrin_x86.h?view=markup
+
+static int _BitScanForward(unsigned long* const Index, const unsigned long Mask)
 {
-protected:
-	int Get8bitFormat() { return GL_R8; }
+#if __has_builtin(__builtin_ctz)
+	if (Mask == 0)
+		return 0;
+	*Index = __builtin_ctz(Mask);
+	return 1;
+#else
+	__asm__("bsfl %k[Mask], %k[Index]" : [Index] "=r" (*Index) : [Mask] "mr" (Mask) : "cc");
+	return Mask ? 1 : 0;
+#endif
+}
 
-	void Read(Target* t, const GSVector4i& r);
-	void Read(Source* t, const GSVector4i& r);
-
-public:
-	GSTextureCacheOGL(GSRenderer* r);
-};
+#endif

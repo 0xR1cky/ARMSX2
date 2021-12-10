@@ -29,6 +29,10 @@
 #include "Elfheader.h"
 #include "ps2/BiosTools.h"
 
+#ifndef DISABLE_RECORDING
+#include "Recording/InputRecording.h"
+#endif
+
 // This typically reflects the Sony-assigned serial code for the Disc, if one exists.
 //  (examples:  SLUS-2113, etc).
 // If the disc is homebrew then it probably won't have a valid serial; in which case
@@ -377,10 +381,10 @@ s32 cdvdWriteConfig(const u8* config)
 static MutexRecursive Mutex_NewDiskCB;
 
 // Sets ElfCRC to the CRC of the game bound to the CDVD source.
-static __fi ElfObject* loadElf(const wxString filename)
+static __fi ElfObject* loadElf(const wxString filename, bool isPSXElf)
 {
 	if (filename.StartsWith(L"host"))
-		return new ElfObject(filename.After(':'), Path::GetFileSize(filename.After(':')));
+		return new ElfObject(filename.After(':'), Path::GetFileSize(filename.After(':')), isPSXElf);
 
 	// Mimic PS2 behavior!
 	// Much trial-and-error with changing the ISOFS and BOOT2 contents of an image have shown that
@@ -404,7 +408,7 @@ static __fi ElfObject* loadElf(const wxString filename)
 
 	IsoFSCDVD isofs;
 	IsoFile file(isofs, fixedname);
-	return new ElfObject(fixedname, file);
+	return new ElfObject(fixedname, file, isPSXElf);
 }
 
 static __fi void _reloadElfInfo(wxString elfpath)
@@ -423,14 +427,44 @@ static __fi void _reloadElfInfo(wxString elfpath)
 		fname = elfpath.AfterLast(':');
 	if (fname.Matches(L"????_???.??*"))
 		DiscSerial = fname(0, 4) + L"-" + fname(5, 3) + fname(9, 2);
+	std::unique_ptr<ElfObject> elfptr(loadElf(elfpath, false));
 
-	std::unique_ptr<ElfObject> elfptr(loadElf(elfpath));
 
 	elfptr->loadHeaders();
 	ElfCRC = elfptr->getCRC();
 	ElfEntry = elfptr->header.e_entry;
 	ElfTextRange = elfptr->getTextRange();
 	Console.WriteLn(Color_StrongBlue, L"ELF (%s) Game CRC = 0x%08X, EntryPoint = 0x%08X", WX_STR(elfpath), ElfCRC, ElfEntry);
+
+	// Note: Do not load game database info here.  This code is generic and called from
+	// BIOS key encryption as well as eeloadReplaceOSDSYS.  The first is actually still executing
+	// BIOS code, and patches and cheats should not be applied yet.  (they are applied when
+	// eeGameStarting is invoked, which is when the VM starts executing the actual game ELF
+	// binary).
+}
+
+
+static __fi void _reloadPSXElfInfo(wxString elfpath)
+{
+	// Now's a good time to reload the ELF info...
+	ScopedLock locker(Mutex_NewDiskCB);
+
+	if (elfpath == LastELF)
+		return;
+	LastELF = elfpath;
+	wxString fname = elfpath.AfterLast('\\');
+	if (!fname)
+		fname = elfpath.AfterLast('/');
+	if (!fname)
+		fname = elfpath.AfterLast(':');
+	if (fname.Matches(L"????_???.??*"))
+		DiscSerial = fname(0, 4) + L"-" + fname(5, 3) + fname(9, 2);
+
+	std::unique_ptr<ElfObject> elfptr(loadElf(elfpath, true));
+
+	ElfCRC = elfptr->getCRC();
+	ElfTextRange = elfptr->getTextRange();
+	Console.WriteLn(Color_StrongBlue, L"PSX ELF (%s) Game CRC = 0x%08X", WX_STR(elfpath), ElfCRC);
 
 	// Note: Do not load game database info here.  This code is generic and called from
 	// BIOS key encryption as well as eeloadReplaceOSDSYS.  The first is actually still executing
@@ -461,10 +495,11 @@ void cdvdReloadElfInfo(wxString elfoverride)
 			// PCSX2 currently only recognizes *.elf executables in proper PS2 format.
 			// To support different PSX titles in the console title and for savestates, this code bypasses all the detection,
 			// simply using the exe name, stripped of problematic characters.
-			wxString fname = elfpath.AfterLast('\\').AfterLast(':'); // Also catch elf paths which lack a backslash, and only have a colon.
-			wxString fname2 = fname.BeforeFirst(';');
-			DiscSerial = fname2;
-			Console.SetTitle(DiscSerial);
+			wxString fname = elfpath.AfterLast('\\').BeforeFirst('_');
+			wxString fname2 = elfpath.AfterLast('_').BeforeFirst('.');
+			wxString fname3 = elfpath.AfterLast('.').BeforeFirst(';');
+			DiscSerial = fname + "-" + fname2 + fname3;
+			_reloadPSXElfInfo(elfpath);
 			return;
 		}
 
@@ -780,6 +815,34 @@ void cdvdReset()
 	cdvd.Action = cdvdAction_None;
 	cdvd.ReadTime = cdvdBlockReadTime(MODE_DVDROM);
 
+	// If we are recording, always use the same RTC setting
+	// for games that use the RTC to seed their RNG -- this is very important to be the same everytime!
+#ifndef DISABLE_RECORDING
+	if (g_InputRecording.IsActive())
+	{
+		Console.WriteLn("Input Recording Active - Using Constant RTC of 04-03-2020 (DD-MM-YYYY)");
+		// Why not just 0 everything? Some games apparently require the date to be valid in terms of when
+		// the PS2 / Game actually came out. (MGS3).  So set it to a value well beyond any PS2 game's release date.
+		cdvd.RTC.second = 0;
+		cdvd.RTC.minute = 0;
+		cdvd.RTC.hour = 0;
+		cdvd.RTC.day = 4;
+		cdvd.RTC.month = 3;
+		cdvd.RTC.year = 20;
+	}
+	else
+	{
+		// CDVD internally uses GMT+9.  If you think the time's wrong, you're wrong.
+		// Set up your time zone and winter/summer in the BIOS.  No PS2 BIOS I know of features automatic DST.
+		wxDateTime curtime(wxDateTime::GetTimeNow());
+		cdvd.RTC.second = (u8)curtime.GetSecond();
+		cdvd.RTC.minute = (u8)curtime.GetMinute();
+		cdvd.RTC.hour = (u8)curtime.GetHour(wxDateTime::GMT9);
+		cdvd.RTC.day = (u8)curtime.GetDay(wxDateTime::GMT9);
+		cdvd.RTC.month = (u8)curtime.GetMonth(wxDateTime::GMT9) + 1; // WX returns Jan as "0"
+		cdvd.RTC.year = (u8)(curtime.GetYear(wxDateTime::GMT9) - 2000);
+	}
+#else
 	// CDVD internally uses GMT+9.  If you think the time's wrong, you're wrong.
 	// Set up your time zone and winter/summer in the BIOS.  No PS2 BIOS I know of features automatic DST.
 	wxDateTime curtime(wxDateTime::GetTimeNow());
@@ -789,6 +852,7 @@ void cdvdReset()
 	cdvd.RTC.day = (u8)curtime.GetDay(wxDateTime::GMT9);
 	cdvd.RTC.month = (u8)curtime.GetMonth(wxDateTime::GMT9) + 1; // WX returns Jan as "0"
 	cdvd.RTC.year = (u8)(curtime.GetYear(wxDateTime::GMT9) - 2000);
+#endif
 
 	g_GameStarted = false;
 	g_GameLoading = false;
@@ -879,7 +943,7 @@ int cdvdReadSector()
 	CDVD_LOG("SECTOR %d (BCR %x;%x)", cdvd.Sector, HW_DMA3_BCR_H16, HW_DMA3_BCR_L16);
 
 	bcr = (HW_DMA3_BCR_H16 * HW_DMA3_BCR_L16) * 4;
-	if (bcr < cdvd.BlockSize)
+	if (bcr < cdvd.BlockSize || !(HW_DMA3_CHCR & 0x01000000))
 	{
 		CDVD_LOG("READBLOCK:  bcr < cdvd.BlockSize; %x < %x", bcr, cdvd.BlockSize);
 		if (HW_DMA3_CHCR & 0x01000000)
@@ -1179,7 +1243,7 @@ __fi void cdvdReadInterrupt()
 				cdvd.Status = CDVD_STATUS_PAUSE;
 
 			cdvd.nCommand = 0;
-			//DevCon.Warning("Scheduling interrupt in %d cycles", cdvd.ReadTime - (cdvd.BlockSize / 4));
+			//DevCon.Warning("Scheduling interrupt in %d cycles", cdvd.ReadTime - ((cdvd.BlockSize / 4) * 12));
 			// Timing issues on command end
 			// Star Ocean (1.1 Japan) expects the DMA to end and interrupt at least 128 or more cycles before the CDVD command ends.
 			// However the time required seems to increase slowly, so delaying the end of the command is not the solution.
@@ -1190,7 +1254,7 @@ __fi void cdvdReadInterrupt()
 	}
 	else
 	{
-		CDVDREAD_INT((cdvd.BlockSize / 4));
+		CDVDREAD_INT((cdvd.BlockSize / 4) * 12);
 		return;
 	}
 
@@ -1198,9 +1262,9 @@ __fi void cdvdReadInterrupt()
 	cdvd.Reading = 1;
 	cdvd.RErr = DoCDVDreadTrack(cdvd.Sector, cdvd.ReadMode);
 	if (cdvd.nextSectorsBuffered)
-		CDVDREAD_INT((cdvd.BlockSize / 4));
+		CDVDREAD_INT((cdvd.BlockSize / 4) * 12);
 	else
-		CDVDREAD_INT(cdvd.ReadTime + (cdvd.BlockSize / 4));
+		CDVDREAD_INT(cdvd.ReadTime + ((cdvd.BlockSize / 4) * 12));
 }
 
 // Returns the number of IOP cycles until the event completes.
@@ -1274,16 +1338,16 @@ static uint cdvdStartSeek(uint newsector, CDVD_MODE_TYPE mode)
 				if (psxRegs.interrupt & (1 << IopEvt_CdvdSectorReady))
 				{
 					//DevCon.Warning("coming back from ready sector early reducing %d cycles by %d cycles", seektime, psxRegs.cycle - psxRegs.sCycle[IopEvt_CdvdSectorReady]);
-					seektime = (psxRegs.cycle - psxRegs.sCycle[IopEvt_CdvdSectorReady]) + (cdvd.BlockSize / 4);
+					seektime = (psxRegs.cycle - psxRegs.sCycle[IopEvt_CdvdSectorReady]) + ((cdvd.BlockSize / 4) * 12);
 				}
 				else
 				{
 					CDVDSECTORREADY_INT(cdvd.ReadTime);
-					seektime = cdvd.ReadTime + (cdvd.BlockSize / 4);
+					seektime = cdvd.ReadTime + ((cdvd.BlockSize / 4) * 12);
 				}
 			}
 			else
-				seektime = (cdvd.BlockSize / 4);
+				seektime = (cdvd.BlockSize / 4) * 12;
 		}
 		else
 		{
@@ -1299,7 +1363,7 @@ static uint cdvdStartSeek(uint newsector, CDVD_MODE_TYPE mode)
 		//DevCon.Warning("%s rotational latency at sector %d is %d cycles", (cdvd.SpindlCtrl & CDVD_SPINDLE_CAV) ? "CAV" : "CLV", cdvd.SeekToSector, rotationalLatency);
 		seektime += rotationalLatency + cdvd.ReadTime;
 		CDVDSECTORREADY_INT(seektime);
-		seektime += (cdvd.BlockSize / 4);
+		seektime += (cdvd.BlockSize / 4) * 12;
 	}
 	return seektime;
 }

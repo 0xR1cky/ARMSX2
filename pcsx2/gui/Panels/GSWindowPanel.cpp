@@ -1,5 +1,5 @@
 /*  PCSX2 - PS2 Emulator for PCs
- *  Copyright (C) 2002-2010  PCSX2 Dev Team
+ *  Copyright (C) 2002-2021  PCSX2 Dev Team
  *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
@@ -52,13 +52,13 @@ Panels::GSWindowSettingsPanel::GSWindowSettingsPanel(wxWindow* parent)
 	m_text_Zoom = CreateNumericalTextCtrl(this, 5);
 
 	m_combo_AspectRatio = new wxComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
-										 ArraySize(aspect_ratio_labels), aspect_ratio_labels, wxCB_READONLY);
+										 std::size(aspect_ratio_labels), aspect_ratio_labels, wxCB_READONLY);
 
 	m_combo_FMVAspectRatioSwitch = new wxComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
-												  ArraySize(fmv_aspect_ratio_switch_labels), fmv_aspect_ratio_switch_labels, wxCB_READONLY);
+												  std::size(fmv_aspect_ratio_switch_labels), fmv_aspect_ratio_switch_labels, wxCB_READONLY);
 
 	m_combo_vsync = new wxComboBox(this, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
-								   ArraySize(vsync_label), vsync_label, wxCB_READONLY);
+								   std::size(vsync_label), vsync_label, wxCB_READONLY);
 
 	m_text_WindowWidth = CreateNumericalTextCtrl(this, 5);
 	m_text_WindowHeight = CreateNumericalTextCtrl(this, 5);
@@ -107,7 +107,7 @@ Panels::GSWindowSettingsPanel::GSWindowSettingsPanel(wxWindow* parent)
 	s_AspectRatio.AddGrowableCol(1);
 
 	// Implement custom hotkeys (F6) with translatable string intact + not blank in GUI.
-	s_AspectRatio += Label(_("Aspect Ratio:") + wxString(" ") + fmt::format("({})", wxGetApp().GlobalAccels->findKeycodeWithCommandId("GSwindow_CycleAspectRatio").toTitleizedString())) | pxMiddle;
+	s_AspectRatio += Label(_("Aspect Ratio:") + wxString::Format(" (%s)", wxGetApp().GlobalAccels->findKeycodeWithCommandId("GSwindow_CycleAspectRatio").toTitleizedString()));
 	s_AspectRatio += m_combo_AspectRatio | pxAlignRight;
 	s_AspectRatio += Label(_("FMV Aspect Ratio Override:")) | pxMiddle;
 	s_AspectRatio += m_combo_FMVAspectRatioSwitch | pxAlignRight;

@@ -29,17 +29,14 @@
 #include "Counters.h"
 #include "Patch.h"
 #include "System/SysThreads.h"
+#include "DebugTools/Breakpoints.h"
 
 #include "common/pxStreams.h"
 #include "common/SafeArray.inl"
 #include "common/StringUtil.h"
 #include "SPU2/spu2.h"
 #include "USB/USB.h"
-#ifdef _WIN32
-#include "PAD/Windows/PAD.h"
-#else
-#include "PAD/Linux/PAD.h"
-#endif
+#include "PAD/Gamepad.h"
 
 #include <wx/wfstream.h>
 
@@ -67,6 +64,8 @@ static void PostLoadPrep()
 //	WriteCP0Status(cpuRegs.CP0.n.Status.val);
 	for(int i=0; i<48; i++) MapTLB(i);
 	if (EmuConfig.Gamefixes.GoemonTlbHack) GoemonPreloadTlb();
+	CBreakPoints::SetSkipFirst(BREAKPOINT_EE, 0);
+	CBreakPoints::SetSkipFirst(BREAKPOINT_IOP, 0);
 
 	UpdateVSyncRate();
 }
@@ -74,16 +73,56 @@ static void PostLoadPrep()
 // --------------------------------------------------------------------------------------
 //  SaveStateBase  (implementations)
 // --------------------------------------------------------------------------------------
-wxString SaveStateBase::GetFilename( int slot )
+wxString SaveStateBase::GetSavestateFolder( int slot, bool isSavingOrLoading )
 {
-	wxString serialName( DiscSerial );
-	if (serialName.IsEmpty()) serialName = L"BIOS";
+	wxString CRCvalue = wxString::Format(wxT("%08X"), ElfCRC);
+	wxString serialName(DiscSerial);
 
-	return (EmuFolders::Savestates +
-		pxsFmt( L"%s (%08X).%02d.p2s", WX_STR(serialName), ElfCRC, slot )).GetFullPath();
+	if (g_GameStarted || g_GameLoading)
+	{
+		if (DiscSerial.IsEmpty())
+		{
+			std::string ElfString = LastELF.ToStdString();
+			std::string ElfString_delimiter = "/";
 
-	//return (g_Conf->Folders.Savestates +
-	//	pxsFmt( L"%08X.%03d", ElfCRC, slot )).GetFullPath();
+#ifndef _UNIX_
+			std::replace(ElfString.begin(), ElfString.end(), '\\', '/');
+#endif
+			size_t pos = 0;
+			while ((pos = ElfString.find(ElfString_delimiter)) != std::string::npos)
+			{
+				// Running homebrew/standalone ELF, return only the ELF name.
+				ElfString.erase(0, pos + ElfString_delimiter.length());
+			}
+			wxString ElfString_toWxString(ElfString.c_str(), wxConvUTF8);
+			serialName = ElfString_toWxString;
+		}
+		else
+		{
+			// Running a normal retail game
+			// Folder format is "SLXX-XXXX - (00000000)"
+			serialName = DiscSerial;
+		}
+	}
+	else
+	{
+		// Still inside the BIOS/not running a game (why would anyone want to do this?)
+		wxString biosString = (pxsFmt(L"BIOS (%s v%u.%u)", WX_STR(biosZone), (BiosVersion >> 8), BiosVersion & 0xff));
+		serialName = biosString;
+		CRCvalue = L"None";
+	}
+
+	wxFileName dirname = wxFileName::DirName(g_Conf->FullpathToSaveState(serialName, CRCvalue));
+
+	if (isSavingOrLoading)
+	{
+		if (!wxDirExists(g_Conf->FullpathToSaveState(serialName, CRCvalue)))
+		{
+			wxMkdir(g_Conf->FullpathToSaveState(serialName, CRCvalue));
+		}
+	}
+	return (dirname.GetPath() + "/" +
+			pxsFmt( L"%s (%s).%02d.p2s", WX_STR(serialName), WX_STR(CRCvalue), slot ));
 }
 
 SaveStateBase::SaveStateBase( SafeArray<u8>& memblock )
@@ -413,8 +452,8 @@ void SysState_ComponentFreezeIn(pxInputStream& infp, SysState_Component comp)
 		return;
 	}
 
-	ScopedAlloc<u8> data(fP.size);
-	fP.data = data.GetPtr();
+	auto data = std::make_unique<u8[]>(fP.size);
+	fP.data = data.get();
 
 	infp.Read(fP.data, fP.size);
 	if (comp.freeze(FreezeAction::Load, &fP) != 0)
@@ -611,7 +650,7 @@ public:
 	wxString GetFilename() const { return L"USB.bin"; }
 	void FreezeIn(pxInputStream& reader) const { return SysState_ComponentFreezeIn(reader, USB); }
 	void FreezeOut(SaveStateBase& writer) const { return SysState_ComponentFreezeOut(writer, USB); }
-	bool IsRequired() const { return true; }
+	bool IsRequired() const { return false; }
 };
 
 class SavestateEntry_PAD : public BaseSavestateEntry
@@ -704,13 +743,14 @@ void SaveState_DownloadState(ArchiveEntryList* destlist)
 	internals.SetDataSize(saveme.GetCurrentPos() - internals.GetDataIndex());
 	destlist->Add(internals);
 
-	for (uint i = 0; i < ArraySize(SavestateEntries); ++i)
+	for (const std::unique_ptr<BaseSavestateEntry>& entry : SavestateEntries)
 	{
 		uint startpos = saveme.GetCurrentPos();
-		SavestateEntries[i]->FreezeOut(saveme);
-		destlist->Add(ArchiveEntry(SavestateEntries[i]->GetFilename())
-						 .SetDataIndex(startpos)
-						 .SetDataSize(saveme.GetCurrentPos() - startpos));
+		entry->FreezeOut(saveme);
+		destlist->Add(
+			ArchiveEntry(entry->GetFilename())
+				.SetDataIndex(startpos)
+				.SetDataSize(saveme.GetCurrentPos() - startpos));
 	}
 }
 
@@ -831,7 +871,7 @@ void SaveState_UnzipFromDisk(const wxString& filename)
 	//bool foundEntry[ArraySize(SavestateEntries)] = false;
 
 	std::unique_ptr<wxZipEntry> foundInternal;
-	std::unique_ptr<wxZipEntry> foundEntry[ArraySize(SavestateEntries)];
+	std::unique_ptr<wxZipEntry> foundEntry[std::size(SavestateEntries)];
 
 	while (true)
 	{
@@ -863,7 +903,7 @@ void SaveState_UnzipFromDisk(const wxString& filename)
 			foundScreenshot = true;
 		}*/
 
-		for (uint i = 0; i < ArraySize(SavestateEntries); ++i)
+		for (uint i = 0; i < std::size(SavestateEntries); ++i)
 		{
 			if (entry->GetName().CmpNoCase(SavestateEntries[i]->GetFilename()) == 0)
 			{
@@ -884,7 +924,7 @@ void SaveState_UnzipFromDisk(const wxString& filename)
 
 	// Log any parts and pieces that are missing, and then generate an exception.
 	bool throwIt = false;
-	for (uint i = 0; i < ArraySize(SavestateEntries); ++i)
+	for (uint i = 0; i < std::size(SavestateEntries); ++i)
 	{
 		if (foundEntry[i])
 			continue;
@@ -904,7 +944,7 @@ void SaveState_UnzipFromDisk(const wxString& filename)
 	PatchesVerboseReset();
 	SysClearExecutionCache();
 
-	for (uint i = 0; i < ArraySize(SavestateEntries); ++i)
+	for (uint i = 0; i < std::size(SavestateEntries); ++i)
 	{
 		if (!foundEntry[i])
 			continue;

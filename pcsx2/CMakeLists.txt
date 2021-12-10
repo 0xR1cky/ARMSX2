@@ -139,7 +139,6 @@ set(pcsx2Sources
 	MTGS.cpp
 	MTVU.cpp
 	MultipartFileReader.cpp
-	OutputIsoFile.cpp
 	Patch.cpp
 	Patch_Memory.cpp
 	Pcsx2Config.cpp
@@ -182,7 +181,6 @@ set(pcsx2Sources
 set(pcsx2Headers
 	AsyncFileReader.h
 	Cache.h
-	cheatscpp.h
 	Common.h
 	Config.h
 	COP0.h
@@ -214,6 +212,7 @@ set(pcsx2Headers
 	MemoryTypes.h
 	Patch.h
 	PathDefs.h
+	PCSX2Base.h
 	PrecompiledHeader.h
 	R3000A.h
 	R5900Exceptions.h
@@ -301,7 +300,6 @@ set(pcsx2SPU2Sources
 	SPU2/spu2sys.cpp
 	SPU2/Timestretcher.cpp
 	SPU2/Wavedump_wav.cpp
-	SPU2/WavFile.cpp
 	)
 
 if(TARGET PkgConfig::PORTAUDIO)
@@ -493,7 +491,7 @@ if(WIN32)
 	)
 
 	set(pcsx2PADHeaders
-		PAD/Windows/PAD.h
+		PAD/Gamepad.h
 		PAD/Windows/PADConfig.h
 		PAD/Windows/DeviceEnumerator.h
 		PAD/Windows/Diagnostics.h
@@ -558,12 +556,12 @@ else(WIN32)
 		PAD/Linux/wx_dialog/GamepadConfiguration.cpp
 		PAD/Linux/wx_dialog/JoystickConfiguration.cpp
 		PAD/Linux/Config.cpp
-		PAD/Linux/linux.cpp
 		${CMAKE_BINARY_DIR}/pcsx2/PAD/Linux/resources_pad.cpp
 	)
 
 	# PAD/Linux headers
 	set(pcsx2PADHeaders
+		PAD/Gamepad.h
 		PAD/Linux/bitwise.h
 		PAD/Linux/Config.h
 		PAD/Linux/Device.h
@@ -572,7 +570,6 @@ else(WIN32)
 		PAD/Linux/SDL/joystick.h
 		PAD/Linux/keyboard.h
 		PAD/Linux/KeyStatus.h
-		PAD/Linux/PAD.h
 		PAD/Linux/state_management.h
 		PAD/Linux/wx_dialog/opPanel.h
 		PAD/Linux/wx_dialog/GamepadConfiguration.h
@@ -620,6 +617,7 @@ set(pcsx2GSSources
 	GS/GSLzma.cpp
 	GS/GSPerfMon.cpp
 	GS/GSPng.cpp
+	GS/GSRingHeap.cpp
 	GS/GSState.cpp
 	GS/GSTables.cpp
 	GS/GSUtil.cpp
@@ -639,21 +637,12 @@ set(pcsx2GSSources
 	GS/Renderers/HW/GSTextureCache.cpp
 	GS/Renderers/SW/GSDrawScanline.cpp
 	GS/Renderers/SW/GSDrawScanlineCodeGenerator.cpp
-	GS/Renderers/SW/GSDrawScanlineCodeGenerator.x64.cpp
-	GS/Renderers/SW/GSDrawScanlineCodeGenerator.x64.avx.cpp
-	GS/Renderers/SW/GSDrawScanlineCodeGenerator.x64.avx2.cpp
-	GS/Renderers/SW/GSDrawScanlineCodeGenerator.x86.cpp
-	GS/Renderers/SW/GSDrawScanlineCodeGenerator.x86.avx.cpp
-	GS/Renderers/SW/GSDrawScanlineCodeGenerator.x86.avx2.cpp
+	GS/Renderers/SW/GSDrawScanlineCodeGenerator.all.cpp
+	GS/Renderers/SW/GSNewCodeGenerator.cpp
 	GS/Renderers/SW/GSRasterizer.cpp
 	GS/Renderers/SW/GSRendererSW.cpp
 	GS/Renderers/SW/GSSetupPrimCodeGenerator.cpp
-	GS/Renderers/SW/GSSetupPrimCodeGenerator.x64.cpp
-	GS/Renderers/SW/GSSetupPrimCodeGenerator.x64.avx.cpp
-	GS/Renderers/SW/GSSetupPrimCodeGenerator.x64.avx2.cpp
-	GS/Renderers/SW/GSSetupPrimCodeGenerator.x86.cpp
-	GS/Renderers/SW/GSSetupPrimCodeGenerator.x86.avx.cpp
-	GS/Renderers/SW/GSSetupPrimCodeGenerator.x86.avx2.cpp
+	GS/Renderers/SW/GSSetupPrimCodeGenerator.all.cpp
 	GS/Renderers/SW/GSTextureCacheSW.cpp
 	GS/Renderers/SW/GSTextureSW.cpp
 	GS/Renderers/OpenGL/GLLoader.cpp
@@ -661,9 +650,9 @@ set(pcsx2GSSources
 	GS/Renderers/OpenGL/GSDeviceOGL.cpp
 	GS/Renderers/OpenGL/GSRendererOGL.cpp
 	GS/Renderers/OpenGL/GSShaderOGL.cpp
-	GS/Renderers/OpenGL/GSTextureCacheOGL.cpp
 	GS/Renderers/OpenGL/GSTextureOGL.cpp
 	GS/Window/GSSetting.cpp
+	GS/Window/GSwxDialog.cpp
 	)
 
 # GS headers
@@ -678,13 +667,16 @@ set(pcsx2GSHeaders
 	GS/GSDrawingContext.h
 	GS/GSDrawingEnvironment.h
 	GS/GSDump.h
-	GS/GS_types.h
-	GS/GS_codegen.h
+	GS/GSExtra.h
+	GS/GSGL.h
+	GS/GSIntrin.h
+	GS/GSRegs.h
 	GS/GS.h
 	GS/GSLocalMemory.h
 	GS/GSLzma.h
 	GS/GSPerfMon.h
 	GS/GSPng.h
+	GS/GSRingHeap.h
 	GS/GSState.h
 	GS/GSTables.h
 	GS/GSThread_CXX11.h
@@ -712,11 +704,14 @@ set(pcsx2GSHeaders
 	GS/Renderers/HW/GSTextureCache.h
 	GS/Renderers/HW/GSVertexHW.h
 	GS/Renderers/SW/GSDrawScanlineCodeGenerator.h
+	GS/Renderers/SW/GSDrawScanlineCodeGenerator.all.h
 	GS/Renderers/SW/GSDrawScanline.h
+	GS/Renderers/SW/GSNewCodeGenerator.h
 	GS/Renderers/SW/GSRasterizer.h
 	GS/Renderers/SW/GSRendererSW.h
 	GS/Renderers/SW/GSScanlineEnvironment.h
 	GS/Renderers/SW/GSSetupPrimCodeGenerator.h
+	GS/Renderers/SW/GSSetupPrimCodeGenerator.all.h
 	GS/Renderers/SW/GSTextureCacheSW.h
 	GS/Renderers/SW/GSTextureSW.h
 	GS/Renderers/SW/GSVertexSW.h
@@ -725,13 +720,12 @@ set(pcsx2GSHeaders
 	GS/Renderers/OpenGL/GSDeviceOGL.h
 	GS/Renderers/OpenGL/GSRendererOGL.h
 	GS/Renderers/OpenGL/GSShaderOGL.h
-	GS/Renderers/OpenGL/GSTextureCacheOGL.h
 	GS/Renderers/OpenGL/GSTextureOGL.h
 	GS/Renderers/OpenGL/GSUniformBufferOGL.h
 	GS/Window/GSCaptureDlg.h
 	GS/Window/GSDialog.h
 	GS/Window/GSSetting.h
-	GS/Window/GSSettingsDlg.h
+	GS/Window/GSwxDialog.h
 	)
 
 if(WIN32)
@@ -796,20 +790,19 @@ if(WIN32)
 	)
 
 	list(APPEND pcsx2GSSources
+		GS/Renderers/DX11/D3D.cpp
 		GS/Renderers/DX11/GSDevice11.cpp
 		GS/Renderers/DX11/GSRendererDX11.cpp
 		GS/Renderers/DX11/GSTexture11.cpp
-		GS/Renderers/DX11/GSTextureCache11.cpp
 		GS/Renderers/DX11/GSTextureFX11.cpp
 		GS/Window/GSCaptureDlg.cpp
 		GS/Window/GSDialog.cpp
-		GS/Window/GSSettingsDlg.cpp
 	)
 	list(APPEND pcsx2GSHeaders
+		GS/Renderers/DX11/D3D.h
 		GS/Renderers/DX11/GSDevice11.h
 		GS/Renderers/DX11/GSRendererDX11.h
 		GS/Renderers/DX11/GSTexture11.h
-		GS/Renderers/DX11/GSTextureCache11.h
 	)
 else(WIN32)
 	list(APPEND pcsx2SPU2Sources
@@ -818,6 +811,7 @@ else(WIN32)
 		SPU2/Linux/ConfigDebug.cpp
 		SPU2/Linux/ConfigSoundTouch.cpp
 		SPU2/Linux/Dialogs.cpp
+		SPU2/WavFile.cpp
 		SPU2/wx/wxConfig.cpp
 	)
 	list(APPEND pcsx2SPU2Headers
@@ -894,7 +888,6 @@ else(WIN32)
 
 	list(APPEND pcsx2GSSources
 		GS/GS_res.cpp
-		GS/Window/GSLinuxDialog.cpp
 	)
 
 	list(APPEND pcsx2GSHeaders
@@ -969,6 +962,7 @@ set(pcsx2GuiSources
 	gui/Debugger/CtrlDisassemblyView.cpp
 	gui/Debugger/CtrlRegisterList.cpp
 	gui/Debugger/CtrlMemView.cpp
+	gui/Debugger/CtrlMemSearch.cpp
 	gui/Debugger/DebuggerLists.cpp
 	gui/Debugger/DisassemblyDialog.cpp
 	gui/Debugger/DebugEvents.cpp
@@ -1028,6 +1022,7 @@ set(pcsx2GuiHeaders
 	gui/Debugger/BreakpointWindow.h
 	gui/Debugger/CtrlDisassemblyView.h
 	gui/Debugger/CtrlMemView.h
+	gui/Debugger/CtrlMemSearch.h
 	gui/Debugger/CtrlRegisterList.h
 	gui/Debugger/DebugEvents.h
 	gui/Debugger/DebuggerLists.h
@@ -1467,6 +1462,12 @@ if(WIN32)
 		strmiids.lib
 		opengl32.lib
 		comsuppw.lib
+	)
+elseif(APPLE)
+	target_link_libraries(PCSX2_FLAGS INTERFACE
+		PkgConfig::GIO
+		PCAP::PCAP
+		LibXml2::LibXml2
 	)
 else()
 	target_link_libraries(PCSX2_FLAGS INTERFACE

@@ -271,6 +271,9 @@
     <Filter Include="System\Ps2\GS\Window">
       <UniqueIdentifier>{eaa22029-6839-4c09-93e1-faea8d8c0d7c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="System\Ps2\GS\GIF">
+      <UniqueIdentifier>{78f5077b-255e-435e-9a51-352171dfaee8}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Utilities\folderdesc.txt">
@@ -278,6 +281,9 @@
     </None>
     <None Include="Docs\License.txt">
       <Filter>Docs</Filter>
+    </None>
+    <None Include="ps2\eeHwTraceLog.inl">
+      <Filter>System\Ps2\EmotionEngine\Hardware</Filter>
     </None>
     <None Include="x86\microVU_Alloc.inl">
       <Filter>System\Ps2\EmotionEngine\VU\Dynarec\microVU</Filter>
@@ -663,13 +669,13 @@
       <Filter>System\Ps2\IPU\mpeg2lib</Filter>
     </ClCompile>
     <ClCompile Include="GS.cpp">
-      <Filter>System\Ps2\GS</Filter>
+      <Filter>System\Ps2\GS\GIF</Filter>
     </ClCompile>
     <ClCompile Include="GSState.cpp">
-      <Filter>System\Ps2\GS</Filter>
+      <Filter>System\Ps2\GS\GIF</Filter>
     </ClCompile>
     <ClCompile Include="MTGS.cpp">
-      <Filter>System\Ps2\GS</Filter>
+      <Filter>System\Ps2\GS\GIF</Filter>
     </ClCompile>
     <ClCompile Include="DebugTools\DisR3000A.cpp">
       <Filter>System\Ps2\Debug</Filter>
@@ -888,7 +894,7 @@
       <Filter>AppHost\Panels</Filter>
     </ClCompile>
     <ClCompile Include="Gif_Unit.cpp">
-      <Filter>System\Ps2\GS</Filter>
+      <Filter>System\Ps2\GS\GIF</Filter>
     </ClCompile>
     <ClCompile Include="Gif_Logger.cpp">
       <Filter>System\Ps2\GS</Filter>
@@ -939,6 +945,9 @@
       <Filter>AppHost\Debugger</Filter>
     </ClCompile>
     <ClCompile Include="gui\Debugger\CtrlMemView.cpp">
+      <Filter>AppHost\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\Debugger\CtrlMemSearch.cpp">
       <Filter>AppHost\Debugger</Filter>
     </ClCompile>
     <ClCompile Include="DebugTools\ExpressionParser.cpp">
@@ -1457,6 +1466,9 @@
     <ClCompile Include="GS\GSPng.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
+    <ClCompile Include="GS\GSRingHeap.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
     <ClCompile Include="GS\GSLzma.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
@@ -1481,9 +1493,6 @@
     <ClCompile Include="GS\Renderers\DX11\GSTexture11.cpp">
       <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
     </ClCompile>
-    <ClCompile Include="GS\Renderers\DX11\GSTextureCache11.cpp">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
-    </ClCompile>
     <ClCompile Include="GS\Renderers\DX11\GSTextureFX11.cpp">
       <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
     </ClCompile>
@@ -1497,9 +1506,6 @@
       <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\OpenGL\GSShaderOGL.cpp">
-      <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\OpenGL\GSTextureCacheOGL.cpp">
       <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\OpenGL\GSTextureOGL.cpp">
@@ -1517,22 +1523,10 @@
     <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.cpp">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x64.avx.cpp">
+    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.all.cpp">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x64.avx2.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x64.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x86.avx.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x86.avx2.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.x86.cpp">
+    <ClCompile Include="GS\Renderers\SW\GSNewCodeGenerator.cpp">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\SW\GSRendererSW.cpp">
@@ -1541,22 +1535,7 @@
     <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.cpp">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x64.avx.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x64.avx2.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x64.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x86.avx.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x86.avx2.cpp">
-      <Filter>System\Ps2\GS\Renderers\Software</Filter>
-    </ClCompile>
-    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.x86.cpp">
+    <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.cpp">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\SW\GSTextureCacheSW.cpp">
@@ -1625,8 +1604,11 @@
     <ClCompile Include="GS\Window\GSSetting.cpp">
       <Filter>System\Ps2\GS\Window</Filter>
     </ClCompile>
-    <ClCompile Include="GS\Window\GSSettingsDlg.cpp">
+    <ClCompile Include="GS\Window\GSwxDialog.cpp">
       <Filter>System\Ps2\GS\Window</Filter>
+    </ClCompile>
+    <ClCompile Include="GS\Renderers\DX11\D3D.cpp">
+      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
     </ClCompile>
     <ClCompile Include="gui\wxAppWithHelpers.cpp">
       <Filter>AppHost</Filter>
@@ -1652,8 +1634,12 @@
     <ClCompile Include="gui\wxSettingsInterface.cpp">
       <Filter>AppHost</Filter>
     </ClCompile>
-    <ClCompile Include="gui\wxGuiTools.cpp" />
-    <ClCompile Include="gui\wxHelpers.cpp" />
+    <ClCompile Include="gui\wxGuiTools.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="gui\wxHelpers.cpp">
+      <Filter>AppHost</Filter>
+    </ClCompile>
     <ClCompile Include="gui\pxStaticText.cpp">
       <Filter>AppHost</Filter>
     </ClCompile>
@@ -1663,6 +1649,9 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Patch.h">
+      <Filter>Misc</Filter>
+    </ClInclude>
+    <ClInclude Include="PCSX2Base.h">
       <Filter>Misc</Filter>
     </ClInclude>
     <ClInclude Include="PrecompiledHeader.h">
@@ -2013,9 +2002,6 @@
     <ClInclude Include="GameDatabase.h">
       <Filter>Misc</Filter>
     </ClInclude>
-    <ClInclude Include="cheatscpp.h">
-      <Filter>Misc</Filter>
-    </ClInclude>
     <ClInclude Include="IPU\IPUdma.h">
       <Filter>System\Ps2\IPU</Filter>
     </ClInclude>
@@ -2029,7 +2015,7 @@
       <Filter>AppHost\Panels</Filter>
     </ClInclude>
     <ClInclude Include="Gif_Unit.h">
-      <Filter>System\Ps2\GS</Filter>
+      <Filter>System\Ps2\GS\GIF</Filter>
     </ClInclude>
     <ClInclude Include="x86\microVU_Profiler.h">
       <Filter>System\Ps2\EmotionEngine\VU\Dynarec\microVU</Filter>
@@ -2065,6 +2051,9 @@
       <Filter>AppHost\Debugger</Filter>
     </ClInclude>
     <ClInclude Include="gui\Debugger\CtrlMemView.h">
+      <Filter>AppHost\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="gui\Debugger\CtrlMemSearch.h">
       <Filter>AppHost\Debugger</Filter>
     </ClInclude>
     <ClInclude Include="DebugTools\ExpressionParser.h">
@@ -2499,19 +2488,22 @@
     <ClInclude Include="PAD\Windows\PADRawInput.h">
       <Filter>System\Ps2\PAD</Filter>
     </ClInclude>
-    <ClInclude Include="PAD\Windows\PAD.h">
-      <Filter>System\Ps2\PAD</Filter>
-    </ClInclude>
     <ClInclude Include="PAD\Windows\resource_pad.h">
       <Filter>System\Ps2\PAD</Filter>
     </ClInclude>
     <ClInclude Include="GS\GS.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
-    <ClInclude Include="GS\GS_codegen.h">
+    <ClInclude Include="GS\GSExtra.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
-    <ClInclude Include="GS\GS_types.h">
+    <ClInclude Include="GS\GSIntrin.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\GSGL.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\GSRegs.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
     <ClInclude Include="GS\GSAlignedClass.h">
@@ -2571,6 +2563,9 @@
     <ClInclude Include="GS\GSPng.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
+    <ClInclude Include="GS\GSRingHeap.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
     <ClInclude Include="GS\GSThread_CXX11.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
@@ -2580,11 +2575,8 @@
     <ClInclude Include="GS\Renderers\Common\GSFastList.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
-    <ClInclude Include="GS\resource.h">
-      <Filter>System\Ps2\GS</Filter>
-    </ClInclude>
     <ClInclude Include="GS.h">
-      <Filter>System\Ps2</Filter>
+      <Filter>System\Ps2\GIF</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\DX11\GSDevice11.h">
       <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
@@ -2593,9 +2585,6 @@
       <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\DX11\GSTexture11.h">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
-    </ClInclude>
-    <ClInclude Include="GS\Renderers\DX11\GSTextureCache11.h">
       <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\OpenGL\GLLoader.h">
@@ -2608,9 +2597,6 @@
       <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\OpenGL\GSShaderOGL.h">
-      <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
-    </ClInclude>
-    <ClInclude Include="GS\Renderers\OpenGL\GSTextureCacheOGL.h">
       <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\OpenGL\GSTextureOGL.h">
@@ -2631,6 +2617,12 @@
     <ClInclude Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.h">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClInclude>
+    <ClInclude Include="GS\Renderers\SW\GSDrawScanlineCodeGenerator.all.h">
+      <Filter>System\Ps2\GS\Renderers\Software</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\Renderers\SW\GSNewCodeGenerator.h">
+      <Filter>System\Ps2\GS\Renderers\Software</Filter>
+    </ClInclude>
     <ClInclude Include="GS\Renderers\SW\GSRendererSW.h">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClInclude>
@@ -2638,6 +2630,9 @@
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.h">
+      <Filter>System\Ps2\GS\Renderers\Software</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.h">
       <Filter>System\Ps2\GS\Renderers\Software</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\SW\GSTextureCacheSW.h">
@@ -2712,8 +2707,14 @@
     <ClInclude Include="GS\Window\GSSetting.h">
       <Filter>System\Ps2\GS\Window</Filter>
     </ClInclude>
-    <ClInclude Include="GS\Window\GSSettingsDlg.h">
+    <ClInclude Include="GS\resource.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\Window\GSwxDialog.h">
       <Filter>System\Ps2\GS\Window</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\Renderers\DX11\D3D.h">
+      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
     </ClInclude>
     <ClInclude Include="gui\wxAppWithHelpers.h">
       <Filter>AppHost</Filter>
@@ -2745,9 +2746,14 @@
     <ClInclude Include="gui\wxSettingsInterface.h">
       <Filter>AppHost</Filter>
     </ClInclude>
-    <ClInclude Include="gui\wxGuiTools.h" />
+    <ClInclude Include="gui\wxGuiTools.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
     <ClInclude Include="gui\pxStaticText.h">
       <Filter>AppHost</Filter>
+    </ClInclude>
+    <ClInclude Include="PAD\Gamepad.h">
+      <Filter>System\Ps2\PAD</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

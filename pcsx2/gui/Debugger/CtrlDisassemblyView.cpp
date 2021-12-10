@@ -671,11 +671,11 @@ void CtrlDisassemblyView::assembleOpcode(u32 address, std::string defaultText)
 	{
 		SysClearExecutionCache();
 
-		if((selectRangeEnd - selectRangeStart) > 4)
+		if ((selectRangeEnd - selectRangeStart) > 4)
 		{
-			for(u32 addr = selectRangeStart; addr < selectRangeEnd; addr += 0x4)
+			for (u32 addr = selectRangeStart; addr < selectRangeEnd; addr += 0x4)
 			{
-				cpu->write32(addr,encoded);
+				cpu->write32(addr, encoded);
 			}
 		}
 		else
@@ -1080,7 +1080,7 @@ void CtrlDisassemblyView::updateStatusBarText()
 					}
 					case 16:
 					{
-						__aligned16 u128 data = cpu->read128(line.info.dataAddress);
+						alignas(16) u128 data = cpu->read128(line.info.dataAddress);
 						sprintf(text, "[%08X] = %016" PRIX64 "%016" PRIX64, line.info.dataAddress, data._u64[1], data._u64[0]);
 						break;
 					}
@@ -1152,7 +1152,7 @@ void CtrlDisassemblyView::mouseEvent(wxMouseEvent& evt)
 				toggleBreakpoint(false);
 		}
 
-		if(setNewAddress)
+		if (setNewAddress)
 			setCurAddress(newAddress, wxGetKeyState(WXK_SHIFT));
 
 		SetFocus();

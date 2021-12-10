@@ -485,6 +485,12 @@ void AppConfig::FolderOptions::Set(FoldersEnum_t folderidx, const wxString& src,
 	}
 }
 
+wxString AppConfig::FullpathToSaveState(wxString serialName, wxString CRCvalue) const
+{
+	wxString Sstate_append = serialName + " - " + "(" + CRCvalue + ")";
+	return Path::Combine(Folders.Savestates, Sstate_append);
+}
+
 bool IsPortable()
 {
 	return InstallationMode == InstallMode_Portable;
@@ -507,6 +513,8 @@ AppConfig::AppConfig()
 	EnableSpeedHacks = true;
 	EnableGameFixes = false;
 	EnableFastBoot = true;
+
+	DevMode = false;
 
 	EnablePresets = true;
 	PresetIndex = 1;
@@ -593,6 +601,8 @@ void AppConfig::LoadSaveRootItems(IniInterface& ini)
 	IniEntry(EnablePresets);
 	IniEntry(PresetIndex);
 	IniEntry(AskOnBoot);
+
+	IniEntry(DevMode);
 
 	ini.EnumEntry(L"CdvdSource", CdvdSource, CDVD_SourceLabels, CdvdSource);
 

@@ -15,12 +15,12 @@
 
 #pragma once
 
-#include "GS.h"
 #include "GSVertexSW.h"
 #include "GS/Renderers/Common/GSFunctionMap.h"
 #include "GS/GSAlignedClass.h"
 #include "GS/GSPerfMon.h"
 #include "GS/GSThread_CXX11.h"
+#include "GS/GSRingHeap.h"
 
 class alignas(32) GSRasterizerData : public GSAlignedClass<32>
 {
@@ -30,13 +30,13 @@ public:
 	GSVector4i scissor;
 	GSVector4i bbox;
 	GS_PRIM_CLASS primclass;
-	uint8* buff;
+	u8* buff;
 	GSVertexSW* vertex;
 	int vertex_count;
-	uint32* index;
+	u32* index;
 	int index_count;
-	uint64 frame;
-	uint64 start;
+	u64 frame;
+	u64 start;
 	int pixels;
 	int counter;
 
@@ -44,7 +44,7 @@ public:
 		: scissor(GSVector4i::zero())
 		, bbox(GSVector4i::zero())
 		, primclass(GS_INVALID_CLASS)
-		, buff(NULL)
+		, buff(nullptr)
 		, vertex(NULL)
 		, vertex_count(0)
 		, index(NULL)
@@ -59,14 +59,14 @@ public:
 	virtual ~GSRasterizerData()
 	{
 		if (buff != NULL)
-			_aligned_free(buff);
+			GSRingHeap::free(buff);
 	}
 };
 
 class IDrawScanline : public GSAlignedClass<32>
 {
 public:
-	typedef void (*SetupPrimPtr)(const GSVertexSW* vertex, const uint32* index, const GSVertexSW& dscan);
+	typedef void (*SetupPrimPtr)(const GSVertexSW* vertex, const u32* index, const GSVertexSW& dscan);
 	typedef void(__fastcall* DrawScanlinePtr)(int pixels, int left, int top, const GSVertexSW& scan);
 	typedef void (IDrawScanline::*DrawRectPtr)(const GSVector4i& r, const GSVertexSW& v); // TODO: jit
 
@@ -87,18 +87,18 @@ public:
 	virtual ~IDrawScanline() {}
 
 	virtual void BeginDraw(const GSRasterizerData* data) = 0;
-	virtual void EndDraw(uint64 frame, uint64 ticks, int actual, int total, int prims) = 0;
+	virtual void EndDraw(u64 frame, u64 ticks, int actual, int total, int prims) = 0;
 
 #ifdef ENABLE_JIT_RASTERIZER
 
-	__forceinline void SetupPrim(const GSVertexSW* vertex, const uint32* index, const GSVertexSW& dscan) { m_sp(vertex, index, dscan); }
+	__forceinline void SetupPrim(const GSVertexSW* vertex, const u32* index, const GSVertexSW& dscan) { m_sp(vertex, index, dscan); }
 	__forceinline void DrawScanline(int pixels, int left, int top, const GSVertexSW& scan) { m_ds(pixels, left, top, scan); }
 	__forceinline void DrawEdge(int pixels, int left, int top, const GSVertexSW& scan) { m_de(pixels, left, top, scan); }
 	__forceinline void DrawRect(const GSVector4i& r, const GSVertexSW& v) { (this->*m_dr)(r, v); }
 
 #else
 
-	virtual void SetupPrim(const GSVertexSW* vertex, const uint32* index, const GSVertexSW& dscan) = 0;
+	virtual void SetupPrim(const GSVertexSW* vertex, const u32* index, const GSVertexSW& dscan) = 0;
 	virtual void DrawScanline(int pixels, int left, int top, const GSVertexSW& scan) = 0;
 	virtual void DrawEdge(int pixels, int left, int top, const GSVertexSW& scan) = 0;
 	virtual void DrawRect(const GSVector4i& r, const GSVertexSW& v) = 0;
@@ -116,7 +116,7 @@ class IRasterizer : public GSAlignedClass<32>
 public:
 	virtual ~IRasterizer() {}
 
-	virtual void Queue(const std::shared_ptr<GSRasterizerData>& data) = 0;
+	virtual void Queue(const GSRingHeap::SharedPtr<GSRasterizerData>& data) = 0;
 	virtual void Sync() = 0;
 	virtual bool IsSynced() const = 0;
 	virtual int GetPixels(bool reset = true) = 0;
@@ -131,7 +131,7 @@ protected:
 	int m_id;
 	int m_threads;
 	int m_thread_height;
-	uint8* m_scanline;
+	u8* m_scanline;
 	GSVector4i m_scissor;
 	GSVector4 m_fscissor_x;
 	GSVector4 m_fscissor_y;
@@ -142,10 +142,10 @@ protected:
 	typedef void (GSRasterizer::*DrawPrimPtr)(const GSVertexSW* v, int count);
 
 	template <bool scissor_test>
-	void DrawPoint(const GSVertexSW* vertex, int vertex_count, const uint32* index, int index_count);
-	void DrawLine(const GSVertexSW* vertex, const uint32* index);
-	void DrawTriangle(const GSVertexSW* vertex, const uint32* index);
-	void DrawSprite(const GSVertexSW* vertex, const uint32* index);
+	void DrawPoint(const GSVertexSW* vertex, int vertex_count, const u32* index, int index_count);
+	void DrawLine(const GSVertexSW* vertex, const u32* index);
+	void DrawTriangle(const GSVertexSW* vertex, const u32* index);
+	void DrawSprite(const GSVertexSW* vertex, const u32* index);
 
 #if _M_SSE >= 0x501
 	__forceinline void DrawTriangleSection(int top, int bottom, GSVertexSW2& edge, const GSVertexSW2& dedge, const GSVertexSW2& dscan, const GSVector4& p0);
@@ -156,7 +156,7 @@ protected:
 	void DrawEdge(const GSVertexSW& v0, const GSVertexSW& v1, const GSVertexSW& dv, int orientation, int side);
 
 	__forceinline void AddScanline(GSVertexSW* e, int pixels, int left, int top, const GSVertexSW& scan);
-	__forceinline void Flush(const GSVertexSW* vertex, const uint32* index, const GSVertexSW& dscan, bool edge = false);
+	__forceinline void Flush(const GSVertexSW* vertex, const u32* index, const GSVertexSW& dscan, bool edge = false);
 
 	__forceinline void DrawScanline(int pixels, int left, int top, const GSVertexSW& scan);
 	__forceinline void DrawEdge(int pixels, int left, int top, const GSVertexSW& scan);
@@ -173,7 +173,7 @@ public:
 
 	// IRasterizer
 
-	void Queue(const std::shared_ptr<GSRasterizerData>& data);
+	void Queue(const GSRingHeap::SharedPtr<GSRasterizerData>& data);
 	void Sync() {}
 	bool IsSynced() const { return true; }
 	int GetPixels(bool reset);
@@ -183,13 +183,13 @@ public:
 class GSRasterizerList : public IRasterizer
 {
 protected:
-	using GSWorker = GSJobQueue<std::shared_ptr<GSRasterizerData>, 65536>;
+	using GSWorker = GSJobQueue<GSRingHeap::SharedPtr<GSRasterizerData>, 65536>;
 
 	GSPerfMon* m_perfmon;
 	// Worker threads depend on the rasterizers, so don't change the order.
 	std::vector<std::unique_ptr<GSRasterizer>> m_r;
 	std::vector<std::unique_ptr<GSWorker>> m_workers;
-	uint8* m_scanline;
+	u8* m_scanline;
 	int m_thread_height;
 
 	GSRasterizerList(int threads, GSPerfMon* perfmon);
@@ -214,7 +214,7 @@ public:
 			rl->m_r.push_back(std::unique_ptr<GSRasterizer>(new GSRasterizer(new DS(), i, threads, perfmon)));
 			auto& r = *rl->m_r[i];
 			rl->m_workers.push_back(std::unique_ptr<GSWorker>(new GSWorker(
-				[&r](std::shared_ptr<GSRasterizerData>& item) { r.Draw(item.get()); })));
+				[&r](GSRingHeap::SharedPtr<GSRasterizerData>& item) { r.Draw(item.get()); })));
 		}
 
 		return rl;
@@ -222,7 +222,7 @@ public:
 
 	// IRasterizer
 
-	void Queue(const std::shared_ptr<GSRasterizerData>& data);
+	void Queue(const GSRingHeap::SharedPtr<GSRasterizerData>& data);
 	void Sync();
 	bool IsSynced() const;
 	int GetPixels(bool reset);

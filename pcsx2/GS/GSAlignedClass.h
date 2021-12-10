@@ -18,10 +18,11 @@
 template <int i>
 class GSAlignedClass
 {
-public:
-	GSAlignedClass() {}
-	virtual ~GSAlignedClass() {}
+protected:
+	GSAlignedClass() = default;
+	~GSAlignedClass() = default;
 
+public:
 	void* operator new(size_t size)
 	{
 		return _aligned_malloc(size, i);
@@ -30,6 +31,17 @@ public:
 	void operator delete(void* p)
 	{
 		_aligned_free(p);
+	}
+
+	void* operator new(size_t size, void* ptr)
+	{
+		return ptr;
+	}
+
+	void operator delete(void* ptr, void* placement_ptr)
+	{
+		// Just here to satisfy compilers
+		// Person who calls in-place placement new must handle error case
 	}
 
 	void* operator new[](size_t size)

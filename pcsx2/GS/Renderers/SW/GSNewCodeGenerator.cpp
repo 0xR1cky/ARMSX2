@@ -13,19 +13,5 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#pragma once
-
-#include "GS/Renderers/HW/GSTextureCache.h"
-#include "GSDevice11.h"
-
-class GSTextureCache11 : public GSTextureCache
-{
-protected:
-	int Get8bitFormat() { return DXGI_FORMAT_A8_UNORM; }
-
-	void Read(Target* t, const GSVector4i& r);
-	void Read(Source* t, const GSVector4i& r);
-
-public:
-	GSTextureCache11(GSRenderer* r);
-};
+#include "PrecompiledHeader.h"
+#include "GSNewCodeGenerator.h"

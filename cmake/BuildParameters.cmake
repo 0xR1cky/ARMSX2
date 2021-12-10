@@ -121,15 +121,7 @@ endif()
 # It only cost several MB so disbable it by default
 option(CMAKE_BUILD_STRIP "Srip binaries to save a couple of MB (developer option)")
 
-if(NOT DEFINED CMAKE_BUILD_PO)
-	if(CMAKE_BUILD_TYPE STREQUAL "Release")
-		set(CMAKE_BUILD_PO TRUE)
-		message(STATUS "Enable the building of po files by default in ${CMAKE_BUILD_TYPE} build !!!")
-	else()
-		set(CMAKE_BUILD_PO FALSE)
-		message(STATUS "Disable the building of po files by default in ${CMAKE_BUILD_TYPE} build !!!")
-	endif()
-endif()
+option(CMAKE_BUILD_PO "Build po files (modifies git-tracked files)" OFF)
 
 #-------------------------------------------------------------------------------
 # Select the architecture
@@ -220,8 +212,13 @@ option(USE_PGO_OPTIMIZE "Enable PGO optimization (use profile)")
 
 # Note1: Builtin strcmp/memcmp was proved to be slower on Mesa than stdlib version.
 # Note2: float operation SSE is impacted by the PCSX2 SSE configuration. In particular, flush to zero denormal.
-if(NOT MSVC)
-	add_compile_options(-pipe -fvisibility=hidden -pthread -fno-builtin-strcmp -fno-builtin-memcmp -mfpmath=sse -fno-operator-names)
+if(MSVC)
+	add_compile_options("$<$<COMPILE_LANGUAGE:CXX>:/Zc:externConstexpr>")
+else()
+	add_compile_options(-pipe -fvisibility=hidden -pthread -fno-builtin-strcmp -fno-builtin-memcmp -mfpmath=sse)
+
+	# -fno-operator-names should only be for C++ files, not C files.
+	add_compile_options($<$<COMPILE_LANGUAGE:CXX>:-fno-operator-names>)
 endif()
 
 if(WIN32)
@@ -328,9 +325,9 @@ endif()
 # MacOS-specific things
 #-------------------------------------------------------------------------------
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.9)
+set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13)
 
-if (APPLE AND ${CMAKE_OSX_DEPLOYMENT_TARGET} VERSION_LESS 10.14 AND NOT ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 10)
+if (APPLE AND ${CMAKE_OSX_DEPLOYMENT_TARGET} VERSION_LESS 10.14 AND NOT ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 9)
 	# Older versions of the macOS stdlib don't have operator new(size_t, align_val_t)
 	# Disable use of them with this flag
 	# Not great, but also no worse that what we were getting before we turned on C++17

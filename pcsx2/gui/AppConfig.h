@@ -270,6 +270,8 @@ public:
 
 	bool		AskOnBoot;
 
+	bool		DevMode; // Enable extra options in config menus
+
 
 	wxString				CurrentIso;
 	wxString				CurrentELF;
@@ -292,7 +294,7 @@ public:
 
 public:
 	AppConfig();
-
+	wxString FullpathToSaveState(wxString serialName, wxString CRCvalue) const;
 	void LoadSave(IniInterface& ini, SettingsWrapper& wrap);
 	void LoadSaveRootItems(IniInterface& ini);
 

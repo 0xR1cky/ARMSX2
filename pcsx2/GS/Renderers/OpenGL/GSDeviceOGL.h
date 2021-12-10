@@ -19,14 +19,14 @@
 #include "common/GL/StreamBuffer.h"
 #include "GS/Renderers/Common/GSDevice.h"
 #include "GSTextureOGL.h"
-#include "GS/GS.h"
 #include "GSUniformBufferOGL.h"
 #include "GSShaderOGL.h"
 #include "GLState.h"
+#include "GS/GS.h"
 
 #ifdef ENABLE_OGL_DEBUG_MEM_BW
-extern uint64 g_real_texture_upload_byte;
-extern uint64 g_vertex_upload_byte;
+extern u64 g_real_texture_upload_byte;
+extern u64 g_vertex_upload_byte;
 #endif
 
 class GSDepthStencilOGL
@@ -127,17 +127,17 @@ public:
 	{
 		GSVector4 Vertex_Scale_Offset;
 
-		GSVector4 TextureOffset;
+		GSVector4 Texture_Scale_Offset;
 
 		GSVector2 PointSize;
 		GSVector2i MaxDepth;
 
 		VSConstantBuffer()
 		{
-			Vertex_Scale_Offset = GSVector4::zero();
-			TextureOffset       = GSVector4::zero();
-			PointSize           = GSVector2(0);
-			MaxDepth            = GSVector2i(0);
+			Vertex_Scale_Offset  = GSVector4::zero();
+			Texture_Scale_Offset = GSVector4::zero();
+			PointSize            = GSVector2(0);
+			MaxDepth             = GSVector2i(0);
 		}
 
 		__forceinline bool Update(const VSConstantBuffer* cb)
@@ -164,20 +164,20 @@ public:
 		{
 			struct
 			{
-				uint32 int_fst : 1;
-				uint32 _free : 31;
+				u32 int_fst : 1;
+				u32 _free : 31;
 			};
 
-			uint32 key;
+			u32 key;
 		};
 
-		operator uint32() const { return key; }
+		operator u32() const { return key; }
 
 		VSSelector()
 			: key(0)
 		{
 		}
-		VSSelector(uint32 k)
+		VSSelector(u32 k)
 			: key(k)
 		{
 		}
@@ -189,23 +189,23 @@ public:
 		{
 			struct
 			{
-				uint32 sprite : 1;
-				uint32 point  : 1;
-				uint32 line   : 1;
+				u32 sprite : 1;
+				u32 point  : 1;
+				u32 line   : 1;
 
-				uint32 _free : 29;
+				u32 _free : 29;
 			};
 
-			uint32 key;
+			u32 key;
 		};
 
-		operator uint32() const { return key; }
+		operator u32() const { return key; }
 
 		GSSelector()
 			: key(0)
 		{
 		}
-		GSSelector(uint32 k)
+		GSSelector(u32 k)
 			: key(k)
 		{
 		}
@@ -221,7 +221,7 @@ public:
 
 		GSVector4 HalfTexel;
 		GSVector4 MinMax;
-		GSVector4 TC_OH_TS;
+		GSVector4 TC_OH;
 		GSVector4 MaxDepth;
 
 		GSVector4 DitherMatrix[4];
@@ -234,7 +234,7 @@ public:
 			TA_Af         = GSVector4::zero();
 			MinMax        = GSVector4::zero();
 			MskFix        = GSVector4i::zero();
-			TC_OH_TS      = GSVector4::zero();
+			TC_OH         = GSVector4::zero();
 			FbMask        = GSVector4i::zero();
 			MaxDepth      = GSVector4::zero();
 
@@ -287,72 +287,72 @@ public:
 			{
 				// *** Word 1
 				// Format
-				uint32 tex_fmt   : 4;
-				uint32 dfmt      : 2;
-				uint32 depth_fmt : 2;
+				u32 tex_fmt   : 4;
+				u32 dfmt      : 2;
+				u32 depth_fmt : 2;
 				// Alpha extension/Correction
-				uint32 aem : 1;
-				uint32 fba : 1;
+				u32 aem : 1;
+				u32 fba : 1;
 				// Fog
-				uint32 fog : 1;
+				u32 fog : 1;
 				// Flat/goround shading
-				uint32 iip : 1;
+				u32 iip : 1;
 				// Pixel test
-				uint32 date : 3;
-				uint32 atst : 3;
+				u32 date : 3;
+				u32 atst : 3;
 				// Color sampling
-				uint32 fst : 1; // Investigate to do it on the VS
-				uint32 tfx : 3;
-				uint32 tcc : 1;
-				uint32 wms : 2;
-				uint32 wmt : 2;
-				uint32 ltf : 1;
+				u32 fst : 1; // Investigate to do it on the VS
+				u32 tfx : 3;
+				u32 tcc : 1;
+				u32 wms : 2;
+				u32 wmt : 2;
+				u32 ltf : 1;
 				// Shuffle and fbmask effect
-				uint32 shuffle  : 1;
-				uint32 read_ba  : 1;
-				uint32 write_rg : 1;
-				uint32 fbmask   : 1;
+				u32 shuffle  : 1;
+				u32 read_ba  : 1;
+				u32 write_rg : 1;
+				u32 fbmask   : 1;
 
-				//uint32 _free1:0;
+				//u32 _free1:0;
 
 				// *** Word 2
 				// Blend and Colclip
-				uint32 blend_a : 2;
-				uint32 blend_b : 2;
-				uint32 blend_c : 2;
-				uint32 blend_d : 2;
-				uint32 clr1    : 1; // useful?
-				uint32 hdr     : 1;
-				uint32 colclip : 1;
-				uint32 pabe    : 1;
+				u32 blend_a : 2;
+				u32 blend_b : 2;
+				u32 blend_c : 2;
+				u32 blend_d : 2;
+				u32 clr1    : 1; // useful?
+				u32 hdr     : 1;
+				u32 colclip : 1;
+				u32 pabe    : 1;
 
 				// Others ways to fetch the texture
-				uint32 channel : 3;
+				u32 channel : 3;
 
 				// Dithering
-				uint32 dither : 2;
+				u32 dither : 2;
 
 				// Depth clamp
-				uint32 zclamp : 1;
+				u32 zclamp : 1;
 
 				// Hack
-				uint32 tcoffsethack : 1;
-				uint32 urban_chaos_hle : 1;
-				uint32 tales_of_abyss_hle : 1;
-				uint32 tex_is_fb : 1; // Jak Shadows
-				uint32 automatic_lod : 1;
-				uint32 manual_lod : 1;
-				uint32 point_sampler : 1;
-				uint32 invalid_tex0 : 1; // Lupin the 3rd
+				u32 tcoffsethack : 1;
+				u32 urban_chaos_hle : 1;
+				u32 tales_of_abyss_hle : 1;
+				u32 tex_is_fb : 1; // Jak Shadows
+				u32 automatic_lod : 1;
+				u32 manual_lod : 1;
+				u32 point_sampler : 1;
+				u32 invalid_tex0 : 1; // Lupin the 3rd
 
-				uint32 _free2 : 6;
+				u32 _free2 : 6;
 			};
 
-			uint64 key;
+			u64 key;
 		};
 
 		// FIXME is the & useful ?
-		operator uint64() const { return key; }
+		operator u64() const { return key; }
 
 		PSSelector()
 			: key(0)
@@ -366,25 +366,25 @@ public:
 		{
 			struct
 			{
-				uint32 tau   : 1;
-				uint32 tav   : 1;
-				uint32 biln  : 1;
-				uint32 triln : 3;
-				uint32 aniso : 1;
+				u32 tau   : 1;
+				u32 tav   : 1;
+				u32 biln  : 1;
+				u32 triln : 3;
+				u32 aniso : 1;
 
-				uint32 _free : 25;
+				u32 _free : 25;
 			};
 
-			uint32 key;
+			u32 key;
 		};
 
-		operator uint32() { return key; }
+		operator u32() { return key; }
 
 		PSSamplerSelector()
 			: key(0)
 		{
 		}
-		PSSamplerSelector(uint32 k)
+		PSSamplerSelector(u32 k)
 			: key(k)
 		{
 		}
@@ -396,25 +396,25 @@ public:
 		{
 			struct
 			{
-				uint32 ztst : 2;
-				uint32 zwe  : 1;
-				uint32 date : 1;
-				uint32 date_one : 1;
+				u32 ztst : 2;
+				u32 zwe  : 1;
+				u32 date : 1;
+				u32 date_one : 1;
 
-				uint32 _free : 27;
+				u32 _free : 27;
 			};
 
-			uint32 key;
+			u32 key;
 		};
 
 		// FIXME is the & useful ?
-		operator uint32() { return key; }
+		operator u32() { return key; }
 
 		OMDepthStencilSelector()
 			: key(0)
 		{
 		}
-		OMDepthStencilSelector(uint32 k)
+		OMDepthStencilSelector(u32 k)
 			: key(k)
 		{
 		}
@@ -426,30 +426,30 @@ public:
 		{
 			struct
 			{
-				uint32 wr : 1;
-				uint32 wg : 1;
-				uint32 wb : 1;
-				uint32 wa : 1;
+				u32 wr : 1;
+				u32 wg : 1;
+				u32 wb : 1;
+				u32 wa : 1;
 
-				uint32 _free : 28;
+				u32 _free : 28;
 			};
 
 			struct
 			{
-				uint32 wrgba : 4;
+				u32 wrgba : 4;
 			};
 
-			uint32 key;
+			u32 key;
 		};
 
 		// FIXME is the & useful ?
-		operator uint32() { return key & 0xf; }
+		operator u32() { return key & 0xf; }
 
 		OMColorMaskSelector()
 			: key(0xF)
 		{
 		}
-		OMColorMaskSelector(uint32 c) { wrgba = c; }
+		OMColorMaskSelector(u32 c) { wrgba = c; }
 	};
 
 	struct alignas(32) MiscConstantBuffer
@@ -485,8 +485,6 @@ private:
 	std::unique_ptr<GL::StreamBuffer> m_vertex_stream_buffer;
 	std::unique_ptr<GL::StreamBuffer> m_index_stream_buffer;
 	GLuint m_vertex_array_object = 0;
-	u32 m_vertex_buffer_base_vertex = 0;
-	u32 m_index_buffer_offset = 0;
 	GLenum m_draw_topology = 0;
 
 	std::unique_ptr<GL::StreamBuffer> m_vertex_uniform_stream_buffer;
@@ -508,7 +506,7 @@ private:
 	struct
 	{
 		GLuint vs; // program object
-		GLuint ps[ShaderConvert_Count]; // program object
+		GLuint ps[(int)ShaderConvert::Count]; // program object
 		GLuint ln; // sampler object
 		GLuint pt; // sampler object
 		GSDepthStencilOGL* dss;
@@ -541,7 +539,7 @@ private:
 
 	struct
 	{
-		uint16 last_query;
+		u16 last_query;
 		GLuint timer_query[1 << 16];
 
 		GLuint timer() { return timer_query[last_query]; }
@@ -551,7 +549,7 @@ private:
 	GLuint m_gs[1 << 3];
 	GLuint m_ps_ss[1 << 7];
 	GSDepthStencilOGL* m_om_dss[1 << 5];
-	std::unordered_map<uint64, GLuint> m_ps;
+	std::unordered_map<u64, GLuint> m_ps;
 	GLuint m_apitrace;
 
 	GLuint m_palette_ss;
@@ -561,9 +559,10 @@ private:
 	MiscConstantBuffer m_misc_cb_cache;
 
 	std::unique_ptr<GSTexture> m_font;
+	AlignedBuffer<u8, 32> m_download_buffer;
 
-	GSTexture* CreateSurface(int type, int w, int h, int format) final;
-	GSTexture* FetchSurface(int type, int w, int h, int format) final;
+	GSTexture* CreateSurface(GSTexture::Type type, int w, int h, GSTexture::Format format) final;
+	GSTexture* FetchSurface(GSTexture::Type type, int w, int h, GSTexture::Format format) final;
 
 	void DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c) final;
 	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0) final;
@@ -576,7 +575,9 @@ private:
 	void OMAttachDs(GSTextureOGL* ds = NULL);
 	void OMSetFBO(GLuint fbo);
 
-	uint16 ConvertBlendEnum(uint16 generic) final;
+	u16 ConvertBlendEnum(u16 generic) final;
+
+	void DrawStretchRect(const GSVector4& sRect, const GSVector4& dRect, const GSVector2i& ds);
 
 public:
 	GSShaderOGL* m_shader;
@@ -594,23 +595,26 @@ public:
 	void Flip() override;
 	void SetVSync(int vsync) override;
 
-	void DrawPrimitive() final;
-	void DrawIndexedPrimitive() final;
-	void DrawIndexedPrimitive(int offset, int count) final;
+	void DrawPrimitive();
+	void DrawIndexedPrimitive();
+	void DrawIndexedPrimitive(int offset, int count);
 
 	void ClearRenderTarget(GSTexture* t, const GSVector4& c) final;
-	void ClearRenderTarget(GSTexture* t, uint32 c) final;
+	void ClearRenderTarget(GSTexture* t, u32 c) final;
 	void ClearDepth(GSTexture* t) final;
-	void ClearStencil(GSTexture* t, uint8 c) final;
+	void ClearStencil(GSTexture* t, u8 c) final;
 
 	void InitPrimDateTexture(GSTexture* rt, const GSVector4i& area);
 	void RecycleDateTexture();
 
-	GSTexture* CopyOffscreen(GSTexture* src, const GSVector4& sRect, int w, int h, int format = 0, int ps_shader = 0) final;
+	bool DownloadTexture(GSTexture* src, const GSVector4i& rect, GSTexture::GSMap& out_map) final;
 
 	void CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r) final;
-	void CopyRectConv(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, bool at_origin);
-	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, int shader = 0, bool linear = true) final;
+
+	// BlitRect *does* mess with GL state, be sure to re-bind.
+	void BlitRect(GSTexture* sTex, const GSVector4i& r, const GSVector2i& dsize, bool at_origin, bool linear);
+
+	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader = ShaderConvert::COPY, bool linear = true) final;
 	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, GLuint ps, bool linear = true);
 	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha) final;
 	void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, GLuint ps, int bs, OMColorMaskSelector cms, bool linear = true);
@@ -621,13 +625,13 @@ public:
 	void IASetVertexBuffer(const void* vertices, size_t count);
 	void IASetIndexBuffer(const void* index, size_t count);
 
-	void PSSetShaderResource(int i, GSTexture* sr) final;
-	void PSSetShaderResources(GSTexture* sr0, GSTexture* sr1) final;
+	void PSSetShaderResource(int i, GSTexture* sr);
+	void PSSetShaderResources(GSTexture* sr0, GSTexture* sr1);
 	void PSSetSamplerState(GLuint ss);
 
 	void OMSetDepthStencilState(GSDepthStencilOGL* dss);
-	void OMSetBlendState(uint8 blend_index = 0, uint8 blend_factor = 0, bool is_blend_constant = false, bool accumulation_blend = false);
-	void OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector4i* scissor = NULL) final;
+	void OMSetBlendState(u8 blend_index = 0, u8 blend_factor = 0, bool is_blend_constant = false, bool accumulation_blend = false, bool blend_mix = false);
+	void OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector4i* scissor = NULL);
 	void OMSetColorMaskState(OMColorMaskSelector sel = OMColorMaskSelector());
 
 	bool HasColorSparse() final { return GLLoader::found_compatible_GL_ARB_sparse_texture2; }

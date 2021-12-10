@@ -26,7 +26,6 @@
 #include "KeyboardQueue.h"
 #include "WndProcEater.h"
 #include "DualShock3.h"
-#include "PAD.h"
 
 // Needed to know if raw input is available.  It requires XP or higher.
 #include "PADRawInput.h"
@@ -337,7 +336,7 @@ void PADsetSettingsDir(const char* dir)
 
 	//uint targlen = MultiByteToWideChar(CP_ACP, 0, dir, -1, NULL, 0);
 	wxString iniName = "PAD.ini";
-	MultiByteToWideChar(CP_UTF8, 0, std::string(EmuFolders::Settings.Combine(iniName).GetFullPath()).c_str(), -1, iniFileUSB, MAX_PATH * 2);
+	StrCpyNW(iniFileUSB, EmuFolders::Settings.Combine(iniName).GetFullPath(), std::size(iniFileUSB));
 
 	createIniDir = false;
 

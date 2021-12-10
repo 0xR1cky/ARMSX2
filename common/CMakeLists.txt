@@ -61,6 +61,7 @@ target_sources(common PRIVATE
 # x86emitter headers
 target_sources(common PRIVATE
 	Align.h
+	AlignedMalloc.h
 	Assertions.h
 	boost_spsc_queue.hpp
 	Console.h
@@ -81,7 +82,6 @@ target_sources(common PRIVATE
 	RedtapeWindows.h
 	RwMutex.h
 	SafeArray.h
-	ScopedAlloc.h
 	ScopedGuard.h
 	ScopedPtrMT.h
 	SettingsInterface.h
@@ -168,6 +168,11 @@ else()
 		)
 	  target_link_libraries(common PRIVATE ${WAYLAND_EGL_LIBRARIES})
 	endif()
+endif()
+
+if (USE_GCC AND CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+	# GCC LTO doesn't work with asm statements
+	set_source_files_properties(FastJmp.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
 endif()
 
 target_link_libraries(common PRIVATE ${LIBC_LIBRARIES} PUBLIC wxWidgets::all glad)
