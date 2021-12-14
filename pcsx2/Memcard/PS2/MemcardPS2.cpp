@@ -103,7 +103,7 @@ void MemcardPS2::WriteSectorToFileSystem(u32 address, size_t length)
 	const ghc::filesystem::path directory = g_MemcardConfig.GetMemcardsFolder();
 	const ghc::filesystem::path fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
 	const ghc::filesystem::path fullPath = directory / fileName;
-	stream.open(fullPath, std::ios_base::binary);
+	stream.open(fullPath);
 
 	if (!stream.good())
 	{
