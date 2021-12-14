@@ -68,7 +68,7 @@ void MemcardPS2::InitializeOnFileSystem()
 	}
 	else
 	{
-		Console.Warning("%s() Failed to initialize memcard file %s on file system!", __FUNCTION__, fullPath);
+		Console.Warning("%s() Failed to initialize memcard file (port %d slot %d) on file system!", __FUNCTION__, port, slot);
 	}
 
 	stream.close();
@@ -84,7 +84,7 @@ void MemcardPS2::LoadFromFileSystem()
 
 	if (!stream.good())
 	{
-		Console.Warning("%s() Failed to open memcard file %s, ejecting it!", __FUNCTION__, fullPath);
+		Console.Warning("%s() Failed to open memcard file (port %d slot %d), ejecting it!", __FUNCTION__, port, slot);
 		SetSlottedIn(false);
 		return;
 	}
@@ -107,7 +107,7 @@ void MemcardPS2::WriteSectorToFileSystem(u32 address, size_t length)
 
 	if (!stream.good())
 	{
-		Console.Warning("%s(%08x, %d) Failed to open memcard file %s!", __FUNCTION__, address, length);
+		Console.Warning("%s(%08x, %d) Failed to open memcard file (port %d slot %d)!", __FUNCTION__, address, length, port, slot);
 		Console.Warning("This sector write will persist in memory, but will not be committed to disk!");
 		// TODO: Should we eject the card? What's the proper thing to do here...
 		return;
