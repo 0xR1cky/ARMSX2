@@ -59,7 +59,7 @@ void MemcardPS2::InitializeOnFileSystem()
 	}
 
 	ghc::filesystem::ofstream stream;
-	stream.open(fullPath);
+	stream.open(fullPath, std::ios_base::binary);
 
 	if (stream.good())
 	{
@@ -80,7 +80,7 @@ void MemcardPS2::LoadFromFileSystem()
 	const ghc::filesystem::path directory = g_MemcardConfig.GetMemcardsFolder();
 	const ghc::filesystem::path fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
 	const ghc::filesystem::path fullPath = directory / fileName;
-	stream.open(fullPath);
+	stream.open(fullPath, std::ios_base::binary);
 
 	if (!stream.good())
 	{
@@ -103,7 +103,7 @@ void MemcardPS2::WriteSectorToFileSystem(u32 address, size_t length)
 	const ghc::filesystem::path directory = g_MemcardConfig.GetMemcardsFolder();
 	const ghc::filesystem::path fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
 	const ghc::filesystem::path fullPath = directory / fileName;
-	stream.open(fullPath);
+	stream.open(fullPath, std::ios_base::binary);
 
 	if (!stream.good())
 	{
@@ -217,6 +217,8 @@ void MemcardPS2::EraseBlock()
 		{
 			memcardData.at(address + i) = 0xff;
 		}
+
+		WriteSectorToFileSystem(address, eraseBlockSizeWithECC);
 	}
 	else
 	{
