@@ -13,15 +13,34 @@ MemcardPS2::MemcardPS2(int port, int slot)
 	this->slot = slot;
 	const size_t sizeBytes = (static_cast<u16>(sectorSize) + ECC_BYTES) * static_cast<u32>(sectorCount);
 	memcardData = std::vector<u8>(sizeBytes, 0xff);
+	SoftReset();
 }
 
 MemcardPS2::~MemcardPS2()
 {
-	DestructStream();
+	if (stream.is_open())
+	{
+		stream.close();
+	}
 }
 
-void MemcardPS2::Reset()
+void MemcardPS2::SoftReset()
 {
+	terminator = static_cast<u8>(Terminator::DEFAULT);
+	sectorSize = SectorSize::STANDARD;
+	eraseBlockSize = EraseBlockSize::STANDARD;
+	sectorCount = SectorCount::STANDARD;
+	sector = 0;
+}
+
+void MemcardPS2::FullReset()
+{
+	if (stream.is_open())
+	{
+		stream.close();
+	}
+
+	SoftReset();
 	InitializeOnFileSystem();
 	LoadFromFileSystem();
 }
@@ -34,11 +53,6 @@ bool MemcardPS2::IsSlottedIn()
 void MemcardPS2::SetSlottedIn(bool value)
 {
 	isSlottedIn = value;
-}
-
-void MemcardPS2::DestructStream()
-{
-	stream.close();
 }
 
 void MemcardPS2::InitializeOnFileSystem()

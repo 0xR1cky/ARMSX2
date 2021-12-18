@@ -458,6 +458,12 @@ MemcardPS2Protocol::MemcardPS2Protocol()
 
 MemcardPS2Protocol::~MemcardPS2Protocol() = default;
 
+void MemcardPS2Protocol::SoftReset()
+{
+	mode = MemcardPS2Mode::NOT_SET;
+	currentCommandByte = 1;
+}
+
 void MemcardPS2Protocol::FullReset()
 {
 	SoftReset();
@@ -466,15 +472,9 @@ void MemcardPS2Protocol::FullReset()
 	{
 		for (size_t j = 0; j < MAX_SLOTS; j++)
 		{
-			memcards.at(i).at(j)->Reset();
+			memcards.at(i).at(j)->FullReset();
 		}
 	}
-}
-
-void MemcardPS2Protocol::SoftReset()
-{
-	mode = MemcardPS2Mode::NOT_SET;
-	currentCommandByte = 1;
 }
 
 MemcardPS2Mode MemcardPS2Protocol::GetMemcardMode()

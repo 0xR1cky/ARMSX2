@@ -28,10 +28,10 @@ public:
 	MemcardPS2(int port, int slot);
 	~MemcardPS2();
 
-	void Reset();
+	void SoftReset();
+	void FullReset();
 	bool IsSlottedIn();
 	void SetSlottedIn(bool value);
-	void DestructStream();
 	void InitializeOnFileSystem();
 	void LoadFromFileSystem();
 	void WriteSectorToFileSystem(u32 address, size_t length);
