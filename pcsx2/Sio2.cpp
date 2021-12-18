@@ -46,6 +46,8 @@ void Sio2::Reset()
 	commandLength = 0;
 	processedLength = 0;
 
+	g_PadPS2Protocol.Reset();
+	g_MultitapPS2Protocol.FullReset();
 	g_MemcardPS2Protocol.FullReset();
 }
 
@@ -121,12 +123,13 @@ void Sio2::Sio2Write(u8 data)
 			}
 		case Sio2Mode::PAD:
 			g_Sio2.SetRecv1(Recv1::CONNECTED);
-			pad = g_PadPS2Protocol.GetPad(activePort, 0);
+			pad = g_PadPS2Protocol.GetPad(activePort, g_MultitapPS2Protocol.GetActiveSlot());
 			g_PadPS2Protocol.SetActivePad(pad);
 			fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
 			break;
 		case Sio2Mode::MULTITAP:
-			g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+			// TODO: Add a config option to enable/disable multitap instead of always replying connected
+			g_Sio2.SetRecv1(Recv1::CONNECTED);
 			fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));
 			break;
 		case Sio2Mode::INFRARED:
@@ -134,7 +137,7 @@ void Sio2::Sio2Write(u8 data)
 			fifoOut.push_back(0x00);
 			break;
 		case Sio2Mode::MEMCARD:
-			memcard = g_MemcardPS2Protocol.GetMemcard(activePort, 0);
+			memcard = g_MemcardPS2Protocol.GetMemcard(activePort, g_MultitapPS2Protocol.GetActiveSlot());
 			g_MemcardPS2Protocol.SetActiveMemcard(memcard);
 			g_Sio2.SetRecv1(memcard->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
 			fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
@@ -155,6 +158,7 @@ void Sio2::Sio2Write(u8 data)
 				g_PadPS2Protocol.Reset();
 				break;
 			case Sio2Mode::MULTITAP:
+				g_MultitapPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::INFRARED:
 				break;
