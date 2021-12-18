@@ -2,6 +2,7 @@
 #include "PrecompiledHeader.h"
 #include "MemcardPS2.h"
 
+#include "IopCommon.h"
 #include "fmt/format.h"
 #include "Memcard/MemcardConfig.h"
 #include <string>
@@ -14,7 +15,10 @@ MemcardPS2::MemcardPS2(int port, int slot)
 	memcardData = std::vector<u8>(sizeBytes, 0xff);
 }
 
-MemcardPS2::~MemcardPS2() = default;
+MemcardPS2::~MemcardPS2()
+{
+	DestructStream();
+}
 
 void MemcardPS2::Reset()
 {
@@ -32,6 +36,11 @@ void MemcardPS2::SetSlottedIn(bool value)
 	isSlottedIn = value;
 }
 
+void MemcardPS2::DestructStream()
+{
+	stream.close();
+}
+
 void MemcardPS2::InitializeOnFileSystem()
 {
 	if (memcardData.size() == 0)
@@ -39,16 +48,15 @@ void MemcardPS2::InitializeOnFileSystem()
 		DevCon.Warning("%s() Attempted to initialize memcard on file system, but memcardData is not yet populated! That should be done prior to writing the data to disk!", __FUNCTION__);
 		return;
 	}
+		
+	directory = g_MemcardConfig.GetMemcardsFolder();
+	fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
+	fullPath = directory / fileName;
+	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
 
-	ghc::filesystem::ifstream testExists;
-	const ghc::filesystem::path directory = g_MemcardConfig.GetMemcardsFolder();
-	const ghc::filesystem::path fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
-	const ghc::filesystem::path fullPath = directory / fileName;
-	testExists.open(fullPath);
-
-	if (testExists.good())
+	if (stream.good())
 	{
-		testExists.close();
+		// File is already on disk, exit quietly.
 		return;
 	}
 
@@ -58,30 +66,31 @@ void MemcardPS2::InitializeOnFileSystem()
 		return;
 	}
 
-	ghc::filesystem::ofstream stream;
-	stream.open(fullPath, std::ios_base::binary);
+	std::ofstream writer;
+	writer.open(fullPath);
 
-	if (stream.good())
+	if (writer.good())
 	{
 		const char* buf = reinterpret_cast<char*>(memcardData.data());
-		stream.write(buf, memcardData.size());
+		writer.write(buf, memcardData.size());
 	}
 	else
 	{
 		Console.Warning("%s() Failed to initialize memcard file (port %d slot %d) on file system!", __FUNCTION__, port, slot);
 	}
 
-	stream.close();
+	writer.close();
+
+	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+
+	if (!stream.good())
+	{
+		Console.Warning("%s() Could not open memcard file (port %d slot %d)!", __FUNCTION__, port, slot);
+	}
 }
 
 void MemcardPS2::LoadFromFileSystem()
 {
-	ghc::filesystem::ifstream stream;
-	const ghc::filesystem::path directory = g_MemcardConfig.GetMemcardsFolder();
-	const ghc::filesystem::path fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
-	const ghc::filesystem::path fullPath = directory / fileName;
-	stream.open(fullPath, std::ios_base::binary);
-
 	if (!stream.good())
 	{
 		Console.Warning("%s() Failed to open memcard file (port %d slot %d), ejecting it!", __FUNCTION__, port, slot);
@@ -89,22 +98,16 @@ void MemcardPS2::LoadFromFileSystem()
 		return;
 	}
 
-	char* buf = new char[memcardData.size()];
-	stream.read(buf, memcardData.size());
-	memcpy(memcardData.data(), buf, memcardData.size());
-	delete buf;
-	stream.close();
+	std::vector<char> buf;
+	buf.resize(memcardData.size());
+	stream.seekg(0);
+	stream.read(buf.data(), memcardData.size());
+	memcpy(memcardData.data(), buf.data(), memcardData.size());
 	SetSlottedIn(true);
 }
 
 void MemcardPS2::WriteSectorToFileSystem(u32 address, size_t length)
 {
-	ghc::filesystem::fstream stream;
-	const ghc::filesystem::path directory = g_MemcardConfig.GetMemcardsFolder();
-	const ghc::filesystem::path fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
-	const ghc::filesystem::path fullPath = directory / fileName;
-	stream.open(fullPath);
-
 	if (!stream.good())
 	{
 		Console.Warning("%s(%08x, %d) Failed to open memcard file (port %d slot %d)!", __FUNCTION__, address, length, port, slot);
@@ -113,12 +116,12 @@ void MemcardPS2::WriteSectorToFileSystem(u32 address, size_t length)
 		return;
 	}
 
-	char* buf = new char[memcardData.size()];
-	memcpy(buf, memcardData.data() + address, length);
-	stream.seekp(address, std::ios_base::beg);
-	stream.write(buf, length);
-	delete buf;
-	stream.close();
+	std::vector<char> buf;
+	buf.resize(length);
+	memcpy(buf.data(), memcardData.data() + address, length);
+	stream.seekp(address);
+	stream.write(buf.data(), length);
+	stream.flush();
 }
 
 u8 MemcardPS2::GetTerminator()
@@ -162,6 +165,19 @@ std::queue<u8> MemcardPS2::ReadSector()
 	const u32 address = sector * sectorSizeWithECC;
 	std::queue<u8> ret;
 
+	if (sector == 0)
+	{
+		MEMCARDS_LOG("%s() Superblock (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x10 && sector < 0x12)
+	{
+		MEMCARDS_LOG("%s() Indirect FAT (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x12 && sector < 0x52)
+	{
+		MEMCARDS_LOG("%s() FAT (%08X)", __FUNCTION__, sector);
+	}
+
 	if (address + sectorSizeWithECC <= memcardData.size())
 	{
 		for (size_t i = 0; i < sectorSizeWithECC; i++)
@@ -181,6 +197,19 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 {
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
 	const u32 address = sector * sectorSizeWithECC;
+
+	if (sector == 0)
+	{
+		MEMCARDS_LOG("%s() Superblock (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x10 && sector < 0x12)
+	{
+		MEMCARDS_LOG("%s() Indirect FAT (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x12 && sector < 0x52)
+	{
+		MEMCARDS_LOG("%s() FAT (%08X)", __FUNCTION__, sector);
+	}
 
 	if (address + sectorSizeWithECC <= memcardData.size())
 	{
@@ -210,6 +239,19 @@ void MemcardPS2::EraseBlock()
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
 	const size_t eraseBlockSizeWithECC = sectorSizeWithECC * static_cast<u16>(eraseBlockSize);
 	const u32 address = sector * sectorSizeWithECC;
+
+	if (sector == 0)
+	{
+		MEMCARDS_LOG("%s() Superblock (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x10 && sector < 0x12)
+	{
+		MEMCARDS_LOG("%s() Indirect FAT (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x12 && sector < 0x52)
+	{
+		MEMCARDS_LOG("%s() FAT (%08X)", __FUNCTION__, sector);
+	}
 
 	if (address + eraseBlockSizeWithECC <= memcardData.size())
 	{

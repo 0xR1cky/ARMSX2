@@ -10,6 +10,10 @@
 class MemcardPS2
 {
 private:
+	ghc::filesystem::fstream stream;
+	ghc::filesystem::path directory;
+	ghc::filesystem::path fileName;
+	ghc::filesystem::path fullPath;
 	int port, slot;
 	bool isSlottedIn = false;
 	
@@ -27,6 +31,7 @@ public:
 	void Reset();
 	bool IsSlottedIn();
 	void SetSlottedIn(bool value);
+	void DestructStream();
 	void InitializeOnFileSystem();
 	void LoadFromFileSystem();
 	void WriteSectorToFileSystem(u32 address, size_t length);
