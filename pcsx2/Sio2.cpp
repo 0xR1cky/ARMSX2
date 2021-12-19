@@ -5,6 +5,7 @@
 #include "PAD/PS2/PadPS2Protocol.h"
 #include "Memcard/PS2/MemcardPS2Protocol.h"
 #include "Multitap/PS2/MultitapPS2Protocol.h"
+#include "Multitap/MultitapConfig.h"
 #include "IopDma.h"
 
 Sio2 g_Sio2;
@@ -40,7 +41,6 @@ void Sio2::Reset()
 	SetIStat(0);
 	
 	activePort = 0;
-	activeSlot = 0;
 	send3Read = false;
 	send3Position = 0;
 	commandLength = 0;
@@ -128,9 +128,16 @@ void Sio2::Sio2Write(u8 data)
 			fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
 			break;
 		case Sio2Mode::MULTITAP:
-			// TODO: Add a config option to enable/disable multitap instead of always replying connected
-			g_Sio2.SetRecv1(Recv1::CONNECTED);
-			fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));
+			if (g_MultitapConfig.IsMultitapEnabled(activePort))
+			{
+				g_Sio2.SetRecv1(Recv1::CONNECTED);
+				fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));	
+			}
+			else 
+			{
+				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+				fifoOut.push_back(0x00);
+			}
 			break;
 		case Sio2Mode::INFRARED:
 			g_Sio2.SetRecv1(Recv1::DISCONNECTED);

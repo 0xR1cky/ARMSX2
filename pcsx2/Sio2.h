@@ -42,7 +42,6 @@ private:
 	u32 iStat;
 	
 	u8 activePort;
-	u8 activeSlot;
 	bool send3Read = false;
 	size_t send3Position = 0;
 	size_t commandLength = 0;
