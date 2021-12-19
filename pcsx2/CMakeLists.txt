@@ -337,6 +337,8 @@ set(pcsx2MemcardHeaders
 		Memcard/PS2/MemcardPS2.h
 		Memcard/PS2/MemcardPS2Protocol.h
 		Memcard/PS2/MemcardPS2Types.h
+		Memcard/MemcardConfig.h
+		Memcard/MemcardConfigSlot.h
 )
 
 #Memcard Sources
@@ -345,6 +347,8 @@ set(pcsx2MemcardSources
 		Memcard/PS1/MemcardPS1Protocol.cpp
 		Memcard/PS2/MemcardPS2.cpp
 		Memcard/PS2/MemcardPS2Protocol.cpp
+		Memcard/MemcardConfig.cpp
+		Memcard/MemcardConfigSlot.cpp
 )
 
 # SPU2 headers
@@ -534,6 +538,7 @@ if(PCSX2_CORE)
 elseif(WIN32)
 set(pcsx2PADCommonSources
 		Multitap/PS2/MultitapPS2Protocol.cpp
+		Multitap/MultitapConfig.cpp
 		PAD/Devices/PadKeyboard.cpp
 		PAD/PS1/PadPS1.cpp
 		PAD/PS1/PadPS1Protocol.cpp
@@ -544,6 +549,7 @@ set(pcsx2PADCommonSources
 set(pcsx2PADCommonHeaders
 		Multitap/PS2/MultitapPS2Protocol.h
 		Multitap/PS2/MultitapPS2Types.h
+		Multitap/MultitapConfig.h
 		PAD/Gamepad.h
 		PAD/PadTypes.h
 		PAD/PadUtils.h
