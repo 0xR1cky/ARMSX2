@@ -774,6 +774,7 @@
     <ClInclude Include="Frontend\ImGuiManager.h" />
     <ClInclude Include="Frontend\OpenGLHostDisplay.h" />
     <ClInclude Include="Frontend\VulkanHostDisplay.h" />
+    <ClInclude Include="DirectoryHelper.h" />
     <ClInclude Include="GameDatabase.h" />
     <ClInclude Include="Gif_Unit.h" />
     <ClInclude Include="GS\Renderers\DX11\D3D.h" />

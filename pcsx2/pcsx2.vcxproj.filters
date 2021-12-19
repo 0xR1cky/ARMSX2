@@ -2985,6 +2985,9 @@
     <ClInclude Include="Memcard\MemcardConfigSlot.h">
       <Filter>System\Ps2\Memcard</Filter>
     </ClInclude>
+    <ClInclude Include="DirectoryHelper.h">
+      <Filter>AppHost</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windows\wxResources.rc">

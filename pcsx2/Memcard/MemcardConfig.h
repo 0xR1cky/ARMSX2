@@ -7,14 +7,13 @@
 #include "ghc/filesystem.h"
 #include <array>
 
-using MemcardPS2SlotConfigs = std::array<std::array<std::unique_ptr<MemcardConfigSlot>, MAX_SLOTS>, MAX_PORTS>;
+using MemcardSlotConfigs = std::array<std::array<std::unique_ptr<MemcardConfigSlot>, MAX_SLOTS>, MAX_PORTS>;
 
 class MemcardConfig
 {
 private:
-	MemcardPS2SlotConfigs slots;
-
-	ghc::filesystem::path memcardsFolder = "./memcards_v2/";
+	MemcardSlotConfigs slots;
+	ghc::filesystem::path memcardsFolder = "./Documents/PCSX2/memcards_v2/";
 
 public:
 	MemcardConfig();

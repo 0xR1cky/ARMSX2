@@ -6,6 +6,7 @@
 #include "fmt/format.h"
 #include "Memcard/MemcardConfig.h"
 #include <string>
+#include "DirectoryHelper.h"
 
 MemcardPS2::MemcardPS2(int port, int slot)
 {
@@ -63,7 +64,8 @@ void MemcardPS2::InitializeOnFileSystem()
 		return;
 	}
 		
-	directory = g_MemcardConfig.GetMemcardsFolder();
+	// TODO: Portable builds, only use the relative path specified in config, do not prefix with home directory
+	directory = GetHomeDirectory() / g_MemcardConfig.GetMemcardsFolder();
 	fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
 	fullPath = directory / fileName;
 	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
