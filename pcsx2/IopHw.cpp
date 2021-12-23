@@ -20,8 +20,7 @@
 #include "iR5900.h"
 #include "Sio.h"
 #include "Mdec.h"
-#include "Sio2.h"
-#include "Sio0.h"
+#include "SioCommon.h"
 
 // NOTE: Any modifications to read/write fns should also go into their const counterparts
 // found in iPsxHw.cpp.
@@ -36,8 +35,7 @@ void psxHwReset() {
 	cdrReset();
 	cdvdReset();
 	psxRcntInit();
-	g_Sio2.Reset();
-	g_sio0.Reset();
+	g_SioCommon.FullReset();
 }
 
 __fi u8 psxHw4Read8(u32 add)

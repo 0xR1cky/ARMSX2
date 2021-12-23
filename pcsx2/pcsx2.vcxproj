@@ -348,6 +348,7 @@
     <ClCompile Include="IopGte.cpp" />
     <ClCompile Include="PINE.cpp" />
     <ClCompile Include="FW.cpp" />
+    <ClCompile Include="Memcard\Memcard.cpp" />
     <ClCompile Include="Memcard\MemcardConfig.cpp" />
     <ClCompile Include="Memcard\MemcardConfigSlot.cpp" />
     <ClCompile Include="Memcard\PS1\MemcardPS1.cpp" />
@@ -385,6 +386,7 @@
     <ClCompile Include="Recording\Utilities\InputRecordingLogger.cpp" />
     <ClCompile Include="Sio0.cpp" />
     <ClCompile Include="Sio2.cpp" />
+    <ClCompile Include="SioCommon.cpp" />
     <ClCompile Include="SPU2\DplIIdecoder.cpp" />
     <ClCompile Include="SPU2\debug.cpp" />
     <ClCompile Include="SPU2\RegLog.cpp" />
@@ -809,8 +811,10 @@
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="PINE.h" />
     <ClInclude Include="FW.h" />
+    <ClInclude Include="Memcard\Memcard.h" />
     <ClInclude Include="Memcard\MemcardConfig.h" />
     <ClInclude Include="Memcard\MemcardConfigSlot.h" />
+    <ClInclude Include="Memcard\MemcardTypes.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Protocol.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Types.h" />
@@ -859,6 +863,7 @@
     <ClInclude Include="Sio0Types.h" />
     <ClInclude Include="Sio2.h" />
     <ClInclude Include="Sio2Types.h" />
+    <ClInclude Include="SioCommon.h" />
     <ClInclude Include="SioTypes.h" />
     <ClInclude Include="SPU2\Config.h" />
     <ClInclude Include="SPU2\Global.h" />

@@ -8,7 +8,7 @@
 #include <string>
 #include "DirectoryHelper.h"
 
-MemcardPS2::MemcardPS2(int port, int slot)
+MemcardPS2::MemcardPS2(size_t port, size_t slot)
 {
 	this->port = port;
 	this->slot = slot;

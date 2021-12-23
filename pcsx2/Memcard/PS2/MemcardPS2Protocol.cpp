@@ -2,6 +2,7 @@
 #include "PrecompiledHeader.h"
 #include "MemcardPS2Protocol.h"
 
+#include "SioCommon.h"
 #include "Sio2.h"
 
 MemcardPS2Protocol g_MemcardPS2Protocol;
@@ -445,17 +446,7 @@ u8 MemcardPS2Protocol::AuthF7(u8 data)
 	return The2bTerminator(5);
 }
 
-MemcardPS2Protocol::MemcardPS2Protocol()
-{
-	for (size_t i = 0; i < MAX_PORTS; i++)
-	{
-		for (size_t j = 0; j < MAX_SLOTS; j++)
-		{
-			memcards.at(i).at(j) = std::make_unique<MemcardPS2>(i, j);
-		}
-	}
-}
-
+MemcardPS2Protocol::MemcardPS2Protocol() = default;
 MemcardPS2Protocol::~MemcardPS2Protocol() = default;
 
 void MemcardPS2Protocol::SoftReset()
@@ -468,11 +459,16 @@ void MemcardPS2Protocol::FullReset()
 {
 	SoftReset();
 
-	for (size_t i = 0; i < MAX_PORTS; i++)
+	for (size_t port = 0; port < MAX_PORTS; port++)
 	{
-		for (size_t j = 0; j < MAX_SLOTS; j++)
+		for (size_t slot = 0; slot < MAX_SLOTS; slot++)
 		{
-			memcards.at(i).at(j)->FullReset();
+			MemcardPS2* memcardPS2 = g_SioCommon.GetMemcardPS2(port, slot);
+			
+			if (memcardPS2 != nullptr)
+			{
+				memcardPS2->FullReset();
+			}	
 		}
 	}
 }
@@ -486,7 +482,7 @@ MemcardPS2* MemcardPS2Protocol::GetMemcard(size_t port, size_t slot)
 {
 	port = std::clamp<size_t>(port, 0, MAX_PORTS);
 	slot = std::clamp<size_t>(slot, 0, MAX_SLOTS);
-	return memcards.at(port).at(slot).get();
+	return g_SioCommon.GetMemcardPS2(port, slot);
 }
 
 void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)

@@ -2,9 +2,11 @@
 #include "PrecompiledHeader.h"
 #include "Sio2.h"
 
+#include "SioCommon.h"
 #include "PAD/PS2/PadPS2Protocol.h"
 #include "Memcard/PS2/MemcardPS2Protocol.h"
 #include "Multitap/PS2/MultitapPS2Protocol.h"
+#include "Memcard/MemcardConfig.h"
 #include "Multitap/MultitapConfig.h"
 #include "IopDma.h"
 
@@ -59,7 +61,9 @@ void Sio2::SetInterrupt()
 void Sio2::Sio2Write(u8 data)
 {
 	PadPS2* pad = nullptr;
-	MemcardPS2* memcard = nullptr;
+	Memcard* memcard = nullptr;
+	MemcardPS2* memcardPS2 = nullptr;
+	MemcardConfigSlot* mcs = nullptr;
 
 	// If SEND3 contents at index send3Position have not been read, do so now.
 	// This tells us what physical port we are operating on, and the length of
@@ -144,10 +148,19 @@ void Sio2::Sio2Write(u8 data)
 			fifoOut.push_back(0x00);
 			break;
 		case Sio2Mode::MEMCARD:
-			memcard = g_MemcardPS2Protocol.GetMemcard(activePort, g_MultitapPS2Protocol.GetActiveSlot());
-			g_MemcardPS2Protocol.SetActiveMemcard(memcard);
-			g_Sio2.SetRecv1(memcard->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
-			fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
+			switch (g_SioCommon.GetMemcardType(activePort, g_MultitapPS2Protocol.GetActiveSlot()))
+			{
+				case MemcardType::PS2:
+					memcardPS2 = g_SioCommon.GetMemcardPS2(activePort, g_MultitapPS2Protocol.GetActiveSlot());
+					g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
+					g_Sio2.SetRecv1(memcardPS2->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
+					fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
+					break;
+				default:
+					DevCon.Warning("%s(%02X) Non-PS2 memcard access from SIO2!", __FUNCTION__, data);
+					fifoOut.push_back(0x00);
+					break;
+			}
 			break;
 		default:
 			DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);

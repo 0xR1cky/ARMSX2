@@ -6,8 +6,6 @@
 #include <array>
 #include <queue>
 
-using MemcardPS2Array = std::array<std::array<std::unique_ptr<MemcardPS2>, MAX_SLOTS>, MAX_PORTS>;
-
 // A repeated pattern in memcard functions is to use the response
 // pattern "0x00, 0x00, 0x2b, terminator. We'll inline this here
 // so we can quickly jam it into such functions without redefining
@@ -29,7 +27,6 @@ inline u8 _The2bTerminator(size_t len, size_t currentCommandByte, u8 terminator)
 class MemcardPS2Protocol
 {
 private:
-	MemcardPS2Array memcards;
 	MemcardPS2* activeMemcard;
 	MemcardPS2Mode mode = MemcardPS2Mode::NOT_SET;
 	size_t currentCommandByte = 1;

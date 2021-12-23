@@ -1779,6 +1779,12 @@
     <ClCompile Include="Multitap\MultitapConfig.cpp">
       <Filter>System\Ps2\Multitap</Filter>
     </ClCompile>
+    <ClCompile Include="Memcard\Memcard.cpp">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClCompile>
+    <ClCompile Include="SioCommon.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Patch.h">
@@ -2993,6 +2999,15 @@
     </ClInclude>
     <ClInclude Include="Multitap\MultitapConfig.h">
       <Filter>System\Ps2\Multitap</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\MemcardTypes.h">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClInclude>
+    <ClInclude Include="Memcard\Memcard.h">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClInclude>
+    <ClInclude Include="SioCommon.h">
+      <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

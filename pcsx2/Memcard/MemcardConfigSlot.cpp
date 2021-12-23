@@ -4,7 +4,7 @@
 
 #include "fmt/format.h"
 
-MemcardConfigSlot::MemcardConfigSlot(int port, int slot)
+MemcardConfigSlot::MemcardConfigSlot(size_t port, size_t slot)
 {
 	fileName = fmt::format("Memcard_{}{}.ps2", port, slot);
 }
@@ -16,7 +16,17 @@ ghc::filesystem::path MemcardConfigSlot::GetMemcardFileName()
 	return fileName;
 }
 
+MemcardType MemcardConfigSlot::GetMemcardType()
+{
+	return type;
+}
+
 void MemcardConfigSlot::SetMemcardFileName(ghc::filesystem::path newName)
 {
-	fileName = newName;
+	this->fileName = newName;
+}
+
+void MemcardConfigSlot::SetMemcardType(MemcardType type)
+{
+	this->type = type;
 }

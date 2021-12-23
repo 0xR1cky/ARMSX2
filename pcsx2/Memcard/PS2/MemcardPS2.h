@@ -25,7 +25,7 @@ private:
 	std::vector<u8> memcardData;
 
 public:
-	MemcardPS2(int port, int slot);
+	MemcardPS2(size_t port, size_t slot);
 	~MemcardPS2();
 
 	void SoftReset();
