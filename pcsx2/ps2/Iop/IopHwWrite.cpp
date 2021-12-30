@@ -78,7 +78,7 @@ void __fastcall iopHwWrite8_Page1( u32 addr, mem8_t val )
 
 	switch( masked_addr )
 	{
-		mcase(HW_SIO_DATA): g_sio0.SetData(val); break;
+		mcase(HW_SIO_DATA): g_Sio0.SetData(val); break;
 
 		// for use of serial port ignore for now
 		//case 0x50: serial_write8( val ); break;
@@ -282,23 +282,23 @@ static __fi void _HwWrite_16or32_Page1( u32 addr, T val )
 			// ------------------------------------------------------------------------
 			mcase(HW_SIO_DATA) :
 				DevCon.Warning("%s(%08X) Attempted 32 bit write to 8 bit SIO DATA register", __FUNCTION__, val);
-				g_sio0.SetData(static_cast<u8>(val));
+				g_Sio0.SetData(static_cast<u8>(val));
 			break;
 
 			mcase(HW_SIO_STAT):
-				g_sio0.SetStat(val);
+				g_Sio0.SetStat(val);
 			break;
 
 			mcase(HW_SIO_MODE):
-				g_sio0.SetMode(static_cast<u16>(val));
+				g_Sio0.SetMode(static_cast<u16>(val));
 			break;
 
 			mcase(HW_SIO_CTRL):
-				g_sio0.SetCtrl(static_cast<u16>(val));
+				g_Sio0.SetCtrl(static_cast<u16>(val));
 			break;
 
 			mcase(HW_SIO_BAUD):
-				g_sio0.SetBaud(static_cast<u16>(val));
+				g_Sio0.SetBaud(static_cast<u16>(val));
 			break;
 
 			// ------------------------------------------------------------------------

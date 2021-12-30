@@ -37,4 +37,4 @@ public:
 	void ClearInterrupt();
 };
 
-extern Sio0 g_sio0;
+extern Sio0 g_Sio0;

@@ -6,7 +6,7 @@
 #include "R3000A.h"
 #include "IopHw.h"
 
-Sio0 g_sio0;
+Sio0 g_Sio0;
 
 Sio0::Sio0()
 {

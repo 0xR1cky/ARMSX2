@@ -188,7 +188,7 @@ static __fi void _psxTestInterrupts()
 		if (psxTestCycle(psxRegs.sCycle[IopEvt_SIO], psxRegs.eCycle[IopEvt_SIO]))
 		{
 			psxRegs.interrupt &= ~(1 << IopEvt_SIO);
-			g_sio0.SetStat(g_sio0.GetSioStat() | SioStat::IRQ);
+			g_Sio0.SetStat(g_Sio0.GetSioStat() | SioStat::IRQ);
 			//iopIntcIrq(7);
 			psxHu32(0x1070) |= 1 << 7;
 		}

@@ -54,7 +54,7 @@ void SioCommon::FullReset()
 		}
 	}
 
-	g_sio0.Reset();
+	g_Sio0.Reset();
 	g_Sio2.Reset();
 }
 

@@ -275,11 +275,6 @@ void Sio2::SetSend3(u8 index, u32 data)
 		fifoPosition = 0;
 		fifoOut.clear();
 		send3Position = 0;
-
-		for (size_t i = 0; i < send3.size(); i++)
-		{
-			send3.at(i) = 0;
-		}
 	}
 
 	send3.at(index) = data;
