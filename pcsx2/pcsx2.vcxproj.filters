@@ -294,6 +294,7 @@
     </Filter>
     <Filter Include="Host">
       <UniqueIdentifier>{65f21394-287a-471b-a0c1-d8f0d5d95a81}</UniqueIdentifier>
+    </Filter>
     <Filter Include="System\Ps2\Multitap">
       <UniqueIdentifier>{c24e4005-7124-41b4-ad91-24080a9b7372}</UniqueIdentifier>
     </Filter>
@@ -314,6 +315,7 @@
     </Filter>
     <Filter Include="System\Ps2\GS\Shaders\Direct3D11">
       <UniqueIdentifier>{eb697f5b-85f5-424a-a7e4-8d8b73d3426e}</UniqueIdentifier>
+    </Filter>
     <Filter Include="System\Ps2\PAD\Devices">
       <UniqueIdentifier>{5b8db70a-7c6c-4d75-ab2e-204387fff638}</UniqueIdentifier>
     </Filter>
@@ -1709,6 +1711,7 @@
     </ClCompile>
     <ClCompile Include="Host.cpp">
       <Filter>Host</Filter>
+    </ClCompile>
     <ClCompile Include="Memcard\PS1\MemcardPS1.cpp">
       <Filter>System\Ps2\Memcard\PS1</Filter>
     </ClCompile>
@@ -1750,6 +1753,7 @@
     </ClCompile>
     <ClCompile Include="GS\Renderers\Vulkan\GSDeviceVK.cpp">
       <Filter>System\Ps2\GS\Renderers\Vulkan</Filter>
+    </ClCompile>
     <ClCompile Include="Multitap\PS2\MultitapPS2Protocol.cpp">
       <Filter>System\Ps2\Multitap\PS2</Filter>
     </ClCompile>
@@ -2899,6 +2903,7 @@
     </ClInclude>
     <ClInclude Include="Frontend\ImGuiManager.h">
       <Filter>Host</Filter>
+    </ClInclude>
     <ClInclude Include="Memcard\PS1\MemcardPS1.h">
       <Filter>System\Ps2\Memcard\PS1</Filter>
     </ClInclude>
