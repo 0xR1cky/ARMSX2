@@ -117,4 +117,24 @@ namespace DigitalByte2
 	static constexpr u8 SQUARE = 0x7f;
 }
 
+namespace ResponseBytes
+{
+	static constexpr u32 DIGITAL = 0x03;
+	static constexpr u32 ANALOG = 0x3f;
+	static constexpr u32 DUALSHOCK2 = 0x03ffff;
+}
 
+namespace Poll
+{
+	// The first position (zero based) where pressure values appear in poll responses.
+	// Can be subtracted from the current responseBuffer size to derive which pressure value
+	// should be fetched with GetButton.
+	static constexpr size_t PRESSURE_OFFSET = 9;
+	// Total number of bytes which are present in a full-length, DualShock 2 poll.
+	static constexpr size_t DUALSHOCK2_RESPONSE_LENGTH = 21;
+}
+
+namespace ModeSwitch
+{
+	static constexpr u8 ANALOG_LOCK = 0x03;
+}

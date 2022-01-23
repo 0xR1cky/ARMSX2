@@ -60,7 +60,7 @@ void Sio2::FullReset()
 	commandLength = 0;
 	processedLength = 0;
 
-	g_PadPS2Protocol.Reset();
+	g_PadPS2Protocol.FullReset();
 	g_MultitapPS2Protocol.FullReset();
 	g_MemcardPS2Protocol.FullReset();
 }
@@ -193,7 +193,11 @@ void Sio2::Sio2Write(u8 data)
 		switch (mode)
 		{
 			case Sio2Mode::PAD:
-				g_PadPS2Protocol.Reset();
+				g_Sio2.SetRecv1(Recv1::CONNECTED);
+				pad = g_PadPS2Protocol.GetPad(activePort, g_MultitapPS2Protocol.GetActiveSlot());
+				g_PadPS2Protocol.SetActivePad(pad);
+				fifoOut = g_PadPS2Protocol.SendToPad(fifoIn);
+				g_PadPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::MULTITAP:
 				g_MultitapPS2Protocol.SoftReset();
@@ -201,7 +205,20 @@ void Sio2::Sio2Write(u8 data)
 			case Sio2Mode::INFRARED:
 				break;
 			case Sio2Mode::MEMCARD:
-				fifoOut = g_MemcardPS2Protocol.SendToMemcard(fifoIn);
+				switch (g_SioCommon.GetMemcardType(activePort, g_MultitapPS2Protocol.GetActiveSlot()))
+				{
+					case MemcardType::PS2:
+						memcardPS2 = g_SioCommon.GetMemcardPS2(activePort, g_MultitapPS2Protocol.GetActiveSlot());
+						g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
+						g_Sio2.SetRecv1(memcardPS2->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
+						fifoOut = g_MemcardPS2Protocol.SendToMemcard(fifoIn);
+						break;
+					default:
+						DevCon.Warning("%s(%02X) Non-PS2 memcard access from SIO2!", __FUNCTION__, data);
+						fifoOut.push(0x00);
+						break;
+				}
+				
 				g_MemcardPS2Protocol.SoftReset();
 				//DevCon.WriteLn("%s(%02X) SIO2 mode reset", __FUNCTION__, data);
 				break;

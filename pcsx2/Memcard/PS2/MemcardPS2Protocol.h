@@ -10,11 +10,9 @@ class MemcardPS2Protocol
 {
 private:
 	MemcardPS2* activeMemcard;
-	MemcardPS2Mode mode = MemcardPS2Mode::NOT_SET;
-	size_t currentCommandByte = 1;
 	// Temporary buffer to copy sector contents to.
 	std::queue<u8> readWriteBuffer;
-	MemcardPS2Mode lastSectorMode = MemcardPS2Mode::NOT_SET;
+	// Temporary buffer to write response values into.
 	std::queue<u8> responseBuffer;
 
 	void The2bTerminator(size_t len);

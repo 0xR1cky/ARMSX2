@@ -281,8 +281,8 @@ MemcardPS2Protocol::~MemcardPS2Protocol() = default;
 
 void MemcardPS2Protocol::SoftReset()
 {
-	mode = MemcardPS2Mode::NOT_SET;
-	currentCommandByte = 1;
+	std::queue<u8> emptyQueue;
+	responseBuffer.swap(emptyQueue);
 }
 
 void MemcardPS2Protocol::FullReset()
@@ -303,11 +303,6 @@ void MemcardPS2Protocol::FullReset()
 	}
 }
 
-MemcardPS2Mode MemcardPS2Protocol::GetMemcardMode()
-{
-	return mode;
-}
-
 MemcardPS2* MemcardPS2Protocol::GetMemcard(size_t port, size_t slot)
 {
 	port = std::clamp<size_t>(port, 0, MAX_PORTS);
@@ -322,11 +317,8 @@ void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)
 
 std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
 {
-	std::queue<u8> emptyQueue;
-	responseBuffer.swap(emptyQueue);
-
 	const u8 deviceTypeByte = data.front();
-	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MEMCARD);
+	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MEMCARD, "MemcardPS2Protocol was initiated, but this SIO2 command is targeting another device!");
 	data.pop();
 	responseBuffer.push(0x00);
 	
@@ -395,6 +387,8 @@ std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
 			std::queue<u8> emptyQueue;
 			return emptyQueue;
 	}
+
+	return responseBuffer;
 }
 
 #undef The2bTerminator

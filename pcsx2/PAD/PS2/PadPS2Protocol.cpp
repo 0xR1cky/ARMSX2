@@ -2,6 +2,8 @@
 #include "PrecompiledHeader.h"
 #include "PadPS2Protocol.h"
 
+#include "Sio2.h"
+
 PadPS2Protocol g_PadPS2Protocol;
 
 // Reset mode and byte counters to not set and 0,
@@ -9,10 +11,15 @@ PadPS2Protocol g_PadPS2Protocol;
 // function prematurely, or failing to call it 
 // prior to returning the final byte will have
 // adverse effects.
-void PadPS2Protocol::Reset()
+void PadPS2Protocol::SoftReset()
 {
-	mode = PadPS2Mode::NOT_SET;
-	currentCommandByte = 1;
+	std::queue<u8> emptyQueue;
+	responseBuffer.swap(emptyQueue);
+}
+
+void PadPS2Protocol::FullReset()
+{
+	SoftReset();
 }
 
 size_t PadPS2Protocol::GetResponseSize(PadPS2Type padPS2Type)
@@ -33,359 +40,269 @@ void PadPS2Protocol::SetActivePad(PadPS2* pad)
 	activePad = pad;
 }
 
-u8 PadPS2Protocol::Mystery(u8 data)
+void PadPS2Protocol::Mystery()
 {
 	if (!activePad->IsInConfigMode())
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
+		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__);
+		return;
 	}
 
-	switch (currentCommandByte)
-	{
-	case 5:
-		return 0x02;
-	case 8:
-		return 0x5a;
-	default:
-		return 0x00;
-	}
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x02);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x5a);
 }
 
-u8 PadPS2Protocol::ButtonQuery(u8 data)
+void PadPS2Protocol::ButtonQuery()
 {
 	if (!activePad->IsInConfigMode())
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
+		DevCon.Warning("%s() called outside of config mode", __FUNCTION__);
+		return;
 	}
 
-	switch (currentCommandByte)
-	{
-	case 3:
-	case 4:
-		return 0xff;
-	case 5:
-		return 0x03;
-	case 8:
-		return 0x5a;
-	default:
-		return 0x00;
-	}
+	// TODO: Digital mode should respond all 0x00
+	responseBuffer.push(0xff);
+	responseBuffer.push(0xff);
+	responseBuffer.push(0x03);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x5a);
 }
 
-u8 PadPS2Protocol::Poll(u8 data)
+void PadPS2Protocol::Poll()
 {
-	u8 ret = 0xff;
+	activePad->Debug_Poll();
+	responseBuffer.push(activePad->GetDigitalByte1());
+	responseBuffer.push(activePad->GetDigitalByte2());
 
-	switch (currentCommandByte)
+	if (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
 	{
-	case 3:
-		activePad->Debug_Poll();
-		ret = activePad->GetDigitalByte1();
-		break;
-	case 4:
-		ret = activePad->GetDigitalByte2();
-		break;
-	case 5:
-		ret = activePad->GetAnalog(PS2Analog::RIGHT_X);
-		break;
-	case 6:
-		ret = activePad->GetAnalog(PS2Analog::RIGHT_Y);
-		break;
-	case 7:
-		ret = activePad->GetAnalog(PS2Analog::LEFT_X);
-		break;
-	case 8:
-		ret = activePad->GetAnalog(PS2Analog::LEFT_Y);
-		break;
-	default:
-		const size_t pressureIndex = currentCommandByte - 9;
-		ret = activePad->GetButton(static_cast<PS2Button>(pressureIndex));
-		break;
-	}
+		responseBuffer.push(activePad->GetAnalog(PS2Analog::RIGHT_X));
+		responseBuffer.push(activePad->GetAnalog(PS2Analog::RIGHT_Y));
+		responseBuffer.push(activePad->GetAnalog(PS2Analog::LEFT_X));
+		responseBuffer.push(activePad->GetAnalog(PS2Analog::LEFT_Y));
 
-	return ret;
-}
-
-u8 PadPS2Protocol::Config(u8 data)
-{
-	switch (currentCommandByte)
-	{
-	case 3:
-		if (data == 0x00)
+		if (activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
 		{
-			if (activePad->IsInConfigMode())
+			while (responseBuffer.size() < Poll::DUALSHOCK2_RESPONSE_LENGTH)	
 			{
-				activePad->SetInConfigMode(false);
-				activePad->SetConfigResponse(true);
-			}
-			else
-			{
-				DevCon.Warning("%s(%02X) Unexpected exit while not in config mode", __FUNCTION__, data);
+				const size_t pressureIndex = responseBuffer.size() - Poll::PRESSURE_OFFSET;
+				responseBuffer.push(activePad->GetButton(static_cast<PS2Button>(pressureIndex)));
 			}
 		}
-		else if (data == 0x01)
+	}
+}
+
+void PadPS2Protocol::Config(u8 enterConfig)
+{
+	if (enterConfig)
+	{
+		if (!activePad->IsInConfigMode())
 		{
-			if (!activePad->IsInConfigMode())
-			{
-				activePad->SetInConfigMode(true);
-			}
-			else
-			{
-				DevCon.Warning("%s(%02X) Unexpected enter while already in config mode", __FUNCTION__, data);
-			}
+			activePad->SetInConfigMode(true);
 		}
 		else
 		{
-			DevCon.Warning("%s(%02X) Unexpected enter/exit byte (%d > 1)", __FUNCTION__, data, data);
+			DevCon.Warning("%s(%02X) Unexpected enter while already in config mode", __FUNCTION__, enterConfig);
 		}
-	default:
-		return Poll(data);
 	}
-}
-
-u8 PadPS2Protocol::ModeSwitch(u8 data)
-{
-	if (!activePad->IsInConfigMode())
+	else
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
-	}
-
-	switch (currentCommandByte)
-	{
-	case 3:
-		if (data == 0x01)
+		if (activePad->IsInConfigMode())
 		{
-			activePad->SetAnalogLight(true);
-			activePad->SetPadType(PadPS2Type::ANALOG);
-		}
-		else if (data == 0x00)
-		{
-			activePad->SetAnalogLight(false);
-			activePad->SetPadType(PadPS2Type::DIGITAL);
+			activePad->SetInConfigMode(false);
 		}
 		else
 		{
-			DevCon.Warning("%s(%02X) Unexpected 4th byte (%d > 1)", __FUNCTION__, data, data);
+			DevCon.Warning("%s(%02X) Unexpected exit while not in config mode", __FUNCTION__, enterConfig);
 		}
-		break;
-	case 4:
-		activePad->SetAnalogLocked(data == 0x03);
-		break;
-	default:
-		break;
 	}
 
-	return 0x00;
+	Poll();
 }
 
-u8 PadPS2Protocol::StatusInfo(u8 data)
+void PadPS2Protocol::ModeSwitch(std::queue<u8> &data)
 {
 	if (!activePad->IsInConfigMode())
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
+		DevCon.Warning("%s(queue) called outside of config mode", __FUNCTION__);
+		return;
+	}
+
+	const u8 newAnalogStatus = data.front();
+	data.pop();
+	activePad->SetAnalogLight(newAnalogStatus);
+
+	if (newAnalogStatus)
+	{
+		activePad->SetPadType(PadPS2Type::ANALOG);
+	}
+	else
+	{
+		activePad->SetPadType(PadPS2Type::DIGITAL);
+	}
+
+	const u8 newLockStatus = data.front();
+	data.pop();
+	activePad->SetAnalogLocked(newLockStatus == ModeSwitch::ANALOG_LOCK);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+}
+
+void PadPS2Protocol::StatusInfo()
+{
+	if (!activePad->IsInConfigMode())
+	{
+		DevCon.Warning("%s() called outside of config mode", __FUNCTION__);
+		return;
 	}
 
 	// Thanks PS2SDK!
-	switch (currentCommandByte)
-	{
-	case 3: 
-		// Controller model, 3 = DS2, 1 = PS1/Guitar/Others
-		return static_cast<u8>(activePad->GetPadPhysicalType());
-	case 4: 
-		// "numModes", presumably the number of modes the controller has.
-		// These modes are actually returned later in Constant3.
-		return 0x02;
-	case 5:
-		// Is the analog light on or not.
-		return activePad->IsAnalogLightOn();
-	case 6:
-		// Number of actuators. Presumably vibration motors.
-		return 0x02;
-	case 7:
-		// "numActComb". There's references to command 0x47 as "comb"
-		// in old Lilypad code and PS2SDK, presumably this is the controller
-		// telling the PS2 how many times to invoke the 0x47 command (once,
-		// in contrast to the two runs of 0x46 and 0x4c)
-		return 0x01;
-	default:
-		return 0x00;
-	}
+	// Controller model, 3 = DS2, 1 = PS1/Guitar/Others
+	responseBuffer.push(static_cast<u8>(activePad->GetPadPhysicalType()));
+	// "numModes", presumably the number of modes the controller has.
+	// These modes are actually returned later in Constant3.
+	responseBuffer.push(0x02);
+	// Is the analog light on or not.
+	responseBuffer.push(activePad->IsAnalogLightOn());
+	// Number of actuators. Presumably vibration motors.
+	responseBuffer.push(0x02);
+	// "numActComb". There's references to command 0x47 as "comb"
+	// in old Lilypad code and PS2SDK, presumably this is the controller
+	// telling the PS2 how many times to invoke the 0x47 command (once,
+	// in contrast to the two runs of 0x46 and 0x4c)
+	responseBuffer.push(0x01);
+	responseBuffer.push(0x00);
 }
 
-u8 PadPS2Protocol::Constant1(u8 data)
+void PadPS2Protocol::Constant1(u8 stage)
 {
 	if (!activePad->IsInConfigMode())
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
+		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, stage);
+		return;
 	}
 
-	switch (currentCommandByte)
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD ? 0x00 : 0x01);
+	
+	if (stage)
 	{
-	case 3:
-		activePad->SetConstantStage(data);
-	case 4:
-		return 0x00;
-	case 5:
-		if (activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD)
-		{
-			return 0x00;
-		}
-		else
-		{
-			return 0x01;
-		}
-	case 6:
-		if (!activePad->GetConstantStage())
-		{
-			return 0x02;
-		}
-		else
-		{
-			if (activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD)
-			{
-				return 0x00;
-			}
-			else
-			{
-				return 0x01;
-			}
-		}
-	case 7:
-		if (!activePad->GetConstantStage())
-		{
-			return 0x00;
-		}
-		else
-		{
-			if (activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD)
-			{
-				return 0x00;
-			}
-			else
-			{
-				return 0x01;
-			}
-		}
-	case 8:
-		if (!activePad->GetConstantStage())
-		{
-			return 0x0A;
-		}
-		else
-		{
-			return 0x14;
-		}
-	default:
-		return 0x00;
+		responseBuffer.push(activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD ? 0x00 : 0x01);
 	}
+	else 
+	{
+		responseBuffer.push(0x02);
+	}
+
+	if (stage)
+	{
+		responseBuffer.push(activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD ? 0x00 : 0x01);
+	}
+	else
+	{
+		responseBuffer.push(0x00);
+	}
+
+	responseBuffer.push(stage ? 0x14 : 0x0a);
 }
 
-u8 PadPS2Protocol::Constant2(u8 data)
+void PadPS2Protocol::Constant2()
 {
 	if (!activePad->IsInConfigMode())
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
+		DevCon.Warning("%s() called outside of config mode", __FUNCTION__);
+		return;
 	}
 
-	switch (currentCommandByte)
-	{
-	case 5:
-		return 0x02;
-	case 7:
-		if (activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD)
-		{
-			return 0x00;
-		}
-		else
-		{
-			return 0x01;
-		}
-	default:
-		return 0x00;
-	}
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x02);
+	responseBuffer.push(0x00);
+	responseBuffer.push(activePad->GetPadPhysicalType() == PadPS2Physical::STANDARD ? 0x00 : 0x01);
+	responseBuffer.push(0x00);
 }
 
-u8 PadPS2Protocol::Constant3(u8 data)
+void PadPS2Protocol::Constant3(u8 stage)
 {
 	if (!activePad->IsInConfigMode())
 	{
-		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, data);
-		return 0xff;
+		DevCon.Warning("%s(%02X) called outside of config mode", __FUNCTION__, stage);
+		return;
 	}
 
-	switch (currentCommandByte)
-	{
-	case 3:
-		activePad->SetConstantStage(data);
-		return 0x00;
-	case 6:
-		// Since documentation doesn't bother explaining this one...
-		// (thanks padtest_ps2.elf for actually sheding some light on this!)
-		// This byte, on each run of the command, specifies one of the controller's operating modes.
-		// So far we know that (of the ones that actually matter) 0x04 = digital, 0x07 = analog.
-		// This corresponds with the "pad modes" being 0x41 = digital, 0x73 = analog, 0x79 = dualshock 2. 
-		if (!activePad->GetConstantStage())
-		{
-			return 0x04;
-		}
-		else
-		{
-			return 0x07;
-		}
-	default:
-		return 0x00;
-	}
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(stage ? 0x07 : 0x04);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
 }
 
-u8 PadPS2Protocol::VibrationMap(u8 data)
+void PadPS2Protocol::VibrationMap()
 {
-	switch (currentCommandByte)
+	if (!activePad->IsInConfigMode())
 	{
-	case 3:
-		return 0x00;
-	case 4:
-		return 0x01;
-	default:
-		return 0xff;
+		DevCon.Warning("%s() called outside of config mode", __FUNCTION__);
+		return;
 	}
+
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x01);
+	responseBuffer.push(0xff);
+	responseBuffer.push(0xff);
+	responseBuffer.push(0xff);
+	responseBuffer.push(0xff);
 }
 
-u8 PadPS2Protocol::ResponseBytes(u8 data)
+void PadPS2Protocol::ResponseBytes(std::queue<u8> &data)
 {
-	switch (currentCommandByte)
+	if (!activePad->IsInConfigMode())
 	{
-	case 3:
-		if (data == 0x03)
-		{
+		DevCon.Warning("%s(queue) called outside of config mode", __FUNCTION__);
+		return;
+	}
+
+	const u8 responseBytesLSB = data.front();
+	data.pop();
+	const u8 responseBytes2nd = data.front();
+	data.pop();
+	const u8 responseBytesMSB = data.front();
+	data.pop();
+
+	const u32 responseBytes = responseBytesLSB | (responseBytes2nd << 8) | (responseBytesMSB << 16);
+
+	switch (responseBytes)
+	{
+		case ResponseBytes::DIGITAL:
 			activePad->SetAnalogLight(false);
 			activePad->SetPadType(PadPS2Type::DIGITAL);
-		}
-		else if (data == 0x3f)
-		{
+			break;
+		case ResponseBytes::ANALOG:
 			activePad->SetAnalogLight(true);
 			activePad->SetPadType(PadPS2Type::ANALOG);
-		}
-		break;
-	case 5:
-		if (data == 0x03)
-		{
+			break;
+		case ResponseBytes::DUALSHOCK2:
 			activePad->SetAnalogLight(true);
 			activePad->SetPadType(PadPS2Type::DUALSHOCK2);
-		}
-		break;
-	case 8:
-		return 0x5a;
-	default:
-		break;
+			break;
 	}
 
-	return 0x00;
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x5a);
 }
 
 PadPS2Protocol::PadPS2Protocol()
@@ -406,63 +323,65 @@ PadPS2Mode PadPS2Protocol::GetPadMode()
 	return mode;
 }
 
-u8 PadPS2Protocol::SendToPad(u8 data)
+std::queue<u8> PadPS2Protocol::SendToPad(std::queue<u8> &data)
 {
-	u8 ret = 0xff;
+	const u8 deviceTypeByte = data.front();
+	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::PAD, "PadPS2Protocol was initiated, but this SIO2 command is targeting another device!");
+	data.pop();
+	responseBuffer.push(0x00);
 
-	if (currentCommandByte == 1)
+	const u8 commandByte = data.front();
+	data.pop();
+	responseBuffer.push(static_cast<u8>(activePad->IsInConfigMode() ? PadPS2Type::CONFIG : activePad->GetPadType()));
+	responseBuffer.push(0x5a);
+
+	const u8 frontByte = data.front();
+	// Do not pop; let the switch cases do this, if and only if they actually utilize this
+	// value as a param for their function.
+
+	switch (static_cast<PadPS2Mode>(commandByte))
 	{
-		mode = static_cast<PadPS2Mode>(data);
-		ret = static_cast<u8>(activePad->IsInConfigMode() ? PadPS2Type::CONFIG : activePad->GetPadType());
-	}
-	else if (currentCommandByte == 2)
-	{
-		ret = 0x5a;
-	}
-	else
-	{
-		switch (mode)
-		{
 		case PadPS2Mode::MYSTERY:
-			ret = Mystery(data);
+			Mystery();
 			break;
 		case PadPS2Mode::BUTTON_QUERY:
-			ret = ButtonQuery(data);
+			ButtonQuery();
 			break;
 		case PadPS2Mode::POLL:
-			ret = Poll(data);
+			Poll();
 			break;
 		case PadPS2Mode::CONFIG:
-			ret = Config(data);
+			data.pop();
+			Config(frontByte);
 			break;
 		case PadPS2Mode::MODE_SWITCH:
-			ret = ModeSwitch(data);
+			ModeSwitch(data);
 			break;
 		case PadPS2Mode::STATUS_INFO:
-			ret = StatusInfo(data);
+			StatusInfo();
 			break;
 		case PadPS2Mode::CONST_1:
-			ret = Constant1(data);
+			data.pop();
+			Constant1(frontByte);
 			break;
 		case PadPS2Mode::CONST_2:
-			ret = Constant2(data);
+			Constant2();
 			break;
 		case PadPS2Mode::CONST_3:
-			ret = Constant3(data);
+			data.pop();
+			Constant3(frontByte);
 			break;
 		case PadPS2Mode::VIBRATION_MAP:
-			ret = VibrationMap(data);
+			VibrationMap();
 			break;
 		case PadPS2Mode::RESPONSE_BYTES:
-			ret = ResponseBytes(data);
+			ResponseBytes(data);
 			break;
 		default:
-			DevCon.Warning("%s(%02X) Unhandled PadPS2Mode (%02X) (currentCommandByte = %d)", __FUNCTION__, data, static_cast<u8>(mode), currentCommandByte);
+			DevCon.Warning("%s(queue) Unhandled PadPS2Mode (%02X)", __FUNCTION__, commandByte);
 			break;
-		}
 	}
 
-	currentCommandByte++;
-	return ret;
+	return responseBuffer;
 }
 
