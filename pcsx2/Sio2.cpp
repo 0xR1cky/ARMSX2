@@ -15,9 +15,21 @@ Sio2 g_Sio2;
 Sio2::Sio2() = default;
 Sio2::~Sio2() = default;
 
-void Sio2::Reset()
+void Sio2::SoftReset() 
 {
 	mode = Sio2Mode::NOT_SET;
+	send3Read = false;
+	processedLength = 0;
+	
+	while (!fifoIn.empty())
+	{
+		fifoIn.pop();
+	}
+}
+
+void Sio2::FullReset()
+{
+	SoftReset();
 	
 	for (size_t j = 0; j < 16; j++)
 	{
@@ -170,9 +182,6 @@ void Sio2::Sio2Write(u8 data)
 	// 2) This transaction was not DMA (block size will be zero and thus processed length always greater)
 	if (processedLength >= commandLength && processedLength >= GetDMABlockSize())
 	{
-		send3Read = false;
-		processedLength = 0;
-
 		if (fifoIn.empty())
 		{
 			DevCon.Warning("%s(%02X) Sanity check, SIO2 fifoIn empty. Please report if you see this message.");
@@ -198,7 +207,7 @@ void Sio2::Sio2Write(u8 data)
 				break;
 		}
 
-		mode = Sio2Mode::NOT_SET;
+		SoftReset();
 	}
 }
 

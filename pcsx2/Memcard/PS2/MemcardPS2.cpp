@@ -122,7 +122,7 @@ void MemcardPS2::LoadFromFileSystem()
 	SetSlottedIn(true);
 }
 
-void MemcardPS2::WriteSectorToFileSystem(u32 address, size_t length)
+void MemcardPS2::WriteToFileSystem(u32 address, size_t length)
 {
 	if (!stream.good())
 	{
@@ -243,6 +243,44 @@ std::queue<u8> MemcardPS2::ReadSector()
 	return ret;
 }
 
+void MemcardPS2::Write(std::queue<u8>& data)
+{
+	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+	const u32 address = sector * sectorSizeWithECC;
+
+	if (sector == 0)
+	{
+		MEMCARDS_LOG("%s() Superblock (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x10 && sector < 0x12)
+	{
+		MEMCARDS_LOG("%s() Indirect FAT (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x12 && sector < 0x52)
+	{
+		MEMCARDS_LOG("%s() FAT (%08X)", __FUNCTION__, sector);
+	}
+
+	if (address + data.size() <= memcardData.size())
+	{
+		size_t bytesWritten = 0;
+
+		while (!data.empty())
+		{
+			const u8 toWrite = data.front();
+			data.pop();
+
+			memcardData.at(address + bytesWritten++) = toWrite;
+		}
+
+		WriteToFileSystem(address, sectorSizeWithECC);
+	}
+	else
+	{
+		DevCon.Warning("%s(queue) Calculated write address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
+	}
+}
+
 void MemcardPS2::WriteSector(std::queue<u8>& data)
 {
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
@@ -276,7 +314,7 @@ void MemcardPS2::WriteSector(std::queue<u8>& data)
 			memcardData.at(address + i) = toWrite;
 		}
 
-		WriteSectorToFileSystem(address, sectorSizeWithECC);
+		WriteToFileSystem(address, sectorSizeWithECC);
 	}
 	else
 	{
@@ -310,7 +348,7 @@ void MemcardPS2::EraseBlock()
 			memcardData.at(address + i) = 0xff;
 		}
 
-		WriteSectorToFileSystem(address, eraseBlockSizeWithECC);
+		WriteToFileSystem(address, eraseBlockSizeWithECC);
 	}
 	else
 	{

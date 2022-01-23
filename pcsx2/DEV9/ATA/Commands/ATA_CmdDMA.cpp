@@ -29,7 +29,7 @@ void ATA::DRQCmdDMADataToHost()
 }
 void ATA::PostCmdDMADataToHost()
 {
-	//readBuffer = null;
+	//readWriteBuffer = null;
 	nsectorLeft = 0;
 
 	regStatus &= ~ATA_STAT_DRQ;

@@ -53,7 +53,8 @@ public:
 	Sio2();
 	~Sio2();
 
-	void Reset();
+	void SoftReset();
+	void FullReset();
 
 	void SetInterrupt();
 

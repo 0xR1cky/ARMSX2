@@ -30,328 +30,147 @@ void MemcardPS2Protocol::UnknownWriteDeleteEnd()
 	The2bTerminator(4);
 }
 
-u8 MemcardPS2Protocol::SetSector(u8 data)
+void MemcardPS2Protocol::SetSector(std::queue<u8> &data)
 {
-	static u32 newSector = 0;
-	static u8 checksum = 0;
-
-	switch (currentCommandByte)
+	const u8 sectorLSB = data.front();
+	data.pop();
+	const u8 sector2nd = data.front();
+	data.pop();
+	const u8 sector3rd = data.front();
+	data.pop();
+	const u8 sectorMSB = data.front();
+	data.pop();
+	const u8 expectedChecksum = data.front();
+	data.pop();
+	
+	u8 computedChecksum = sectorLSB ^ sector2nd ^ sector3rd ^ sectorMSB;
+	
+	if (computedChecksum != expectedChecksum)
 	{
-		case 2:
-			newSector = data;
-			checksum = data;
-			lastSectorMode = mode;
-			break;
-		case 3:
-			newSector |= (data << 8);
-			checksum ^= data;
-			break;
-		case 4:
-			newSector |= (data << 16);
-			checksum ^= data;
-			break;
-		case 5:
-			newSector |= (data << 24);
-			checksum ^= data;
-			activeMemcard->SetSector(newSector);
-			break;
-		case 6:
-			if (checksum != data)
-			{
-				Console.Warning("%s(%02X) Warning! Memcard sector checksum failed! (Expected %02X != Actual %02X) Please report to the PCSX2 team!", __FUNCTION__, data, data, checksum);
-			}
-			break;
-		default:
-			break;
+		Console.Warning("%s(queue) Warning! Memcard sector checksum failed! (Expected %02X != Actual %02X) Please report to the PCSX2 team!", __FUNCTION__, expectedChecksum, computedChecksum);
+		// Exit the command without filling the terminator bytes;
+		// that should be enough of an indicator to the PS2 that this operation failed.
+		return;
 	}
 
-	return The2bTerminator(9);
+	u32 newSector = sectorLSB | (sector2nd << 8) | (sector3rd << 16) | (sectorMSB << 24);
+	activeMemcard->SetSector(newSector);
+
+	The2bTerminator(9);
 }
 
-u8 MemcardPS2Protocol::GetSpecs(u8 data)
+void MemcardPS2Protocol::GetSpecs()
 {
-	static u8 checksum = 0x00;
-	u8 ret = 0x00;
+	responseBuffer.push(0x2b);
+	u8 checksum = 0x00;
 
-	switch (currentCommandByte)
-	{
-		case 2:
-			return 0x2b;
-		case 3: // Sector size, LSB
-			ret = static_cast<u16>(activeMemcard->GetSectorSize()) & 0xff;
-			checksum ^= ret;
-			return ret;
-		case 4: // Sector size, MSB
-			ret = static_cast<u16>(activeMemcard->GetSectorSize()) >> 8;
-			checksum ^= ret;
-			return ret;
-		case 5: // Erase block size, LSB
-			ret = static_cast<u16>(activeMemcard->GetEraseBlockSize()) & 0xff;
-			checksum ^= ret;
-			return ret;
-		case 6: // Erase block size, MSB
-			ret = static_cast<u16>(activeMemcard->GetEraseBlockSize()) >> 8;
-			checksum ^= ret;
-			return ret;
-		case 7: // Sector count, LSB
-			ret = static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff;
-			checksum ^= ret;
-			return ret;
-		case 8: // Sector count, second byte
-			ret = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff00) >> 8;
-			checksum ^= ret;
-			return ret;
-		case 9: // Sector count, third byte
-			ret = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff0000) >> 16;
-			checksum ^= ret;
-			return ret;
-		case 10: // Sector count, MSB
-			ret = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff000000) >> 24;
-			checksum ^= ret;
-			return ret;
-		case 11:
-			return checksum;
-		case 12:
-			checksum = 0x00;
-			return activeMemcard->GetTerminator();
-		default:
-			return 0x00;
-	}
+	const u8 sectorSizeLSB = static_cast<u16>(activeMemcard->GetSectorSize()) & 0xff;
+	checksum ^= sectorSizeLSB;
+	responseBuffer.push(sectorSizeLSB);
+
+	const u8 sectorSizeMSB = static_cast<u16>(activeMemcard->GetSectorSize()) >> 8;
+	checksum ^= sectorSizeMSB;
+	responseBuffer.push(sectorSizeMSB);
+
+	const u8 eraseBlockSizeLSB = static_cast<u16>(activeMemcard->GetEraseBlockSize()) & 0xff;
+	checksum ^= eraseBlockSizeLSB;
+	responseBuffer.push(eraseBlockSizeLSB);
+
+	const u8 eraseBlockSizeMSB = static_cast<u16>(activeMemcard->GetEraseBlockSize()) >> 8;
+	checksum ^= eraseBlockSizeMSB;
+	responseBuffer.push(eraseBlockSizeMSB);
+
+	const u8 sectorCountLSB = static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff;
+	checksum ^= sectorCountLSB;
+	responseBuffer.push(sectorCountLSB);
+
+	const u8 sectorCount2nd = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff00) >> 8;
+	checksum ^= sectorCount2nd;
+	responseBuffer.push(sectorCount2nd);
+
+	const u8 sectorCount3rd = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff0000) >> 16;
+	checksum ^= sectorCount3rd;
+	responseBuffer.push(sectorCount3rd);
+
+	const u8 sectorCountMSB = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff000000) >> 24;
+	checksum ^= sectorCountMSB;
+	responseBuffer.push(sectorCountMSB);
+
+	responseBuffer.push(checksum);
+	responseBuffer.push(activeMemcard->GetTerminator());
 }
 
-u8 MemcardPS2Protocol::SetTerminator(u8 data)
+void MemcardPS2Protocol::SetTerminator(u8 newTerminator)
 {
-	static u8 oldTerminator = activeMemcard->GetTerminator();
-
-	switch (currentCommandByte)
-	{
-		case 2:
-			oldTerminator = activeMemcard->GetTerminator();
-			activeMemcard->SetTerminator(data);
-			return 0x00;
-		case 3:
-			return 0x2b;
-		case 4:
-			return oldTerminator;
-		default:
-			return 0x00;
-	}
+	const u8 oldTerminator = activeMemcard->GetTerminator();
+	activeMemcard->SetTerminator(newTerminator);
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x2b);
+	responseBuffer.push(oldTerminator);
 }
 
-u8 MemcardPS2Protocol::GetTerminator(u8 data)
+void MemcardPS2Protocol::GetTerminator()
 {
-	switch (currentCommandByte)
-	{
-		case 2:
-			return 0x2b;
-		case 3:
-			return activeMemcard->GetTerminator();
-		case 4:
-			return static_cast<u8>(Terminator::DEFAULT);
-		default:
-			return 0x00;
-	}
+	responseBuffer.push(0x2b);
+	responseBuffer.push(activeMemcard->GetTerminator());
+	responseBuffer.push(static_cast<u8>(Terminator::DEFAULT));
 }
 
-u8 MemcardPS2Protocol::WriteData(u8 data)
+void MemcardPS2Protocol::WriteData(std::queue<u8>& data)
 {
-	static u8 writeSize = 0;
-	static u8 bytesWritten = 0;
-	static u8 checksum = 0x00;
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x2b);
+	const u8 writeLength = data.front();
+	data.pop();
+	u8 checksum = 0x00;
 
-	switch (currentCommandByte)
+	for (size_t writeCounter = 0; writeCounter < writeLength; writeCounter++)
 	{
-		case 0:
-		case 1:
-			return 0x00;
-		case 2:
-			writeSize = data;
-			return 0x00;
-		case 3:
-			readBuffer.push(data);
-			checksum = data;
-			bytesWritten = 1;
-			return 0x2b;
-		case 19:
-			if (writeSize == ECC_BYTES)
-			{
-				return 0x00;
-			}
-			else if (bytesWritten++ < writeSize)
-			{
-				readBuffer.push(data);
-				checksum ^= data;
-			}
-			return data;
-		case 20:
-			if (writeSize == ECC_BYTES)
-			{
-				return checksum;
-			}
-			else if (bytesWritten++ < writeSize)
-			{
-				readBuffer.push(data);
-				checksum ^= data;
-			}
-			return data;
-		case 21:
-			if (writeSize == ECC_BYTES)
-			{
-				return activeMemcard->GetTerminator();
-			}
-			else if (bytesWritten++ < writeSize)
-			{
-				readBuffer.push(data);
-				checksum ^= data;				
-			}
-			return data;
-		case 131:
-			return 0x00;
-		case 132:
-			return checksum;
-		case 133:
-			return activeMemcard->GetTerminator();
-		default:
-			// This command is almost always transferred via DMA11; pad any bytes sent after the expected
-			// payload to 0.
-			if (currentCommandByte > 133)
-			{
-				return 0x00;
-			}
-
-			if (bytesWritten++ < writeSize)
-			{
-				readBuffer.push(data);
-				checksum ^= data;
-			}
-
-			if (writeSize == ECC_BYTES && bytesWritten == writeSize)
-			{
-				activeMemcard->WriteSector(readBuffer);
-			}
-			
-			return 0x00;
-	}
-}
-
-u8 MemcardPS2Protocol::ReadData(u8 data)
-{
-	static u8 readSize = 0;
-	static bool validReadSize = true;
-	static u8 checksum = 0x00;
-	static u8 bytesRead = 0;
-
-	if (!validReadSize)
-	{
-		DevCon.Warning("%s(%02X) Game requested a sector read, but provided a bad size, returning zero! (expected %d or %d, got %d)", __FUNCTION__, data, SECTOR_READ_SIZE, ECC_BYTES, readSize);
-		return 0x00;
+		const u8 writeByte = data.front();
+		data.pop();
+		checksum ^= writeByte;
+		readWriteBuffer.push(writeByte);
+		responseBuffer.push(0x00);
 	}
 
-	switch (currentCommandByte)
-	{
-		case 0:
-		case 1:
-			return 0x00;
-		case 2:
-			readSize = data;
-			validReadSize = (readSize == SECTOR_READ_SIZE || readSize == ECC_BYTES);
-			checksum = 0;
-			return 0x00;
-		case 3:
-			readBuffer = activeMemcard->Read(readSize);
-
-			while (!readBuffer.empty())
-			{
-				const u8 readByte = readBuffer.front();
-				checksum ^= readByte;
-			}
-			return 0x2b;
-		case 4:
-			if (readBuffer.empty())
-				DevCon.Warning("Empty sector buffer!");
-			checksum = readBuffer.front();
-			readBuffer.pop();
-			bytesRead = 1;
-			return checksum;
-		case 20:
-			if (readSize == ECC_BYTES)
-			{
-				return checksum;
-			}
-			else if (bytesRead++ < readSize)
-			{
-				if (readBuffer.empty())
-					DevCon.Warning("Empty sector buffer!");
-				const u8 ret = readBuffer.front();
-				checksum ^= ret;
-				readBuffer.pop();
-				return ret;
-			}
-		case 21:
-			if (readSize == ECC_BYTES)
-			{
-				return activeMemcard->GetTerminator();
-			}
-			else if (bytesRead++ < readSize)
-			{
-				if (readBuffer.empty())
-					DevCon.Warning("Empty sector buffer!");
-				const u8 ret = readBuffer.front();
-				checksum ^= ret;
-				readBuffer.pop();
-				return ret;
-			}
-			else
-			{
-				DevCon.Warning("%s(%02X) Sanity check, please report to PCSX2 team if this message is found", __FUNCTION__, data);
-				return 0x00;
-			}
-		case 132:
-			return checksum;
-		case 133:
-			return activeMemcard->GetTerminator();
-		default:
-			// This command is almost always transferred via DMA11; pad any bytes sent after the expected
-			// payload to 0.
-			if (currentCommandByte > 133)
-			{
-				return 0x00;
-			}
-
-			u8 ret = 0xff;
-
-			if (bytesRead++ < readSize)
-			{
-				if (!readBuffer.empty())
-				{
-					ret = readBuffer.front();
-					readBuffer.pop();
-				}
-			}
-			
-			checksum ^= ret;
-			return ret;
-	}
+	activeMemcard->Write(readWriteBuffer);
+	responseBuffer.push(checksum);
+	responseBuffer.push(activeMemcard->GetTerminator());
 }
 
-u8 MemcardPS2Protocol::ReadWriteEnd(u8 data)
+void MemcardPS2Protocol::ReadData(u8 readLength)
 {
-	return The2bTerminator(4);
-}
+	responseBuffer.push(0x00);
+	responseBuffer.push(0x2b);
+	readWriteBuffer = activeMemcard->Read(readLength);
+	u8 checksum = 0x00;
 
-u8 MemcardPS2Protocol::EraseBlock(u8 data)
-{
-	if (currentCommandByte == 1)
+	while (!readWriteBuffer.empty())
 	{
-		activeMemcard->EraseBlock();
+		const u8 readByte = readWriteBuffer.front();
+		readWriteBuffer.pop();
+		checksum ^= readByte;
+		responseBuffer.push(readByte);
 	}
 
-	return The2bTerminator(4);
+	responseBuffer.push(checksum);
+	responseBuffer.push(activeMemcard->GetTerminator());
 }
 
-u8 MemcardPS2Protocol::UnknownBoot(u8 data)
+void MemcardPS2Protocol::ReadWriteEnd()
 {
-	return The2bTerminator(5);
+	The2bTerminator(4);
+}
+
+void MemcardPS2Protocol::EraseBlock()
+{
+	activeMemcard->EraseBlock();
+	The2bTerminator(4);
+}
+
+void MemcardPS2Protocol::UnknownBoot()
+{
+	The2bTerminator(5);
 }
 
 // Well, this is certainly a funky one.
@@ -365,9 +184,9 @@ u8 MemcardPS2Protocol::UnknownBoot(u8 data)
 // 14 bytes: 0x81 0xf0 doXor dud  (xorMe 8 times) 0x00      0x00
 // Response: 0x00 0x00 0x00  0x2b (0x00 8 times)  xorResult terminator
 // Here's where things get messy. When the third byte is 0x01, 0x02, 0x04, 0x0f, 0x11 or 0x13,
-// we will XOR-ing things. Before the XOR begins, the fourth byte is ignored and its response
+// we will XOR things. Before the XOR begins, the fourth byte is ignored and its response
 // is 0x2b. Starting with the fifth byte the XOR begins. It defaults to 0 and has the sent bytes
-// (xorMe) XOR'd against it. The 13th sent byte should be 0 again, and expects the result of the
+// XOR'd against it. The 13th sent byte should be 0 again, and expects the result of the
 // XORs. Then lastly the 14th byte also 0 expects the terminator to end the command.
 //
 // BUT WAIT, THERE'S MORE!
@@ -376,9 +195,8 @@ u8 MemcardPS2Protocol::UnknownBoot(u8 data)
 // they want us to respond with 0's, and then end on 0x2b and terminator. Attempts to do XORs on
 // these will cause the PS2 to stop executing 0xf0 commands and jump straight to 0x52 commands;
 // the PS2 thinks this memcard failed to respond correctly to PS2 commands and instead tries to
-// probe it as a PS1 memcard. The doXor values are grouped and labelled accordingly in the
-// function body.
-std::queue<u8> MemcardPS2Protocol::AuthXor(std::queue<u8> &data)
+// probe it as a PS1 memcard. 
+void MemcardPS2Protocol::AuthXor(std::queue<u8> &data)
 {
 	const u8 modeByte = data.front();
 	data.pop();
@@ -502,7 +320,7 @@ void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)
 	activeMemcard = memcard;
 }
 
-std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> data)
+std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
 {
 	std::queue<u8> emptyQueue;
 	responseBuffer.swap(emptyQueue);
@@ -516,54 +334,62 @@ std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> data)
 	data.pop();
 	responseBuffer.push(0x00);
 
+	const u8 frontByte = data.front();
+	// Do not pop; let the switch cases do this, if and only if they actually utilize this
+	// value as a param for their function.
+
 	switch (static_cast<MemcardPS2Mode>(commandByte))
 	{
 		case MemcardPS2Mode::PROBE:
-			ret = Probe(data);
+			Probe();
 			break;
 		case MemcardPS2Mode::UNKNOWN_WRITE_DELETE_END:
-			ret = UnknownWriteDeleteEnd(data);
+			UnknownWriteDeleteEnd();
 			break;
 		case MemcardPS2Mode::SET_ERASE_SECTOR:
-			ret = SetSector(data);
+			SetSector(data);
 			break;
 		case MemcardPS2Mode::SET_WRITE_SECTOR:
-			ret = SetSector(data);
+			SetSector(data);
 			break;
 		case MemcardPS2Mode::SET_READ_SECTOR:
-			ret = SetSector(data);
+			SetSector(data);
 			break;
 		case MemcardPS2Mode::GET_SPECS:
-			ret = GetSpecs(data);
+			GetSpecs();
 			break;
 		case MemcardPS2Mode::SET_TERMINATOR:
-			ret = SetTerminator(data);
+			data.pop();
+			SetTerminator(frontByte);
 			break;
 		case MemcardPS2Mode::GET_TERMINATOR:
-			ret = GetTerminator(data);
+			GetTerminator();
 			break;
 		case MemcardPS2Mode::WRITE_DATA:
-			ret = WriteData(data);
+			WriteData(data);
 			break;
 		case MemcardPS2Mode::READ_DATA:
-			ret = ReadData(data);
+			data.pop();
+			ReadData(frontByte);
 			break;
 		case MemcardPS2Mode::READ_WRITE_END:
-			ret = ReadWriteEnd(data);
+			ReadWriteEnd();
 			break;
 		case MemcardPS2Mode::ERASE_BLOCK:
-			ret = EraseBlock(data);
+			EraseBlock();
 			break;
 		case MemcardPS2Mode::UNKNOWN_BOOT:
-			ret = UnknownBoot(data);
+			UnknownBoot();
 			break;
 		case MemcardPS2Mode::AUTH_XOR:
-			ret = AuthXor(data);
+			AuthXor(data);
 			break;
 		case MemcardPS2Mode::AUTH_F3:
-			return AuthF3();
+			AuthF3();
+			break;
 		case MemcardPS2Mode::AUTH_F7:
-			return AuthF7();
+			AuthF7();
+			break;
 		default:
 			DevCon.Warning("%s(queue) Unhandled MemcardPS2Mode (%02X)", __FUNCTION__, commandByte);
 			std::queue<u8> emptyQueue;

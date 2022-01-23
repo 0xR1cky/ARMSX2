@@ -55,7 +55,7 @@ void SioCommon::FullReset()
 	}
 
 	g_Sio0.Reset();
-	g_Sio2.Reset();
+	g_Sio2.FullReset();
 }
 
 MemcardType SioCommon::GetMemcardType(size_t port, size_t slot)

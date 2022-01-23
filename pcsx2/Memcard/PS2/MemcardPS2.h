@@ -34,7 +34,7 @@ public:
 	void SetSlottedIn(bool value);
 	void InitializeOnFileSystem();
 	void LoadFromFileSystem();
-	void WriteSectorToFileSystem(u32 address, size_t length);
+	void WriteToFileSystem(u32 address, size_t length);
 
 	u8 GetTerminator();
 	SectorSize GetSectorSize();
@@ -47,6 +47,7 @@ public:
 
 	std::queue<u8> Read(size_t length);
 	std::queue<u8> ReadSector();
+	void Write(std::queue<u8>& data);
 	void WriteSector(std::queue<u8>& data);
 	void EraseBlock();
 };

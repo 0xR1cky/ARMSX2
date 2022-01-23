@@ -13,7 +13,7 @@ private:
 	MemcardPS2Mode mode = MemcardPS2Mode::NOT_SET;
 	size_t currentCommandByte = 1;
 	// Temporary buffer to copy sector contents to.
-	std::queue<u8> readBuffer;
+	std::queue<u8> readWriteBuffer;
 	MemcardPS2Mode lastSectorMode = MemcardPS2Mode::NOT_SET;
 	std::queue<u8> responseBuffer;
 
@@ -21,16 +21,16 @@ private:
 
 	void Probe();
 	void UnknownWriteDeleteEnd();
-	u8 SetSector(u8 data);
-	u8 GetSpecs(u8 data);
-	u8 SetTerminator(u8 data);
-	u8 GetTerminator(u8 data);
-	u8 WriteData(u8 data);
-	u8 ReadData(u8 data);
-	u8 ReadWriteEnd(u8 data);
-	u8 EraseBlock(u8 data);
-	u8 UnknownBoot(u8 data);
-	std::queue<u8> AuthXor(std::queue<u8> &data);
+	void SetSector(std::queue<u8> &data);
+	void GetSpecs();
+	void SetTerminator(u8 newTerminator);
+	void GetTerminator();
+	void WriteData(std::queue<u8> &data);
+	void ReadData(u8 readLength);
+	void ReadWriteEnd();
+	void EraseBlock();
+	void UnknownBoot();
+	void AuthXor(std::queue<u8> &data);
 	void AuthF3();
 	void AuthF7();
 public:
@@ -43,7 +43,7 @@ public:
 	MemcardPS2* GetMemcard(size_t port, size_t slot);
 	void SetActiveMemcard(MemcardPS2* memcard);
 
-	std::queue<u8> SendToMemcard(std::queue<u8> data);
+	std::queue<u8> SendToMemcard(std::queue<u8> &data);
 };
 
 extern MemcardPS2Protocol g_MemcardPS2Protocol;
