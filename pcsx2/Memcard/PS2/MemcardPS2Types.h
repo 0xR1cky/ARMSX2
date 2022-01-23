@@ -89,4 +89,5 @@ enum class SectorCount
 	X256 = 0x00400000		// 2 GiB
 };
 
+constexpr size_t SECTOR_READ_SIZE = 128;
 constexpr size_t ECC_BYTES = 16;

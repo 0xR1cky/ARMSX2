@@ -175,6 +175,40 @@ void MemcardPS2::SetSector(u32 data)
 	sector = data;
 }
 
+std::queue<u8> MemcardPS2::Read(size_t length)
+{
+	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+	const u32 address = sector * sectorSizeWithECC;
+	std::queue<u8> ret;
+
+	if (sector == 0)
+	{
+		MEMCARDS_LOG("%s() Superblock (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x10 && sector < 0x12)
+	{
+		MEMCARDS_LOG("%s() Indirect FAT (%08X)", __FUNCTION__, sector);
+	}
+	else if (sector >= 0x12 && sector < 0x52)
+	{
+		MEMCARDS_LOG("%s() FAT (%08X)", __FUNCTION__, sector);
+	}
+
+	if (address + sectorSizeWithECC <= memcardData.size())
+	{
+		for (size_t i = 0; i < length; i++)
+		{
+			ret.push(memcardData.at(address + i));
+		}
+	}
+	else
+	{
+		DevCon.Warning("%s() Calculated read address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
+	}
+
+	return ret;
+}
+
 std::queue<u8> MemcardPS2::ReadSector()
 {
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);

@@ -45,6 +45,7 @@ public:
 	void SetTerminator(u8 data);
 	void SetSector(u32 data);
 
+	std::queue<u8> Read(size_t length);
 	std::queue<u8> ReadSector();
 	void WriteSector(std::queue<u8>& data);
 	void EraseBlock();

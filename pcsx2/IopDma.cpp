@@ -225,6 +225,7 @@ void psxDma11(u32 madr, u32 bcr, u32 chcr) {
 	const size_t blocks = (bcr >> 16);
 	const size_t bytes = (bcr & 0xffff) * 4;
 	SIO2_LOG("DMA 11 // SIO2 in // madr = %08X // bcr = %08X // chcr = %08X // size = %d", madr, bcr, chcr, blocks * bytes);
+	g_Sio2.SetDMABlockSize(bytes);
 
 	if (chcr != 0x01000201)
 	{
@@ -272,6 +273,7 @@ void psxDma12(u32 madr, u32 bcr, u32 chcr) {
 		}
 	}
 
+	g_Sio2.SetDMABlockSize(0);
 	HW_DMA12_MADR = madr;
 	PSX_INT(IopEvt_Dma12, ((blocks * bytes) >> 2));
 }

@@ -6,24 +6,6 @@
 #include <array>
 #include <queue>
 
-// A repeated pattern in memcard functions is to use the response
-// pattern "0x00, 0x00, 0x2b, terminator. We'll inline this here
-// so we can quickly jam it into such functions without redefining
-// it all the time.
-inline u8 _The2bTerminator(size_t len, size_t currentCommandByte, u8 terminator)
-{
-	if (currentCommandByte == (len - 2))
-	{
-		return 0x2b;
-	} 
-	else if (currentCommandByte == (len - 1))
-	{
-		return terminator;
-	}
-
-	return 0x00;
-}
-
 class MemcardPS2Protocol
 {
 private:
@@ -31,13 +13,14 @@ private:
 	MemcardPS2Mode mode = MemcardPS2Mode::NOT_SET;
 	size_t currentCommandByte = 1;
 	// Temporary buffer to copy sector contents to.
-	std::queue<u8> sectorBuffer;
+	std::queue<u8> readBuffer;
 	MemcardPS2Mode lastSectorMode = MemcardPS2Mode::NOT_SET;
-	std::vector<u8> debug_fifoin;
-	std::vector<u8> debug_fifoout;
+	std::queue<u8> responseBuffer;
 
-	u8 Probe(u8 data);
-	u8 UnknownWriteDeleteEnd(u8 data);
+	void The2bTerminator(size_t len);
+
+	void Probe();
+	void UnknownWriteDeleteEnd();
 	u8 SetSector(u8 data);
 	u8 GetSpecs(u8 data);
 	u8 SetTerminator(u8 data);
@@ -47,9 +30,9 @@ private:
 	u8 ReadWriteEnd(u8 data);
 	u8 EraseBlock(u8 data);
 	u8 UnknownBoot(u8 data);
-	u8 AuthXor(u8 data);	
-	u8 AuthF3(u8 data);
-	u8 AuthF7(u8 data);
+	std::queue<u8> AuthXor(std::queue<u8> &data);
+	void AuthF3();
+	void AuthF7();
 public:
 	MemcardPS2Protocol();
 	~MemcardPS2Protocol();
@@ -60,7 +43,7 @@ public:
 	MemcardPS2* GetMemcard(size_t port, size_t slot);
 	void SetActiveMemcard(MemcardPS2* memcard);
 
-	u8 SendToMemcard(u8 data);
+	std::queue<u8> SendToMemcard(std::queue<u8> data);
 };
 
 extern MemcardPS2Protocol g_MemcardPS2Protocol;

@@ -7,20 +7,27 @@
 
 MemcardPS2Protocol g_MemcardPS2Protocol;
 
-// This define is purely a convenience thing so I don't have to put
-// the command byte counter and terminator params on each call to
-// the inlined function in the source. Am I lazy? Yup. Feel bad about it?
-// Nope!
-#define The2bTerminator(len) _The2bTerminator(len, currentCommandByte, activeMemcard->GetTerminator());
-
-u8 MemcardPS2Protocol::Probe(u8 data)
+// A repeated pattern in memcard functions is to use the response
+// pattern "0x00, 0x00, 0x2b, terminator.
+void MemcardPS2Protocol::The2bTerminator(size_t len)
 {
-	return The2bTerminator(4);
+	while (responseBuffer.size() < len - 2)
+	{
+		responseBuffer.push(0x00);
+	}
+
+	responseBuffer.push(0x2b);
+	responseBuffer.push(activeMemcard->GetTerminator());
 }
 
-u8 MemcardPS2Protocol::UnknownWriteDeleteEnd(u8 data)
+void MemcardPS2Protocol::Probe()
 {
-	return The2bTerminator(4);
+	The2bTerminator(4);
+}
+
+void MemcardPS2Protocol::UnknownWriteDeleteEnd()
+{
+	The2bTerminator(4);
 }
 
 u8 MemcardPS2Protocol::SetSector(u8 data)
@@ -161,7 +168,7 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 			writeSize = data;
 			return 0x00;
 		case 3:
-			sectorBuffer.push(data);
+			readBuffer.push(data);
 			checksum = data;
 			bytesWritten = 1;
 			return 0x2b;
@@ -172,7 +179,7 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 			}
 			else if (bytesWritten++ < writeSize)
 			{
-				sectorBuffer.push(data);
+				readBuffer.push(data);
 				checksum ^= data;
 			}
 			return data;
@@ -183,7 +190,7 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 			}
 			else if (bytesWritten++ < writeSize)
 			{
-				sectorBuffer.push(data);
+				readBuffer.push(data);
 				checksum ^= data;
 			}
 			return data;
@@ -194,7 +201,7 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 			}
 			else if (bytesWritten++ < writeSize)
 			{
-				sectorBuffer.push(data);
+				readBuffer.push(data);
 				checksum ^= data;				
 			}
 			return data;
@@ -205,23 +212,22 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 		case 133:
 			return activeMemcard->GetTerminator();
 		default:
-			// Sanity check, actually should not be possible but
-			// in case of emergency
+			// This command is almost always transferred via DMA11; pad any bytes sent after the expected
+			// payload to 0.
 			if (currentCommandByte > 133)
 			{
-				DevCon.Warning("%s(%02X) Write overflow!!!", __FUNCTION__, data);
 				return 0x00;
 			}
 
 			if (bytesWritten++ < writeSize)
 			{
-				sectorBuffer.push(data);
+				readBuffer.push(data);
 				checksum ^= data;
 			}
 
 			if (writeSize == ECC_BYTES && bytesWritten == writeSize)
 			{
-				activeMemcard->WriteSector(sectorBuffer);
+				activeMemcard->WriteSector(readBuffer);
 			}
 			
 			return 0x00;
@@ -231,8 +237,15 @@ u8 MemcardPS2Protocol::WriteData(u8 data)
 u8 MemcardPS2Protocol::ReadData(u8 data)
 {
 	static u8 readSize = 0;
-	static u8 bytesRead = 0;
+	static bool validReadSize = true;
 	static u8 checksum = 0x00;
+	static u8 bytesRead = 0;
+
+	if (!validReadSize)
+	{
+		DevCon.Warning("%s(%02X) Game requested a sector read, but provided a bad size, returning zero! (expected %d or %d, got %d)", __FUNCTION__, data, SECTOR_READ_SIZE, ECC_BYTES, readSize);
+		return 0x00;
+	}
 
 	switch (currentCommandByte)
 	{
@@ -241,16 +254,23 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 			return 0x00;
 		case 2:
 			readSize = data;
+			validReadSize = (readSize == SECTOR_READ_SIZE || readSize == ECC_BYTES);
+			checksum = 0;
 			return 0x00;
 		case 3:
-			if (sectorBuffer.empty())
+			readBuffer = activeMemcard->Read(readSize);
+
+			while (!readBuffer.empty())
 			{
-				sectorBuffer = activeMemcard->ReadSector();
+				const u8 readByte = readBuffer.front();
+				checksum ^= readByte;
 			}
 			return 0x2b;
 		case 4:
-			checksum = sectorBuffer.front();
-			sectorBuffer.pop();
+			if (readBuffer.empty())
+				DevCon.Warning("Empty sector buffer!");
+			checksum = readBuffer.front();
+			readBuffer.pop();
 			bytesRead = 1;
 			return checksum;
 		case 20:
@@ -260,9 +280,11 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 			}
 			else if (bytesRead++ < readSize)
 			{
-				const u8 ret = sectorBuffer.front();
+				if (readBuffer.empty())
+					DevCon.Warning("Empty sector buffer!");
+				const u8 ret = readBuffer.front();
 				checksum ^= ret;
-				sectorBuffer.pop();
+				readBuffer.pop();
 				return ret;
 			}
 		case 21:
@@ -272,9 +294,11 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 			}
 			else if (bytesRead++ < readSize)
 			{
-				const u8 ret = sectorBuffer.front();
+				if (readBuffer.empty())
+					DevCon.Warning("Empty sector buffer!");
+				const u8 ret = readBuffer.front();
 				checksum ^= ret;
-				sectorBuffer.pop();
+				readBuffer.pop();
 				return ret;
 			}
 			else
@@ -287,11 +311,10 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 		case 133:
 			return activeMemcard->GetTerminator();
 		default:
-			// Sanity check, actually should not be possible but
-			// in case of emergency
+			// This command is almost always transferred via DMA11; pad any bytes sent after the expected
+			// payload to 0.
 			if (currentCommandByte > 133)
 			{
-				DevCon.Warning("%s(%02X) Read overflow!!!", __FUNCTION__, data);
 				return 0x00;
 			}
 
@@ -299,10 +322,10 @@ u8 MemcardPS2Protocol::ReadData(u8 data)
 
 			if (bytesRead++ < readSize)
 			{
-				if (!sectorBuffer.empty())
+				if (!readBuffer.empty())
 				{
-					ret = sectorBuffer.front();
-					sectorBuffer.pop();
+					ret = readBuffer.front();
+					readBuffer.pop();
 				}
 			}
 			
@@ -355,95 +378,84 @@ u8 MemcardPS2Protocol::UnknownBoot(u8 data)
 // the PS2 thinks this memcard failed to respond correctly to PS2 commands and instead tries to
 // probe it as a PS1 memcard. The doXor values are grouped and labelled accordingly in the
 // function body.
-u8 MemcardPS2Protocol::AuthXor(u8 data)
+std::queue<u8> MemcardPS2Protocol::AuthXor(std::queue<u8> &data)
 {
-	static bool doXor = false;
-	static bool isShort = false;
-	static u8 xorResult = 0x00;
+	const u8 modeByte = data.front();
+	data.pop();
 
-	if (currentCommandByte == 2)
+	switch (modeByte)
 	{
-		switch (data)
+		// When encountered, the command length in RECV3 is guaranteed to be 14,
+		// and the PS2 is expecting us to XOR the data it is about to send.
+		case 0x01:
+		case 0x02:
+		case 0x04:
+		case 0x0f:
+		case 0x11:
+		case 0x13:
 		{
-			// When encountered, the command length in RECV3 is guaranteed to be 14,
-			// and the PS2 is expecting us to XOR the data it is about to send.
-			case 0x01:
-			case 0x02:
-			case 0x04:
-			case 0x0f:
-			case 0x11:
-			case 0x13:
-				doXor = true;
-				isShort = false;
-				break;
-			// When encountered, the command length in RECV3 is guaranteed to be 5,
-			// and there is no attempt to XOR anything.
-			case 0x00:
-			case 0x03:
-			case 0x05:
-			case 0x08:
-			case 0x09:
-			case 0x0a:
-			case 0x0c:
-			case 0x0d:
-			case 0x0e:
-			case 0x10:
-			case 0x12:
-			case 0x14:
-				doXor = false;
-				isShort = true;
-				break;
-			// When encountered, the command length in RECV3 is guaranteed to be 14,
-			// and the PS2 is about to send us data, BUT the PS2 does NOT want us
-			// to send the XOR, it wants us to send the 0x2b and terminator as the
-			// last two bytes.
-			case 0x06:
-			case 0x07:
-			case 0x0b:
-				doXor = false;
-				isShort = false;
-				break;
-			default:
-				DevCon.Warning("%s(%02X) Unexpected doXor value, please report to the PCSX2 team", __FUNCTION__, data);
-				doXor = false;
-				isShort = false;
-				break;
+			// Long + XOR
+			responseBuffer.push(0x00);
+			responseBuffer.push(0x2b);
+			u8 xorResult = 0x00;
+			
+			for (size_t xorCounter = 0; xorCounter < 8; xorCounter++)
+			{
+				const u8 toXOR = data.front();
+				data.pop();
+				xorResult ^= toXOR;
+				responseBuffer.push(0x00);
+			}
+
+			responseBuffer.push(xorResult);
+			responseBuffer.push(activeMemcard->GetTerminator());
+			break;
 		}
-		xorResult = 0;
-		return 0x00;
-	}
-	else if (doXor)
-	{
-		switch (currentCommandByte)
+		// When encountered, the command length in RECV3 is guaranteed to be 5,
+		// and there is no attempt to XOR anything.
+		case 0x00:
+		case 0x03:
+		case 0x05:
+		case 0x08:
+		case 0x09:
+		case 0x0a:
+		case 0x0c:
+		case 0x0d:
+		case 0x0e:
+		case 0x10:
+		case 0x12:
+		case 0x14:
 		{
-			case 3:
-				return 0x2b;
-			case 12:
-				return xorResult;
-			case 13:
-				// Reset after completion, prevents below default label
-				// from running on currentCommandByte = 1.
-				doXor = false; 
-				return activeMemcard->GetTerminator();
-			default:
-				xorResult ^= data;
-				return 0x00;
+			// Short + No XOR
+			The2bTerminator(5);
+			break;
 		}
-	}
-	else
-	{
-		return The2bTerminator(isShort ? 5 : 14);
+		// When encountered, the command length in RECV3 is guaranteed to be 14,
+		// and the PS2 is about to send us data, BUT the PS2 does NOT want us
+		// to send the XOR, it wants us to send the 0x2b and terminator as the
+		// last two bytes.
+		case 0x06:
+		case 0x07:
+		case 0x0b:
+		{
+			// Long + No XOR
+			The2bTerminator(14);
+			break;
+		}
+		default:
+			DevCon.Warning("%s(queue) Unexpected modeByte (%02X), please report to the PCSX2 team", __FUNCTION__, modeByte);
+			break;
 	}
 }
 
-u8 MemcardPS2Protocol::AuthF3(u8 data)
+void MemcardPS2Protocol::AuthF3()
 {
-	return The2bTerminator(5);
+	The2bTerminator(5);
 }
 
-u8 MemcardPS2Protocol::AuthF7(u8 data)
+void MemcardPS2Protocol::AuthF7()
 {
-	return The2bTerminator(5);
+	The2bTerminator(5);
 }
 
 MemcardPS2Protocol::MemcardPS2Protocol() = default;
@@ -490,23 +502,21 @@ void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)
 	activeMemcard = memcard;
 }
 
-u8 MemcardPS2Protocol::SendToMemcard(u8 data)
+std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> data)
 {
-	u8 ret = 0xff;
+	std::queue<u8> emptyQueue;
+	responseBuffer.swap(emptyQueue);
 
-	if (currentCommandByte == 1)
-	{
-		mode = static_cast<MemcardPS2Mode>(data);
-		debug_fifoin.clear();
-		debug_fifoin.push_back(0xff);
-		debug_fifoout.clear();
-		debug_fifoout.push_back(0xff);
-	}
+	const u8 deviceTypeByte = data.front();
+	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MEMCARD);
+	data.pop();
+	responseBuffer.push(0x00);
+	
+	const u8 commandByte = data.front();
+	data.pop();
+	responseBuffer.push(0x00);
 
-	// We have a bit of a different strategy to play here than PS2 pads.
-	// Pads have a nice and predictable "header" group. But memcards, each
-	// mode has more or less its own "header".
-	switch (mode)
+	switch (static_cast<MemcardPS2Mode>(commandByte))
 	{
 		case MemcardPS2Mode::PROBE:
 			ret = Probe(data);
@@ -551,26 +561,14 @@ u8 MemcardPS2Protocol::SendToMemcard(u8 data)
 			ret = AuthXor(data);
 			break;
 		case MemcardPS2Mode::AUTH_F3:
-			ret = AuthF3(data);
-			break;
+			return AuthF3();
 		case MemcardPS2Mode::AUTH_F7:
-			ret = AuthF7(data);
-			break;
+			return AuthF7();
 		default:
-			DevCon.Warning("%s(%02X) Unhandled MemcardPS2Mode (%02X) (currentCommandByte = %d)", __FUNCTION__, data, static_cast<u8>(mode), currentCommandByte);
-			break;
+			DevCon.Warning("%s(queue) Unhandled MemcardPS2Mode (%02X)", __FUNCTION__, commandByte);
+			std::queue<u8> emptyQueue;
+			return emptyQueue;
 	}
-
-	currentCommandByte++;
-	debug_fifoin.push_back(data);
-	debug_fifoout.push_back(ret);
-
-	if (currentCommandByte > 133)
-	{
-		currentCommandByte = currentCommandByte;
-	}
-
-	return ret;
 }
 
 #undef The2bTerminator

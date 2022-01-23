@@ -4,6 +4,7 @@
 #include "Sio2Types.h"
 
 #include <array>
+#include <queue>
 
 // A note about fifoIn and fifoOut:
 // On hardware, these are 32 bit registers. However, they are only accessed by 8 bit reads or writes
@@ -31,8 +32,8 @@ private:
 	std::array<u32, 16> send3 = {};
 	std::array<u32, 4> send1 = {};
 	std::array<u32, 4> send2 = {};
-	size_t fifoPosition = 0;
-	std::vector<u8> fifoOut;
+	std::queue<u8> fifoIn;
+	std::queue<u8> fifoOut;
 	u32 ctrl;
 	u32 recv1;
 	u32 recv2;
@@ -42,6 +43,8 @@ private:
 	u32 iStat;
 	
 	u8 activePort;
+	size_t fifoPosition = 0;
+	size_t dmaBlockSize = 0;
 	bool send3Read = false;
 	size_t send3Position = 0;
 	size_t commandLength = 0;
@@ -53,6 +56,9 @@ public:
 	void Reset();
 
 	void SetInterrupt();
+
+	size_t GetDMABlockSize();
+	void SetDMABlockSize(size_t size);
 
 	void Sio2Write(u8 data);
 	u8 Sio2Read();
