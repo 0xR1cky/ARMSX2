@@ -12,23 +12,21 @@ private:
 	MemcardPS2* activeMemcard;
 	// Temporary buffer to copy sector contents to.
 	std::queue<u8> readWriteBuffer;
-	// Temporary buffer to write response values into.
-	std::queue<u8> responseBuffer;
 
 	void The2bTerminator(size_t len);
 
 	void Probe();
 	void UnknownWriteDeleteEnd();
-	void SetSector(std::queue<u8> &data);
+	void SetSector();
 	void GetSpecs();
-	void SetTerminator(u8 newTerminator);
+	void SetTerminator();
 	void GetTerminator();
-	void WriteData(std::queue<u8> &data);
-	void ReadData(u8 readLength);
+	void WriteData();
+	void ReadData();
 	void ReadWriteEnd();
 	void EraseBlock();
 	void UnknownBoot();
-	void AuthXor(std::queue<u8> &data);
+	void AuthXor();
 	void AuthF3();
 	void AuthF7();
 public:
@@ -41,7 +39,7 @@ public:
 	MemcardPS2* GetMemcard(size_t port, size_t slot);
 	void SetActiveMemcard(MemcardPS2* memcard);
 
-	std::queue<u8> SendToMemcard(std::queue<u8> &data);
+	void SendToMemcard();
 };
 
 extern MemcardPS2Protocol g_MemcardPS2Protocol;

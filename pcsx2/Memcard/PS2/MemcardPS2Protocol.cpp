@@ -5,19 +5,22 @@
 #include "SioCommon.h"
 #include "Sio2.h"
 
+#define fifoIn g_Sio2.GetFifoIn()
+#define fifoOut g_Sio2.GetFifoOut()
+
 MemcardPS2Protocol g_MemcardPS2Protocol;
 
 // A repeated pattern in memcard functions is to use the response
 // pattern "0x00, 0x00, 0x2b, terminator.
 void MemcardPS2Protocol::The2bTerminator(size_t len)
 {
-	while (responseBuffer.size() < len - 2)
+	while (fifoOut.size() < len - 2)
 	{
-		responseBuffer.push(0x00);
+		fifoOut.push(0x00);
 	}
 
-	responseBuffer.push(0x2b);
-	responseBuffer.push(activeMemcard->GetTerminator());
+	fifoOut.push(0x2b);
+	fifoOut.push(activeMemcard->GetTerminator());
 }
 
 void MemcardPS2Protocol::Probe()
@@ -30,18 +33,18 @@ void MemcardPS2Protocol::UnknownWriteDeleteEnd()
 	The2bTerminator(4);
 }
 
-void MemcardPS2Protocol::SetSector(std::queue<u8> &data)
+void MemcardPS2Protocol::SetSector()
 {
-	const u8 sectorLSB = data.front();
-	data.pop();
-	const u8 sector2nd = data.front();
-	data.pop();
-	const u8 sector3rd = data.front();
-	data.pop();
-	const u8 sectorMSB = data.front();
-	data.pop();
-	const u8 expectedChecksum = data.front();
-	data.pop();
+	const u8 sectorLSB = fifoIn.front();
+	fifoIn.pop();
+	const u8 sector2nd = fifoIn.front();
+	fifoIn.pop();
+	const u8 sector3rd = fifoIn.front();
+	fifoIn.pop();
+	const u8 sectorMSB = fifoIn.front();
+	fifoIn.pop();
+	const u8 expectedChecksum = fifoIn.front();
+	fifoIn.pop();
 	
 	u8 computedChecksum = sectorLSB ^ sector2nd ^ sector3rd ^ sectorMSB;
 	
@@ -61,87 +64,91 @@ void MemcardPS2Protocol::SetSector(std::queue<u8> &data)
 
 void MemcardPS2Protocol::GetSpecs()
 {
-	responseBuffer.push(0x2b);
+	fifoOut.push(0x2b);
 	u8 checksum = 0x00;
 
 	const u8 sectorSizeLSB = static_cast<u16>(activeMemcard->GetSectorSize()) & 0xff;
 	checksum ^= sectorSizeLSB;
-	responseBuffer.push(sectorSizeLSB);
+	fifoOut.push(sectorSizeLSB);
 
 	const u8 sectorSizeMSB = static_cast<u16>(activeMemcard->GetSectorSize()) >> 8;
 	checksum ^= sectorSizeMSB;
-	responseBuffer.push(sectorSizeMSB);
+	fifoOut.push(sectorSizeMSB);
 
 	const u8 eraseBlockSizeLSB = static_cast<u16>(activeMemcard->GetEraseBlockSize()) & 0xff;
 	checksum ^= eraseBlockSizeLSB;
-	responseBuffer.push(eraseBlockSizeLSB);
+	fifoOut.push(eraseBlockSizeLSB);
 
 	const u8 eraseBlockSizeMSB = static_cast<u16>(activeMemcard->GetEraseBlockSize()) >> 8;
 	checksum ^= eraseBlockSizeMSB;
-	responseBuffer.push(eraseBlockSizeMSB);
+	fifoOut.push(eraseBlockSizeMSB);
 
 	const u8 sectorCountLSB = static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff;
 	checksum ^= sectorCountLSB;
-	responseBuffer.push(sectorCountLSB);
+	fifoOut.push(sectorCountLSB);
 
 	const u8 sectorCount2nd = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff00) >> 8;
 	checksum ^= sectorCount2nd;
-	responseBuffer.push(sectorCount2nd);
+	fifoOut.push(sectorCount2nd);
 
 	const u8 sectorCount3rd = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff0000) >> 16;
 	checksum ^= sectorCount3rd;
-	responseBuffer.push(sectorCount3rd);
+	fifoOut.push(sectorCount3rd);
 
 	const u8 sectorCountMSB = (static_cast<u32>(activeMemcard->GetSectorCount()) & 0xff000000) >> 24;
 	checksum ^= sectorCountMSB;
-	responseBuffer.push(sectorCountMSB);
+	fifoOut.push(sectorCountMSB);
 
-	responseBuffer.push(checksum);
-	responseBuffer.push(activeMemcard->GetTerminator());
+	fifoOut.push(checksum);
+	fifoOut.push(activeMemcard->GetTerminator());
 }
 
-void MemcardPS2Protocol::SetTerminator(u8 newTerminator)
+void MemcardPS2Protocol::SetTerminator()
 {
+	const u8 newTerminator = fifoIn.front();
+	fifoIn.pop();
 	const u8 oldTerminator = activeMemcard->GetTerminator();
 	activeMemcard->SetTerminator(newTerminator);
-	responseBuffer.push(0x00);
-	responseBuffer.push(0x2b);
-	responseBuffer.push(oldTerminator);
+	fifoOut.push(0x00);
+	fifoOut.push(0x2b);
+	fifoOut.push(oldTerminator);
 }
 
 void MemcardPS2Protocol::GetTerminator()
 {
-	responseBuffer.push(0x2b);
-	responseBuffer.push(activeMemcard->GetTerminator());
-	responseBuffer.push(static_cast<u8>(Terminator::DEFAULT));
+	fifoOut.push(0x2b);
+	fifoOut.push(activeMemcard->GetTerminator());
+	fifoOut.push(static_cast<u8>(Terminator::DEFAULT));
 }
 
-void MemcardPS2Protocol::WriteData(std::queue<u8>& data)
+void MemcardPS2Protocol::WriteData()
 {
-	responseBuffer.push(0x00);
-	responseBuffer.push(0x2b);
-	const u8 writeLength = data.front();
-	data.pop();
+	fifoOut.push(0x00);
+	fifoOut.push(0x2b);
+	const u8 writeLength = fifoIn.front();
+	fifoIn.pop();
 	u8 checksum = 0x00;
 
 	for (size_t writeCounter = 0; writeCounter < writeLength; writeCounter++)
 	{
-		const u8 writeByte = data.front();
-		data.pop();
+		const u8 writeByte = fifoIn.front();
+		fifoIn.pop();
 		checksum ^= writeByte;
 		readWriteBuffer.push(writeByte);
-		responseBuffer.push(0x00);
+		fifoOut.push(0x00);
 	}
 
 	activeMemcard->Write(readWriteBuffer);
-	responseBuffer.push(checksum);
-	responseBuffer.push(activeMemcard->GetTerminator());
+	fifoOut.push(checksum);
+	fifoOut.push(activeMemcard->GetTerminator());
 }
 
-void MemcardPS2Protocol::ReadData(u8 readLength)
+void MemcardPS2Protocol::ReadData()
 {
-	responseBuffer.push(0x00);
-	responseBuffer.push(0x2b);
+	const u8 readLength = fifoIn.front();
+	fifoIn.pop();
+	fifoOut.push(0x00);
+	fifoOut.push(0x2b);
 	readWriteBuffer = activeMemcard->Read(readLength);
 	u8 checksum = 0x00;
 
@@ -150,11 +157,11 @@ void MemcardPS2Protocol::ReadData(u8 readLength)
 		const u8 readByte = readWriteBuffer.front();
 		readWriteBuffer.pop();
 		checksum ^= readByte;
-		responseBuffer.push(readByte);
+		fifoOut.push(readByte);
 	}
 
-	responseBuffer.push(checksum);
-	responseBuffer.push(activeMemcard->GetTerminator());
+	fifoOut.push(checksum);
+	fifoOut.push(activeMemcard->GetTerminator());
 }
 
 void MemcardPS2Protocol::ReadWriteEnd()
@@ -196,10 +203,10 @@ void MemcardPS2Protocol::UnknownBoot()
 // these will cause the PS2 to stop executing 0xf0 commands and jump straight to 0x52 commands;
 // the PS2 thinks this memcard failed to respond correctly to PS2 commands and instead tries to
 // probe it as a PS1 memcard. 
-void MemcardPS2Protocol::AuthXor(std::queue<u8> &data)
+void MemcardPS2Protocol::AuthXor()
 {
-	const u8 modeByte = data.front();
-	data.pop();
+	const u8 modeByte = fifoIn.front();
+	fifoIn.pop();
 
 	switch (modeByte)
 	{
@@ -213,20 +220,20 @@ void MemcardPS2Protocol::AuthXor(std::queue<u8> &data)
 		case 0x13:
 		{
 			// Long + XOR
-			responseBuffer.push(0x00);
-			responseBuffer.push(0x2b);
+			fifoOut.push(0x00);
+			fifoOut.push(0x2b);
 			u8 xorResult = 0x00;
 			
 			for (size_t xorCounter = 0; xorCounter < 8; xorCounter++)
 			{
-				const u8 toXOR = data.front();
-				data.pop();
+				const u8 toXOR = fifoIn.front();
+				fifoIn.pop();
 				xorResult ^= toXOR;
-				responseBuffer.push(0x00);
+				fifoOut.push(0x00);
 			}
 
-			responseBuffer.push(xorResult);
-			responseBuffer.push(activeMemcard->GetTerminator());
+			fifoOut.push(xorResult);
+			fifoOut.push(activeMemcard->GetTerminator());
 			break;
 		}
 		// When encountered, the command length in RECV3 is guaranteed to be 5,
@@ -281,8 +288,7 @@ MemcardPS2Protocol::~MemcardPS2Protocol() = default;
 
 void MemcardPS2Protocol::SoftReset()
 {
-	std::queue<u8> emptyQueue;
-	responseBuffer.swap(emptyQueue);
+	
 }
 
 void MemcardPS2Protocol::FullReset()
@@ -315,20 +321,16 @@ void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)
 	activeMemcard = memcard;
 }
 
-std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
+void MemcardPS2Protocol::SendToMemcard()
 {
-	const u8 deviceTypeByte = data.front();
+	const u8 deviceTypeByte = fifoIn.front();
 	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MEMCARD, "MemcardPS2Protocol was initiated, but this SIO2 command is targeting another device!");
-	data.pop();
-	responseBuffer.push(0x00);
+	fifoIn.pop();
+	fifoOut.push(0x00);
 	
-	const u8 commandByte = data.front();
-	data.pop();
-	responseBuffer.push(0x00);
-
-	const u8 frontByte = data.front();
-	// Do not pop; let the switch cases do this, if and only if they actually utilize this
-	// value as a param for their function.
+	const u8 commandByte = fifoIn.front();
+	fifoIn.pop();
+	fifoOut.push(0x00);
 
 	switch (static_cast<MemcardPS2Mode>(commandByte))
 	{
@@ -339,30 +341,28 @@ std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
 			UnknownWriteDeleteEnd();
 			break;
 		case MemcardPS2Mode::SET_ERASE_SECTOR:
-			SetSector(data);
+			SetSector();
 			break;
 		case MemcardPS2Mode::SET_WRITE_SECTOR:
-			SetSector(data);
+			SetSector();
 			break;
 		case MemcardPS2Mode::SET_READ_SECTOR:
-			SetSector(data);
+			SetSector();
 			break;
 		case MemcardPS2Mode::GET_SPECS:
 			GetSpecs();
 			break;
 		case MemcardPS2Mode::SET_TERMINATOR:
-			data.pop();
-			SetTerminator(frontByte);
+			SetTerminator();
 			break;
 		case MemcardPS2Mode::GET_TERMINATOR:
 			GetTerminator();
 			break;
 		case MemcardPS2Mode::WRITE_DATA:
-			WriteData(data);
+			WriteData();
 			break;
 		case MemcardPS2Mode::READ_DATA:
-			data.pop();
-			ReadData(frontByte);
+			ReadData();
 			break;
 		case MemcardPS2Mode::READ_WRITE_END:
 			ReadWriteEnd();
@@ -374,7 +374,7 @@ std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
 			UnknownBoot();
 			break;
 		case MemcardPS2Mode::AUTH_XOR:
-			AuthXor(data);
+			AuthXor();
 			break;
 		case MemcardPS2Mode::AUTH_F3:
 			AuthF3();
@@ -384,11 +384,7 @@ std::queue<u8> MemcardPS2Protocol::SendToMemcard(std::queue<u8> &data)
 			break;
 		default:
 			DevCon.Warning("%s(queue) Unhandled MemcardPS2Mode (%02X)", __FUNCTION__, commandByte);
-			std::queue<u8> emptyQueue;
-			return emptyQueue;
 	}
-
-	return responseBuffer;
 }
 
 #undef The2bTerminator

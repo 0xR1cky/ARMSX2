@@ -43,7 +43,6 @@ private:
 	u32 iStat;
 	
 	u8 activePort;
-	size_t fifoPosition = 0;
 	size_t dmaBlockSize = 0;
 	bool send3Read = false;
 	size_t send3Position = 0;
@@ -67,6 +66,8 @@ public:
 	u32 GetSend1(u8 index);
 	u32 GetSend2(u8 index);
 	u32 GetSend3(u8 index);
+	std::queue<u8>& GetFifoIn();
+	std::queue<u8>& GetFifoOut();
 	u32 GetCtrl();
 	u32 GetRecv1();
 	u32 GetRecv2();

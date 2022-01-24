@@ -25,6 +25,17 @@ void Sio2::SoftReset()
 	{
 		fifoIn.pop();
 	}
+
+	// If the command was received over DMA, its response needs to be padded out to fill the block.
+	// fifoOut will contain multiple command responses in sequence, so we mod the fifoOut size against
+	// the DMA block size to compute the remainder and add the appropriate padding.
+	if (dmaBlockSize > 0)
+	{
+		while (fifoOut.size() % dmaBlockSize > 0)
+		{
+			fifoOut.push(0x00);
+		}
+	}
 }
 
 void Sio2::FullReset()
@@ -114,65 +125,6 @@ void Sio2::Sio2Write(u8 data)
 	}
 
 	fifoIn.push(data);
-
-	/*
-	switch (mode)
-	{
-		case Sio2Mode::NOT_SET:
-			if (data)
-			{
-				mode = static_cast<Sio2Mode>(data);
-				fifoOut.push_back(0xff);
-				break;
-			}
-			else
-			{
-				fifoOut.push_back(0x00);
-				return;
-			}
-		case Sio2Mode::PAD:
-			g_Sio2.SetRecv1(Recv1::CONNECTED);
-			pad = g_PadPS2Protocol.GetPad(activePort, g_MultitapPS2Protocol.GetActiveSlot());
-			g_PadPS2Protocol.SetActivePad(pad);
-			fifoOut.push_back(g_PadPS2Protocol.SendToPad(data));
-			break;
-		case Sio2Mode::MULTITAP:
-			if (g_MultitapConfig.IsMultitapEnabled(activePort))
-			{
-				g_Sio2.SetRecv1(Recv1::CONNECTED);
-				fifoOut.push_back(g_MultitapPS2Protocol.SendToMultitap(data));	
-			}
-			else 
-			{
-				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-				fifoOut.push_back(0x00);
-			}
-			break;
-		case Sio2Mode::INFRARED:
-			g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-			fifoOut.push_back(0x00);
-			break;
-		case Sio2Mode::MEMCARD:
-			switch (g_SioCommon.GetMemcardType(activePort, g_MultitapPS2Protocol.GetActiveSlot()))
-			{
-				case MemcardType::PS2:
-					memcardPS2 = g_SioCommon.GetMemcardPS2(activePort, g_MultitapPS2Protocol.GetActiveSlot());
-					g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
-					g_Sio2.SetRecv1(memcardPS2->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
-					fifoOut.push_back(g_MemcardPS2Protocol.SendToMemcard(data));
-					break;
-				default:
-					DevCon.Warning("%s(%02X) Non-PS2 memcard access from SIO2!", __FUNCTION__, data);
-					fifoOut.push_back(0x00);
-					break;
-			}
-			break;
-		default:
-			DevCon.Warning("%s(%02X) Unhandled SIO2 Mode", __FUNCTION__, data);
-			break;
-	}
-	*/
-
 	processedLength++;
 
 	// If we've reached the command length specified by SEND3, and condition 1 or 2 are true,
@@ -200,9 +152,17 @@ void Sio2::Sio2Write(u8 data)
 				g_PadPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::MULTITAP:
+				while (fifoOut.size() < commandLength)
+				{
+					fifoOut.push(0x00);
+				}
 				g_MultitapPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::INFRARED:
+				while (fifoOut.size() < commandLength)
+				{
+					fifoOut.push(0x00);
+				}
 				break;
 			case Sio2Mode::MEMCARD:
 				switch (g_SioCommon.GetMemcardType(activePort, g_MultitapPS2Protocol.GetActiveSlot()))
@@ -211,7 +171,7 @@ void Sio2::Sio2Write(u8 data)
 						memcardPS2 = g_SioCommon.GetMemcardPS2(activePort, g_MultitapPS2Protocol.GetActiveSlot());
 						g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
 						g_Sio2.SetRecv1(memcardPS2->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
-						fifoOut = g_MemcardPS2Protocol.SendToMemcard(fifoIn);
+						g_MemcardPS2Protocol.SendToMemcard();
 						break;
 					default:
 						DevCon.Warning("%s(%02X) Non-PS2 memcard access from SIO2!", __FUNCTION__, data);
@@ -230,7 +190,7 @@ void Sio2::Sio2Write(u8 data)
 
 u8 Sio2::Sio2Read()
 {
-	if (fifoPosition >= fifoOut.size())
+	if (fifoOut.empty())
 	{
 		DevCon.Warning("%s Attempted to read beyond FIFO contents", __FUNCTION__);
 		return 0xff;
@@ -254,6 +214,16 @@ u32 Sio2::GetSend2(u8 index)
 u32 Sio2::GetSend3(u8 index)
 {
 	return send3.at(index);
+}
+
+std::queue<u8>& Sio2::GetFifoIn()
+{
+	return fifoIn;
+}
+
+std::queue<u8>& Sio2::GetFifoOut()
+{
+	return fifoOut;
 }
 
 u32 Sio2::GetCtrl()

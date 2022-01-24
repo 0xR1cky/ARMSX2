@@ -14,8 +14,6 @@ private:
 	PadPS2Array pads;
 	PadPS2* activePad = nullptr;
 	PadPS2Mode mode = PadPS2Mode::NOT_SET;
-	size_t currentCommandByte = 1;
-	std::queue<u8> responseBuffer;
 
 	size_t GetResponseSize(PadPS2Type padPS2Type);
 	
