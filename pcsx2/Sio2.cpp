@@ -27,8 +27,8 @@ void Sio2::SoftReset()
 	}
 
 	// If the command was received over DMA, its response needs to be padded out to fill the block.
-	// fifoOut will contain multiple command responses in sequence, so we mod the fifoOut size against
-	// the DMA block size to compute the remainder and add the appropriate padding.
+	// fifoOut will contain multiple command responses in sequence, and each command has one block to itself.
+	// So we mod the fifoOut size against the DMA block size to compute the remainder and add the appropriate padding.
 	if (dmaBlockSize > 0)
 	{
 		while (fifoOut.size() % dmaBlockSize > 0)
@@ -53,8 +53,14 @@ void Sio2::FullReset()
 		g_Sio2.SetSend2(i, 0);
 	}
 
-	std::queue<u8> emptyQueue;
-	fifoOut.swap(emptyQueue);
+	// fifoOut is not popped on soft resets. We use soft resets to restore SIO2 back to a "ready/waiting" state
+	// after all inbound writes are done, but before reads. That said, popping fifoOut after reads is unnecessary,
+	// because reads will do so on their own. As such, we only need to worry about popping fifoOut if, say, the
+	// machine state is reset.
+	while (!fifoOut.empty())
+	{
+		fifoOut.pop();
+	}
 
 	// SIO2MAN provided by the BIOS resets SIO2_CTRL to 0x3bc. Thanks ps2tek!
 	SetCtrl(0x000003bc);

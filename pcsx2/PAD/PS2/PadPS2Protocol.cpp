@@ -73,14 +73,16 @@ void PadPS2Protocol::Poll()
 	g_Sio2.GetFifoOut().push(activePad->GetDigitalByte1());
 	g_Sio2.GetFifoOut().push(activePad->GetDigitalByte2());
 
-	if (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
+	// Analog and Dualshock modes transmit analog stick info. Config mode also requests these bytes.
+	if (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2 || activePad->IsInConfigMode())
 	{
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::RIGHT_X));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::RIGHT_Y));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::LEFT_X));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::LEFT_Y));
 
-		if (activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
+		// Dualshock mode transmits pressure data. Config mode will never request these bytes.
+		if (activePad->GetPadType() == PadPS2Type::DUALSHOCK2 && !activePad->IsInConfigMode())
 		{
 			while (g_Sio2.GetFifoOut().size() < Poll::DUALSHOCK2_RESPONSE_LENGTH)	
 			{
