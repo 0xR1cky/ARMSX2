@@ -173,12 +173,13 @@ void MemcardPS2::SetTerminator(u8 data)
 void MemcardPS2::SetSector(u32 data)
 {
 	sector = data;
+	offset = 0;
 }
 
 std::queue<u8> MemcardPS2::Read(size_t length)
 {
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
-	const u32 address = sector * sectorSizeWithECC;
+	const u32 address = (sector * sectorSizeWithECC) + offset;
 	std::queue<u8> ret;
 
 	if (sector == 0)
@@ -206,6 +207,9 @@ std::queue<u8> MemcardPS2::Read(size_t length)
 		DevCon.Warning("%s() Calculated read address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
 	}
 
+	// Memcard commands issue a single sector assignment, then multiple reads. Offset the sector
+	// so the next read starts at the correct offset.
+	offset += length;
 	return ret;
 }
 
@@ -245,8 +249,9 @@ std::queue<u8> MemcardPS2::ReadSector()
 
 void MemcardPS2::Write(std::queue<u8>& data)
 {
+	const size_t length = data.size();
 	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
-	const u32 address = sector * sectorSizeWithECC;
+	const u32 address = (sector * sectorSizeWithECC) + offset;
 
 	if (sector == 0)
 	{
@@ -279,6 +284,10 @@ void MemcardPS2::Write(std::queue<u8>& data)
 	{
 		DevCon.Warning("%s(queue) Calculated write address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
 	}
+
+	// Memcard commands issue a single sector assignment, then multiple writes. Offset the sector
+	// so the next write starts at the correct offset.
+	offset += length;
 }
 
 void MemcardPS2::WriteSector(std::queue<u8>& data)

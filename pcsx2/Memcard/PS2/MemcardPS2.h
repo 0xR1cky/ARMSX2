@@ -22,6 +22,7 @@ private:
 	EraseBlockSize eraseBlockSize = EraseBlockSize::STANDARD;
 	SectorCount sectorCount = SectorCount::STANDARD;
 	u32 sector = 0;
+	u32 offset = 0;
 	std::vector<u8> memcardData;
 
 public:

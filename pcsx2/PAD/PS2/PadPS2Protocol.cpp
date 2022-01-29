@@ -72,17 +72,25 @@ void PadPS2Protocol::Poll()
 	activePad->Debug_Poll();
 	g_Sio2.GetFifoOut().push(activePad->GetDigitalByte1());
 	g_Sio2.GetFifoOut().push(activePad->GetDigitalByte2());
+	g_Sio2.GetFifoIn().pop();
+	g_Sio2.GetFifoIn().pop();
 
-	// Analog and Dualshock modes transmit analog stick info. Config mode also requests these bytes.
-	if (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2 || activePad->IsInConfigMode())
+	// Some games will configure the controller to send analog values... and then continue
+	// to only send digital requests. Check fifo size to catch these scenarios.
+	if (g_Sio2.GetFifoIn().size() >= 4 && (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2))
 	{
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::RIGHT_X));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::RIGHT_Y));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::LEFT_X));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::LEFT_Y));
+		g_Sio2.GetFifoIn().pop();
+		g_Sio2.GetFifoIn().pop();
+		g_Sio2.GetFifoIn().pop();
+		g_Sio2.GetFifoIn().pop();
 
-		// Dualshock mode transmits pressure data. Config mode will never request these bytes.
-		if (activePad->GetPadType() == PadPS2Type::DUALSHOCK2 && !activePad->IsInConfigMode())
+		// Any remaining fifo in bytes signal pressures are requested. As above, some developers sniffed
+		// glue, so we check BOTH configured mode and fifo size remaining.
+		if (g_Sio2.GetFifoIn().size() > 0 && activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
 		{
 			while (g_Sio2.GetFifoOut().size() < Poll::DUALSHOCK2_RESPONSE_LENGTH)	
 			{
@@ -96,7 +104,12 @@ void PadPS2Protocol::Poll()
 void PadPS2Protocol::Config()
 {
 	const u8 enterConfig = g_Sio2.GetFifoIn().front();
-	g_Sio2.GetFifoIn().pop();
+	
+	while (!g_Sio2.GetFifoIn().empty())
+	{
+		g_Sio2.GetFifoIn().pop();
+		g_Sio2.GetFifoOut().push(0x00);
+	}
 
 	if (enterConfig)
 	{
@@ -120,8 +133,6 @@ void PadPS2Protocol::Config()
 			DevCon.Warning("%s() Unexpected exit while not in config mode", __FUNCTION__);
 		}
 	}
-
-	Poll();
 }
 
 void PadPS2Protocol::ModeSwitch()
