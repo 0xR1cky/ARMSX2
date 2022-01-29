@@ -148,17 +148,22 @@ void Sio2::Sio2Write(u8 data)
 				g_Sio2.SetRecv1(Recv1::CONNECTED);
 				pad = g_PadPS2Protocol.GetPad(activePort, g_MultitapPS2Protocol.GetActiveSlot());
 				g_PadPS2Protocol.SetActivePad(pad);
-				fifoOut = g_PadPS2Protocol.SendToPad(fifoIn);
+				g_PadPS2Protocol.SendToPad();
 				g_PadPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::MULTITAP:
+				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+
 				while (fifoOut.size() < commandLength)
 				{
 					fifoOut.push(0x00);
 				}
+
 				g_MultitapPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::INFRARED:
+				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+
 				while (fifoOut.size() < commandLength)
 				{
 					fifoOut.push(0x00);
@@ -169,8 +174,8 @@ void Sio2::Sio2Write(u8 data)
 				{
 					case MemcardType::PS2:
 						memcardPS2 = g_SioCommon.GetMemcardPS2(activePort, g_MultitapPS2Protocol.GetActiveSlot());
-						g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
 						g_Sio2.SetRecv1(memcardPS2->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
+						g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
 						g_MemcardPS2Protocol.SendToMemcard();
 						break;
 					default:

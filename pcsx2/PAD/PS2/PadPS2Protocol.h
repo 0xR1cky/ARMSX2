@@ -20,14 +20,14 @@ private:
 	void Mystery();
 	void ButtonQuery();
 	void Poll();
-	void Config(u8 enterConfig);
-	void ModeSwitch(std::queue<u8> &data);
+	void Config();
+	void ModeSwitch();
 	void StatusInfo();
-	void Constant1(u8 stage);
+	void Constant1();
 	void Constant2();
-	void Constant3(u8 stage);
+	void Constant3();
 	void VibrationMap();
-	void ResponseBytes(std::queue<u8>& data);
+	void ResponseBytes();
 
 public:
 	PadPS2Protocol();
@@ -39,7 +39,7 @@ public:
 	PadPS2* GetPad(size_t port, size_t slot);
 	void SetActivePad(PadPS2* pad);
 
-	std::queue<u8> SendToPad(std::queue<u8> &data);
+	void SendToPad();
 };
 
 extern PadPS2Protocol g_PadPS2Protocol;
