@@ -77,7 +77,7 @@ void PadPS2Protocol::Poll()
 
 	// Some games will configure the controller to send analog values... and then continue
 	// to only send digital requests. Check fifo size to catch these scenarios.
-	if (g_Sio2.GetFifoIn().size() >= 4 && (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2))
+	if (g_Sio2.GetFifoIn().size() > 0 && (activePad->GetPadType() == PadPS2Type::ANALOG || activePad->GetPadType() == PadPS2Type::DUALSHOCK2))
 	{
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::RIGHT_X));
 		g_Sio2.GetFifoOut().push(activePad->GetAnalog(PS2Analog::RIGHT_Y));
@@ -90,13 +90,11 @@ void PadPS2Protocol::Poll()
 
 		// Any remaining fifo in bytes signal pressures are requested. As above, some developers sniffed
 		// glue, so we check BOTH configured mode and fifo size remaining.
-		if (g_Sio2.GetFifoIn().size() > 0 && activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
+		while (g_Sio2.GetFifoIn().size() > 0 && activePad->GetPadType() == PadPS2Type::DUALSHOCK2)
 		{
-			while (g_Sio2.GetFifoOut().size() < Poll::DUALSHOCK2_RESPONSE_LENGTH)	
-			{
-				const size_t pressureIndex = g_Sio2.GetFifoOut().size() - Poll::PRESSURE_OFFSET;
-				g_Sio2.GetFifoOut().push(activePad->GetButton(static_cast<PS2Button>(pressureIndex)));
-			}
+			const size_t pressureIndex = g_Sio2.GetFifoOut().size() - Poll::PRESSURE_OFFSET;
+			g_Sio2.GetFifoOut().push(activePad->GetButton(static_cast<PS2Button>(pressureIndex)));
+			g_Sio2.GetFifoIn().pop();
 		}
 	}
 }
