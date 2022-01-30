@@ -109,12 +109,8 @@ void Sio2::Sio2Write(u8 data)
 	// the command.
 	if (!send3Read)
 	{
-		// If send3Position somehow goes out of bounds, warn and exit.
-		if (send3Position >= send3.size())
-		{
-			DevCon.Warning("%s(%02X) SEND3 Overflow! SIO2 has processed commands described by all 16 SEND3 registers, and is still receiving command bytes!", __FUNCTION__, data);
-			return;
-		}
+		// If send3Position somehow goes out of bounds
+		assert(send3Position < send3.size(), "SEND3 Overflow!");
 
 		const u32 s3 = send3.at(send3Position);
 
@@ -140,11 +136,7 @@ void Sio2::Sio2Write(u8 data)
 	// 2) This transaction was not DMA (block size will be zero and thus processed length always greater)
 	if (processedLength >= commandLength && processedLength >= GetDMABlockSize())
 	{
-		if (fifoIn.empty())
-		{
-			DevCon.Warning("%s(%02X) Sanity check, SIO2 fifoIn empty. Please report if you see this message.");
-			return;
-		}
+		assert(!fifoIn.empty(), "Sanity check, SIO2 fifoIn empty.");
 
 		mode = static_cast<Sio2Mode>(fifoIn.front());
 
@@ -201,12 +193,8 @@ void Sio2::Sio2Write(u8 data)
 
 u8 Sio2::Sio2Read()
 {
-	if (fifoOut.empty())
-	{
-		DevCon.Warning("%s Attempted to read beyond FIFO contents", __FUNCTION__);
-		return 0xff;
-	}
-
+	assert(!fifoOut.empty(), "Attempted to read beyond FIFO contents");
+	
 	const u8 ret = fifoOut.front();
 	fifoOut.pop();
 	return ret;
