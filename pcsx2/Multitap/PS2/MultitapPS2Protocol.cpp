@@ -2,98 +2,35 @@
 #include "PrecompiledHeader.h"
 #include "MultitapPS2Protocol.h"
 
+#include "Sio2.h"
 #include "SioTypes.h"
 
 MultitapPS2Protocol g_MultitapPS2Protocol;
 
-u8 MultitapPS2Protocol::PadSupportCheck(u8 data)
+void MultitapPS2Protocol::SupportCheck()
 {
-	switch (currentCommandByte)
-	{
-		case 2:
-			return 0x5a;
-		case 3:
-			return 0x04;
-		case 4:
-			return 0x00;
-		case 5: 
-			return 0x5a;
-		default:
-			return 0x00;
-	}
+	g_Sio2.GetFifoOut().push(0x5a);
+	g_Sio2.GetFifoOut().push(0x04);
+	g_Sio2.GetFifoOut().push(0x00);
+	g_Sio2.GetFifoOut().push(0x5a);
 }
 
-u8 MultitapPS2Protocol::MemcardSupportCheck(u8 data)
+void MultitapPS2Protocol::Select()
 {
-	switch (currentCommandByte)
-	{
-		case 2:
-			return 0x5a;
-		case 3:
-			return 0x04;
-		case 4:
-			return 0x00;
-		case 5:
-			return 0x5a;
-		default:
-			return 0x00;
-	}
-}
+	const u8 newSlot = g_Sio2.GetFifoIn().front();
+	g_Sio2.GetFifoIn().pop();
+	const bool isInBounds = (newSlot >= 0 && newSlot < MAX_SLOTS);
 
-u8 MultitapPS2Protocol::SelectPad(u8 data)
-{
-	switch (currentCommandByte)
+	if (isInBounds)
 	{
-		case 2:
-			if (data >= 0 && data < MAX_SLOTS)
-			{
-				activeSlot = data;
-			}
-			else 
-			{
-				activeSlot = 0xff;
-			}
-			
-			return 0x5a;
-		case 3:
-			return 0x00;
-		case 4:
-			return 0x00;
-		case 5:
-			return activeSlot;
-		case 6:
-			return (activeSlot != 0xff ? 0x5a : 0x66);
-		default:
-			return 0x00;
+		activeSlot = newSlot;
 	}
-}
 
-u8 MultitapPS2Protocol::SelectMemcard(u8 data)
-{
-	switch (currentCommandByte)
-	{
-		case 2:
-			if (data >= 0 && data < MAX_SLOTS)
-			{
-				activeSlot = data;
-			}
-			else
-			{
-				activeSlot = 0xff;
-			}
-
-			return 0x5a;
-		case 3:
-			return 0x00;
-		case 4:
-			return 0x00;
-		case 5:
-			return activeSlot;
-		case 6:
-			return (activeSlot != 0xff ? 0x5a : 0x66);
-		default:
-			return 0x00;
-	}
+	g_Sio2.GetFifoOut().push(0x5a);
+	g_Sio2.GetFifoOut().push(0x00);
+	g_Sio2.GetFifoOut().push(0x00);
+	g_Sio2.GetFifoOut().push(isInBounds ? newSlot : 0xff);
+	g_Sio2.GetFifoOut().push(isInBounds ? 0x5a : 0x66);
 }
 
 MultitapPS2Protocol::MultitapPS2Protocol() = default;
@@ -101,12 +38,13 @@ MultitapPS2Protocol::~MultitapPS2Protocol() = default;
 
 void MultitapPS2Protocol::SoftReset()
 {
-	mode = MultitapPS2Mode::NOT_SET;
-	currentCommandByte = 1;
+	
 }
 
 void MultitapPS2Protocol::FullReset()
 {
+	SoftReset();
+
 	activeSlot = 0;
 }
 
@@ -115,34 +53,26 @@ u8 MultitapPS2Protocol::GetActiveSlot()
 	return activeSlot;
 }
 
-u8 MultitapPS2Protocol::SendToMultitap(u8 data)
+void MultitapPS2Protocol::SendToMultitap()
 {
-	u8 ret = 0xff;
+	const u8 deviceTypeByte = g_Sio2.GetFifoIn().front();
+	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MULTITAP, "MultitapPS2Protocol was initiated, but this SIO2 command is targeting another device!");
+	g_Sio2.GetFifoIn().pop();
+	g_Sio2.GetFifoOut().push(0x00);
 
-	if (currentCommandByte == 1)
+	const u8 commandByte = g_Sio2.GetFifoIn().front();
+	g_Sio2.GetFifoIn().pop();
+	g_Sio2.GetFifoOut().push(0x80);
+
+	switch (static_cast<MultitapPS2Mode>(commandByte))
 	{
-		mode = static_cast<MultitapPS2Mode>(data);
-		ret = 0x80;
+		case MultitapPS2Mode::PAD_SUPPORT_CHECK:
+		case MultitapPS2Mode::MEMCARD_SUPPORT_CHECK:
+			SupportCheck();
+			break;
+		case MultitapPS2Mode::SELECT_PAD:
+		case MultitapPS2Mode::SELECT_MEMCARD:
+			Select();
+			break;
 	}
-	else
-	{
-		switch (mode)
-		{
-			case MultitapPS2Mode::PAD_SUPPORT_CHECK:
-				ret = PadSupportCheck(data);
-				break;
-			case MultitapPS2Mode::MEMCARD_SUPPORT_CHECK:
-				ret = MemcardSupportCheck(data);
-				break;
-			case MultitapPS2Mode::SELECT_PAD:
-				ret = SelectPad(data);
-				break;
-			case MultitapPS2Mode::SELECT_MEMCARD:
-				ret = SelectMemcard(data);
-				break;
-		}
-	}
-	
-	currentCommandByte++;
-	return ret;
 }

@@ -151,12 +151,7 @@ void Sio2::Sio2Write(u8 data)
 				break;
 			case Sio2Mode::MULTITAP:
 				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-
-				while (fifoOut.size() < commandLength)
-				{
-					fifoOut.push(0x00);
-				}
-
+				g_MultitapPS2Protocol.SendToMultitap();
 				g_MultitapPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::INFRARED:
