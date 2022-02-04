@@ -81,5 +81,8 @@ void MultitapPS2Protocol::SendToMultitap()
 		case MultitapPS2Mode::SELECT_MEMCARD:
 			Select();
 			break;
+		default:
+			DevCon.Warning("%s(queue) Unhandled MultitapPS2Mode (%02X)", __FUNCTION__, commandByte);
+			break;
 	}
 }
