@@ -10,6 +10,12 @@
 #include "Multitap/MultitapConfig.h"
 #include "IopDma.h"
 
+#define Sio2Assert(condition, msg) \
+	{ \
+		DevCon.Warning("Sio2Assert: %s", msg); \
+		assert(condition); \
+	}
+
 Sio2 g_Sio2;
 
 Sio2::Sio2() = default;
@@ -136,7 +142,7 @@ void Sio2::Sio2Write(u8 data)
 	// 2) This transaction was not DMA (block size will be zero and thus processed length always greater)
 	if (processedLength >= commandLength && processedLength >= GetDMABlockSize())
 	{
-		assert(!fifoIn.empty(), "Sanity check, SIO2 fifoIn empty.");
+		Sio2Assert(!fifoIn.empty(), "Sanity check, SIO2 fifoIn empty.");
 
 		mode = static_cast<Sio2Mode>(fifoIn.front());
 
@@ -188,7 +194,7 @@ void Sio2::Sio2Write(u8 data)
 
 u8 Sio2::Sio2Read()
 {
-	assert(!fifoOut.empty(), "Attempted to read beyond FIFO contents");
+	Sio2Assert(!fifoOut.empty(), "Attempted to read beyond FIFO contents");
 	
 	const u8 ret = fifoOut.front();
 	fifoOut.pop();
@@ -267,7 +273,7 @@ void Sio2::SetSend2(u8 index, u32 data)
 
 void Sio2::SetSend3(u8 index, u32 data)
 {
-	assert(fifoOut.empty(), "Game is issuing its next SEND3 writes, but never fully cleared fifoOut contents!");
+	Sio2Assert(fifoOut.empty(), "Game is issuing its next SEND3 writes, but never fully cleared fifoOut contents!");
 
 	// This function is only invoked by SEND3 writes and indicates
 	// a new wave of commands inbound. Reset send3Position to 0 so

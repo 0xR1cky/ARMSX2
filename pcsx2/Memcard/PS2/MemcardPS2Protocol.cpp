@@ -5,6 +5,12 @@
 #include "SioCommon.h"
 #include "Sio2.h"
 
+#define MemcardPS2ProtocolAssert(condition, msg) \
+	{ \
+		DevCon.Warning("MemcardPS2ProtocolAssert: %s", msg); \
+		assert(condition); \
+	}
+
 MemcardPS2Protocol g_MemcardPS2Protocol;
 
 // A repeated pattern in memcard functions is to use the response
@@ -321,7 +327,7 @@ void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)
 void MemcardPS2Protocol::SendToMemcard()
 {
 	const u8 deviceTypeByte = g_Sio2.GetFifoIn().front();
-	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MEMCARD, "MemcardPS2Protocol was initiated, but this SIO2 command is targeting another device!");
+	MemcardPS2ProtocolAssert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MEMCARD, "MemcardPS2Protocol was initiated, but this SIO2 command is targeting another device!");
 	g_Sio2.GetFifoIn().pop();
 	g_Sio2.GetFifoOut().push(0x00);
 	

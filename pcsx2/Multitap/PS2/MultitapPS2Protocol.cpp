@@ -5,6 +5,12 @@
 #include "Sio2.h"
 #include "SioTypes.h"
 
+#define MultitapPS2ProtocolAssert(condition, msg) \
+	{ \
+		DevCon.Warning("MultitapPS2ProtocolAssert: %s", msg); \
+		assert(condition); \
+	}
+
 MultitapPS2Protocol g_MultitapPS2Protocol;
 
 void MultitapPS2Protocol::SupportCheck()
@@ -12,6 +18,7 @@ void MultitapPS2Protocol::SupportCheck()
 	g_Sio2.GetFifoOut().push(0x5a);
 	g_Sio2.GetFifoOut().push(0x04);
 	g_Sio2.GetFifoOut().push(0x00);
+	g_Sio2.GetFifoOut().push(0x5a);
 	g_Sio2.GetFifoOut().push(0x5a);
 }
 
@@ -56,7 +63,7 @@ u8 MultitapPS2Protocol::GetActiveSlot()
 void MultitapPS2Protocol::SendToMultitap()
 {
 	const u8 deviceTypeByte = g_Sio2.GetFifoIn().front();
-	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MULTITAP, "MultitapPS2Protocol was initiated, but this SIO2 command is targeting another device!");
+	MultitapPS2ProtocolAssert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::MULTITAP, "MultitapPS2Protocol was initiated, but this SIO2 command is targeting another device!");
 	g_Sio2.GetFifoIn().pop();
 	g_Sio2.GetFifoOut().push(0x00);
 
