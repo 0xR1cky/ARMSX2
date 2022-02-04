@@ -338,11 +338,7 @@ void MemcardPS2Protocol::SendToMemcard()
 			UnknownWriteDeleteEnd();
 			break;
 		case MemcardPS2Mode::SET_ERASE_SECTOR:
-			SetSector();
-			break;
 		case MemcardPS2Mode::SET_WRITE_SECTOR:
-			SetSector();
-			break;
 		case MemcardPS2Mode::SET_READ_SECTOR:
 			SetSector();
 			break;
@@ -381,5 +377,6 @@ void MemcardPS2Protocol::SendToMemcard()
 			break;
 		default:
 			DevCon.Warning("%s(queue) Unhandled MemcardPS2Mode (%02X)", __FUNCTION__, commandByte);
+			break;
 	}
 }
