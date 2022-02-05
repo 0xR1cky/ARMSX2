@@ -1,7 +1,7 @@
 
 #pragma once
 
-#include "MemcardPS2.h"
+#include "Memcard/Memcard.h"
 #include "SioTypes.h"
 #include <array>
 #include <queue>
@@ -9,7 +9,7 @@
 class MemcardPS2Protocol
 {
 private:
-	MemcardPS2* activeMemcard;
+	Memcard* activeMemcard;
 	// Temporary buffer to copy sector contents to.
 	std::queue<u8> readWriteBuffer;
 
@@ -36,8 +36,7 @@ public:
 	void FullReset();
 	void SoftReset();
 	MemcardPS2Mode GetMemcardMode();
-	MemcardPS2* GetMemcard(size_t port, size_t slot);
-	void SetActiveMemcard(MemcardPS2* memcard);
+	void SetActiveMemcard(Memcard* memcard);
 
 	void SendToMemcard();
 };

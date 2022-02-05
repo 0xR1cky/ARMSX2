@@ -1,16 +1,17 @@
 
 #pragma once
 
+#include "Memcard/Memcard.h"
 #include "MemcardPS1.h"
 #include "SioTypes.h"
 
-using MemcardPS1Array = std::array<std::array<std::unique_ptr<MemcardPS1>, MAX_SLOTS>, MAX_PORTS>;
+using MemcardPS1Array = std::array<std::array<std::unique_ptr<Memcard>, MAX_SLOTS>, MAX_PORTS>;
 
 class MemcardPS1Protocol
 {
 private:
 	MemcardPS1Array memcards;
-	MemcardPS1* activeMemcard = nullptr;
+	Memcard* activeMemcard = nullptr;
 	MemcardPS1Mode mode = MemcardPS1Mode::NOT_SET;
 	// Begins at 1; the Sio0 shell will always respond to byte 0 without notifying
 	// the memcard (byte 0 is just telling Sio0 which device to talk to, with a 0 reply)
@@ -38,7 +39,7 @@ public:
 
 	void Reset();
 	MemcardPS1* GetMemcard(size_t port, size_t slot);
-	void SetActiveMemcard(MemcardPS1* memcardPS1);
+	void SetActiveMemcard(Memcard* memcard);
 	MemcardPS1Mode GetMemcardMode();
 	// Handler for all command bytes, invokes command function based on mode
 	u8 SendToMemcard(u8 data);

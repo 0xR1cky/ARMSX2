@@ -302,24 +302,13 @@ void MemcardPS2Protocol::FullReset()
 	{
 		for (size_t slot = 0; slot < MAX_SLOTS; slot++)
 		{
-			MemcardPS2* memcardPS2 = g_SioCommon.GetMemcardPS2(port, slot);
-			
-			if (memcardPS2 != nullptr)
-			{
-				memcardPS2->FullReset();
-			}	
+			Memcard* memcard = g_SioCommon.GetMemcard(port, slot);
+			memcard->FullReset();
 		}
 	}
 }
 
-MemcardPS2* MemcardPS2Protocol::GetMemcard(size_t port, size_t slot)
-{
-	port = std::clamp<size_t>(port, 0, MAX_PORTS);
-	slot = std::clamp<size_t>(slot, 0, MAX_SLOTS);
-	return g_SioCommon.GetMemcardPS2(port, slot);
-}
-
-void MemcardPS2Protocol::SetActiveMemcard(MemcardPS2* memcard)
+void MemcardPS2Protocol::SetActiveMemcard(Memcard* memcard)
 {
 	activeMemcard = memcard;
 }

@@ -94,8 +94,8 @@ void Sio0::SetData(u8 data)
 		slot = static_cast<u8>(mode) - static_cast<u8>(Sio0Mode::MEMCARD);
 		// Port is the 13th bit of the control register. Games will update
 		// the control register as they need to; we just need to read and mask.
-		MemcardPS1* memcardPS1 = g_SioCommon.GetMemcardPS1((GetSioCtrl() & SioCtrl::PORT) >> 13, slot);
-		g_memcardPS1Protocol.SetActiveMemcard(memcardPS1);
+		Memcard* memcard = g_SioCommon.GetMemcard((GetSioCtrl() & SioCtrl::PORT) >> 13, slot);
+		g_memcardPS1Protocol.SetActiveMemcard(memcard);
 		// Forward the command data to the memcard, write its response to the
 		// sioData register.
 		sioData = g_memcardPS1Protocol.SendToMemcard(data);

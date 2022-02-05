@@ -27,6 +27,7 @@ void Sio2::SoftReset()
 	send3Read = false;
 	processedLength = 0;
 	
+	// Any bytes which were not necessary to pop from fifoIn should be popped now.
 	while (!fifoIn.empty())
 	{
 		fifoIn.pop();
@@ -107,8 +108,6 @@ void Sio2::Sio2Write(u8 data)
 {
 	PadPS2* pad = nullptr;
 	Memcard* memcard = nullptr;
-	MemcardPS2* memcardPS2 = nullptr;
-	MemcardConfigSlot* mcs = nullptr;
 
 	// If SEND3 contents at index send3Position have not been read, do so now.
 	// This tells us what physical port we are operating on, and the length of
@@ -169,17 +168,19 @@ void Sio2::Sio2Write(u8 data)
 				}
 				break;
 			case Sio2Mode::MEMCARD:
-				switch (g_SioCommon.GetMemcardType(activePort, g_MultitapPS2Protocol.GetActiveSlot()))
+				memcard = g_SioCommon.GetMemcard(activePort, g_MultitapPS2Protocol.GetActiveSlot());
+
+				switch (memcard->GetMemcardType())
 				{
 					case MemcardType::PS2:
-						memcardPS2 = g_SioCommon.GetMemcardPS2(activePort, g_MultitapPS2Protocol.GetActiveSlot());
-						g_Sio2.SetRecv1(memcardPS2->IsSlottedIn() ? Recv1::CONNECTED : Recv1::DISCONNECTED);
-						g_MemcardPS2Protocol.SetActiveMemcard(memcardPS2);
+						g_Sio2.SetRecv1(Recv1::CONNECTED);
+						g_MemcardPS2Protocol.SetActiveMemcard(memcard);
 						g_MemcardPS2Protocol.SendToMemcard();
 						break;
-					default:
-						DevCon.Warning("%s(%02X) Non-PS2 memcard access from SIO2!", __FUNCTION__, data);
-						fifoOut.push(0x00);
+					case MemcardType::PS1:
+					case MemcardType::POCKETSTATION:
+					case MemcardType::EJECTED:
+						g_Sio2.SetRecv1(Recv1::DISCONNECTED);
 						break;
 				}
 				

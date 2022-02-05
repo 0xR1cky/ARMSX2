@@ -208,9 +208,9 @@ MemcardPS1* MemcardPS1Protocol::GetMemcard(size_t port, size_t slot)
 	return memcards.at(port).at(slot).get();
 }
 
-void MemcardPS1Protocol::SetActiveMemcard(MemcardPS1* memcardPS1)
+void MemcardPS1Protocol::SetActiveMemcard(Memcard* memcard)
 {
-	activeMemcard = memcardPS1;
+	activeMemcard = memcard;
 }
 
 MemcardPS1Mode MemcardPS1Protocol::GetMemcardMode()
