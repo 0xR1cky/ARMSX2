@@ -812,9 +812,7 @@
     <ClInclude Include="Memcard\MemcardConfig.h" />
     <ClInclude Include="Memcard\MemcardTypes.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Protocol.h" />
-    <ClInclude Include="Memcard\PS1\MemcardPS1Types.h" />
     <ClInclude Include="Memcard\PS2\MemcardPS2Protocol.h" />
-    <ClInclude Include="Memcard\PS2\MemcardPS2Types.h" />
     <ClInclude Include="MemoryCardFile.h" />
     <ClInclude Include="MemoryCardFolder.h" />
     <ClInclude Include="Multitap\MultitapConfig.h" />

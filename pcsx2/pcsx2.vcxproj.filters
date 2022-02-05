@@ -2895,12 +2895,6 @@
     <ClInclude Include="Frontend\ImGuiManager.h">
       <Filter>Host</Filter>
     </ClInclude>
-    <ClInclude Include="Memcard\PS1\MemcardPS1Types.h">
-      <Filter>System\Ps2\Memcard\PS1</Filter>
-    </ClInclude>
-    <ClInclude Include="Memcard\PS2\MemcardPS2Types.h">
-      <Filter>System\Ps2\Memcard\PS2</Filter>
-    </ClInclude>
     <ClInclude Include="Sio0.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
