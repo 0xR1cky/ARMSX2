@@ -58,7 +58,7 @@ void Memcard::InitializeOnFileSystem()
 
 	// TODO: Portable builds, only use the relative path specified in config, do not prefix with home directory
 	directory = GetHomeDirectory() / g_MemcardConfig.GetMemcardsFolder();
-	fileName = g_MemcardConfig.GetMemcardConfigSlot(port, slot)->GetMemcardFileName();
+	fileName = g_MemcardConfig.GetMemcardName(port, slot);
 	fullPath = directory / fileName;
 	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
 

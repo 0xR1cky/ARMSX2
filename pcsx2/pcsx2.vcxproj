@@ -350,7 +350,6 @@
     <ClCompile Include="FW.cpp" />
     <ClCompile Include="Memcard\Memcard.cpp" />
     <ClCompile Include="Memcard\MemcardConfig.cpp" />
-    <ClCompile Include="Memcard\MemcardConfigSlot.cpp" />
     <ClCompile Include="Memcard\PS1\MemcardPS1Protocol.cpp" />
     <ClCompile Include="Memcard\PS2\MemcardPS2Protocol.cpp" />
     <ClCompile Include="MemoryCardFile.cpp" />
@@ -811,7 +810,6 @@
     <ClInclude Include="FW.h" />
     <ClInclude Include="Memcard\Memcard.h" />
     <ClInclude Include="Memcard\MemcardConfig.h" />
-    <ClInclude Include="Memcard\MemcardConfigSlot.h" />
     <ClInclude Include="Memcard\MemcardTypes.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Protocol.h" />
     <ClInclude Include="Memcard\PS1\MemcardPS1Types.h" />

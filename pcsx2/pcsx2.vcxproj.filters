@@ -1771,9 +1771,6 @@
     <ClCompile Include="Memcard\MemcardConfig.cpp">
       <Filter>System\Ps2\Memcard</Filter>
     </ClCompile>
-    <ClCompile Include="Memcard\MemcardConfigSlot.cpp">
-      <Filter>System\Ps2\Memcard</Filter>
-    </ClCompile>
     <ClCompile Include="Multitap\MultitapConfig.cpp">
       <Filter>System\Ps2\Multitap</Filter>
     </ClCompile>
@@ -2982,9 +2979,6 @@
       <Filter>System\Ps2\PAD\Devices</Filter>
     </ClInclude>
     <ClInclude Include="Memcard\MemcardConfig.h">
-      <Filter>System\Ps2\Memcard</Filter>
-    </ClInclude>
-    <ClInclude Include="Memcard\MemcardConfigSlot.h">
       <Filter>System\Ps2\Memcard</Filter>
     </ClInclude>
     <ClInclude Include="DirectoryHelper.h">

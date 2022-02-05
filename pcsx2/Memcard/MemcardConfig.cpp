@@ -4,25 +4,8 @@
 
 MemcardConfig g_MemcardConfig;
 
-MemcardConfig::MemcardConfig()
-{
-	for (size_t port = 0; port < MAX_PORTS; port++)
-	{
-		for (size_t slot = 0; slot < MAX_SLOTS; slot++)
-		{
-			slots.at(port).at(slot) = std::make_unique<MemcardConfigSlot>(port, slot);
-		}
-	}
-}
-
+MemcardConfig::MemcardConfig() = default;
 MemcardConfig::~MemcardConfig() = default;
-
-MemcardConfigSlot* MemcardConfig::GetMemcardConfigSlot(int port, int slot)
-{
-	port = std::clamp<size_t>(port, 0, MAX_PORTS);
-	slot = std::clamp<size_t>(slot, 0, MAX_SLOTS);
-	return slots.at(port).at(slot).get();
-}
 
 ghc::filesystem::path MemcardConfig::GetMemcardsFolder()
 {
@@ -32,4 +15,53 @@ ghc::filesystem::path MemcardConfig::GetMemcardsFolder()
 void MemcardConfig::SetMemcardsFolder(ghc::filesystem::path newPath)
 {
 	memcardsFolder = newPath;
+}
+
+ghc::filesystem::path MemcardConfig::GetMemcardName(size_t port, size_t slot)
+{
+	port = std::clamp<size_t>(port, 0, MAX_PORTS);
+	slot = std::clamp<size_t>(slot, 0, MAX_SLOTS);
+
+	switch (port)
+	{
+		case 0:
+			switch (slot)
+			{
+				case 0:
+					return fileName_port_0_slot_0;
+				case 1:
+					return fileName_port_0_slot_1;
+				case 2:
+					return fileName_port_0_slot_2;
+				case 3:
+					return fileName_port_0_slot_3;
+				default:
+					DevCon.Warning("%s(%d, %d) Sanity check! Please report to PCSX2 team!", __FUNCTION__, port, slot);
+					return "";
+			}
+
+			DevCon.Warning("%s(%d, %d) Sanity check! Please report to PCSX2 team!", __FUNCTION__, port, slot);
+			return "";
+		case 1:
+			switch (slot)
+			{
+				case 0:
+					return fileName_port_1_slot_0;
+				case 1:
+					return fileName_port_1_slot_1;
+				case 2:
+					return fileName_port_1_slot_2;
+				case 3:
+					return fileName_port_1_slot_3;
+				default:
+					DevCon.Warning("%s(%d, %d) Sanity check! Please report to PCSX2 team!", __FUNCTION__, port, slot);
+					return "";
+			}
+
+			DevCon.Warning("%s(%d, %d) Sanity check! Please report to PCSX2 team!", __FUNCTION__, port, slot);
+			return "";
+		default:
+			DevCon.Warning("%s(%d, %d) Sanity check! Please report to PCSX2 team!", __FUNCTION__, port, slot);
+			return "";
+	}
 }
