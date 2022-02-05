@@ -29,7 +29,7 @@ void SioCommon::FullReset()
 {
 	SoftReset();
 	
-	g_Sio0.Reset();
+	g_Sio0.FullReset();
 	g_Sio2.FullReset();
 }
 

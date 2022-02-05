@@ -17,8 +17,8 @@ private:
 	int port, slot;
 	
 	bool isSlottedIn = false;
-	MemcardType memcardType = MemcardType::EJECTED;
-
+	MemcardType memcardType = MemcardType::PS2;
+	u8 flag = 0x08;
 	u8 terminator = static_cast<u8>(Terminator::DEFAULT);
 	SectorSize sectorSize = SectorSize::STANDARD;
 	EraseBlockSize eraseBlockSize = EraseBlockSize::STANDARD;
@@ -34,20 +34,22 @@ public:
 	void SoftReset();
 	void FullReset();
 
-	bool IsSlottedIn();
-	void SetSlottedIn(bool value);
-	MemcardType GetMemcardType();
-	void SetMemcardType(MemcardType newType);
 	void InitializeOnFileSystem();
 	void LoadFromFileSystem();
 	void WriteToFileSystem(u32 address, size_t length);
 
+	bool IsSlottedIn();
+	MemcardType GetMemcardType();
+	u8 GetFlag();
 	u8 GetTerminator();
 	SectorSize GetSectorSize();
 	EraseBlockSize GetEraseBlockSize();
 	SectorCount GetSectorCount();
 	u32 GetSector();
 
+	void SetSlottedIn(bool value);
+	void SetMemcardType(MemcardType newType);
+	void SetFlag(u8 newFlag);
 	void SetTerminator(u8 data);
 	void SetSector(u32 data);
 

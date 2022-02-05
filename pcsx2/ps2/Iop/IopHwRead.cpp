@@ -49,7 +49,7 @@ mem8_t __fastcall iopHwRead8_Page1( u32 addr )
 			// 1F801040h 1/4  JOY_DATA Joypad/Memory Card Data (R/W)
 			// psxmode: documentation suggests a valid 8 bit read and the rest of the 32 bit register is unclear.
 			// todo: check this and compare with the HW_SIO_DATA read around line 245 as well.
-			ret = g_Sio0.GetSioData();
+			ret = g_Sio0.Sio0Read();
 			break;
 
 		// for use of serial port ignore for now
@@ -259,7 +259,7 @@ static __fi T _HwRead_16or32_Page1( u32 addr )
 			// ------------------------------------------------------------------------
 			mcase(HW_SIO_DATA) :
 				DevCon.Warning("%s Attempted 32 bit read of 8 bit SIO DATA register", __FUNCTION__);
-				ret = g_Sio0.GetSioData();
+				ret = g_Sio0.Sio0Read();
 			break;
 
 			mcase(HW_SIO_STAT) :

@@ -48,6 +48,9 @@ private:
 	size_t send3Position = 0;
 	size_t commandLength = 0;
 	size_t processedLength = 0;
+
+	void FifoSwap();
+
 public:
 	Sio2();
 	~Sio2();

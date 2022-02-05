@@ -1712,12 +1712,6 @@
     <ClCompile Include="Host.cpp">
       <Filter>Host</Filter>
     </ClCompile>
-    <ClCompile Include="Memcard\PS1\MemcardPS1.cpp">
-      <Filter>System\Ps2\Memcard\PS1</Filter>
-    </ClCompile>
-    <ClCompile Include="Memcard\PS2\MemcardPS2.cpp">
-      <Filter>System\Ps2\Memcard\PS2</Filter>
-    </ClCompile>
     <ClCompile Include="Sio0.cpp">
       <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
@@ -2904,14 +2898,8 @@
     <ClInclude Include="Frontend\ImGuiManager.h">
       <Filter>Host</Filter>
     </ClInclude>
-    <ClInclude Include="Memcard\PS1\MemcardPS1.h">
-      <Filter>System\Ps2\Memcard\PS1</Filter>
-    </ClInclude>
     <ClInclude Include="Memcard\PS1\MemcardPS1Types.h">
       <Filter>System\Ps2\Memcard\PS1</Filter>
-    </ClInclude>
-    <ClInclude Include="Memcard\PS2\MemcardPS2.h">
-      <Filter>System\Ps2\Memcard\PS2</Filter>
     </ClInclude>
     <ClInclude Include="Memcard\PS2\MemcardPS2Types.h">
       <Filter>System\Ps2\Memcard\PS2</Filter>

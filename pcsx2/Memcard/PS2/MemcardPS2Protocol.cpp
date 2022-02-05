@@ -7,7 +7,7 @@
 
 #define MemcardPS2ProtocolAssert(condition, msg) \
 	{ \
-		DevCon.Warning("MemcardPS2ProtocolAssert: %s", msg); \
+		if (!(condition)) DevCon.Warning("MemcardPS2ProtocolAssert: %s", msg); \
 		assert(condition); \
 	}
 

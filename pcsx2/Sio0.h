@@ -20,19 +20,22 @@ public:
 	Sio0();
 	~Sio0();
 
-	u8 GetSioData();
+	void SoftReset();
+	void FullReset();
+
+	void Sio0Write(u8 data);
+	u8 Sio0Read();
+
 	u32 GetSioStat();
 	u16 GetSioMode();
 	u16 GetSioCtrl();
 	u16 GetSioBaud();
 
-	void SetData(u8 data);
 	void SetStat(u32 data);
 	void SetMode(u16 data);
 	void SetCtrl(u16 data);
 	void SetBaud(u16 data);
 
-	void Reset();
 	void SetInterrupt();
 	void ClearInterrupt();
 };

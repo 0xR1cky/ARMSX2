@@ -12,11 +12,24 @@
 
 #define Sio2Assert(condition, msg) \
 	{ \
-		DevCon.Warning("Sio2Assert: %s", msg); \
+		if (!(condition)) DevCon.Warning("Sio2Assert: %s", msg); \
 		assert(condition); \
 	}
 
 Sio2 g_Sio2;
+
+// Drains fifoIn, and fills fifoOut with the same number of bytes.
+// Used when a device is disconnected to respond with "dead air", basically.
+// Technically not a swap, since we want to fill with zero bytes rather
+// than the fifoIn contents, but its the most "clever" name that came to mind.
+void Sio2::FifoSwap()
+{
+	while (!fifoIn.empty())
+	{
+		fifoIn.pop();
+		fifoOut.push(0x00);
+	}
+}
 
 Sio2::Sio2() = default;
 Sio2::~Sio2() = default;
@@ -25,7 +38,6 @@ void Sio2::SoftReset()
 {
 	mode = Sio2Mode::NOT_SET;
 	send3Read = false;
-	processedLength = 0;
 	
 	// Any bytes which were not necessary to pop from fifoIn should be popped now.
 	while (!fifoIn.empty())
@@ -38,11 +50,23 @@ void Sio2::SoftReset()
 	// So we mod the fifoOut size against the DMA block size to compute the remainder and add the appropriate padding.
 	if (dmaBlockSize > 0)
 	{
-		while (fifoOut.size() % dmaBlockSize > 0)
+		while (fifoOut.size() == 0 || fifoOut.size() % dmaBlockSize > 0)
 		{
 			fifoOut.push(0x00);
 		}
 	}
+	/*
+	// Or, if this command did not utilize DMA, just pad fifoOut to the length of the command.
+	else if (processedLength > 0)
+	{
+		while (fifoOut.size() == 0 || fifoOut.size() % processedLength > 0)
+		{
+			fifoOut.push(0x00);
+		}
+	}
+	*/
+
+	processedLength = 0;
 }
 
 void Sio2::FullReset()
@@ -107,6 +131,7 @@ void Sio2::SetDMABlockSize(size_t size)
 void Sio2::Sio2Write(u8 data)
 {
 	PadPS2* pad = nullptr;
+	bool multitapEnabled = false;
 	Memcard* memcard = nullptr;
 
 	// If SEND3 contents at index send3Position have not been read, do so now.
@@ -155,17 +180,23 @@ void Sio2::Sio2Write(u8 data)
 				g_PadPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::MULTITAP:
-				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-				g_MultitapPS2Protocol.SendToMultitap();
+				multitapEnabled = g_MultitapConfig.IsMultitapEnabled(activePort);
+				g_Sio2.SetRecv1(multitapEnabled ? Recv1::CONNECTED : Recv1::DISCONNECTED);
+
+				if (multitapEnabled)
+				{
+					g_MultitapPS2Protocol.SendToMultitap();
+				}
+				else
+				{
+					FifoSwap();
+				}
+
 				g_MultitapPS2Protocol.SoftReset();
 				break;
 			case Sio2Mode::INFRARED:
 				g_Sio2.SetRecv1(Recv1::DISCONNECTED);
-
-				while (fifoOut.size() < commandLength)
-				{
-					fifoOut.push(0x00);
-				}
+				FifoSwap();
 				break;
 			case Sio2Mode::MEMCARD:
 				memcard = g_SioCommon.GetMemcard(activePort, g_MultitapPS2Protocol.GetActiveSlot());
@@ -181,9 +212,10 @@ void Sio2::Sio2Write(u8 data)
 					case MemcardType::POCKETSTATION:
 					case MemcardType::EJECTED:
 						g_Sio2.SetRecv1(Recv1::DISCONNECTED);
+						FifoSwap();
 						break;
 				}
-				
+
 				g_MemcardPS2Protocol.SoftReset();
 				//DevCon.WriteLn("%s(%02X) SIO2 mode reset", __FUNCTION__, data);
 				break;

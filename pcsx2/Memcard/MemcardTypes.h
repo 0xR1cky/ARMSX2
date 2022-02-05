@@ -42,9 +42,13 @@ enum class Terminator
 // memcards either first or third party using the 0x400
 // sector size. In order to make sector counts inferrable
 // by a memcard file's size, we are going to enforce this
-// as the only sector size option.
+// as the only sector size option for PS2.
+//
+// PS1 enforces a strict sector size of 128 bytes, with no
+// ability to change whatsoever.
 enum class SectorSize
 {
+	PS1 = 0x80,
 	STANDARD = 0x0200
 };
 
@@ -84,8 +88,11 @@ enum class EraseBlockSize
 // operations in some capacity and behave unpredictably. At best, one or a few games
 // may be able to operate on it but any sustained use will inevitably kill save files
 // at best, the entire memcard at worst.
+//
+// PS1 enforces a strict 1024 sector count, with no ability to change whatsoever.
 enum class SectorCount
 {
+	PS1 = 0x0400, // 128 KiB PS1 Memcards only
 	STANDARD = 0x00004000, // 8 MiB
 	X2 = 0x00008000, // 16 MiB
 	X4 = 0x00010000, // 32 MiB
@@ -97,5 +104,24 @@ enum class SectorCount
 	X256 = 0x00400000 // 2 GiB
 };
 
-constexpr size_t SECTOR_READ_SIZE = 128;
 constexpr size_t ECC_BYTES = 16;
+
+enum class MemcardPS1Mode
+{
+	NOT_SET = 0x00,
+	INIT = 0x81,
+	READ = 0x52,
+	STATE = 0x53,
+	WRITE = 0x57,
+	PS_STATE = 0x58,
+	DONE = 0x7f,
+	INVALID = 0xff
+};
+
+namespace Flag
+{
+	static constexpr u8 WriteError = 0x04;
+	static constexpr u8 DirectoryRead = 0x08;
+}
+
+static constexpr size_t PS1_MEMCARD_SIZE = static_cast<u16>(SectorSize::PS1) * static_cast<u16>(SectorCount::PS1);

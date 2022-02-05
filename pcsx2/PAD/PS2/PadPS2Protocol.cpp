@@ -6,7 +6,7 @@
 
 #define PadPS2ProtocolAssert(condition, msg) \
 	{ \
-		DevCon.Warning("PadPS2ProtocolAssert: %s", msg); \
+		if (!(condition)) DevCon.Warning("PadPS2ProtocolAssert: %s", msg); \
 		assert(condition); \
 	}
 

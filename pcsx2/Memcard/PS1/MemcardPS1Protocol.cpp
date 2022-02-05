@@ -9,33 +9,22 @@ u8 MemcardPS1Protocol::GetMSB()
 	return address & 0x00ff;
 }
 
+u8 MemcardPS1Protocol::GetLSB()
+{
+	return ((address & 0xff00) >> 8);
+}
+
 void MemcardPS1Protocol::SetMSB(u8 data)
 {
 	u16 mask = data;
 	address &= mask;
 }
 
-u8 MemcardPS1Protocol::GetLSB()
-{
-	return ((address & 0xff00) >> 8);
-}
-
 void MemcardPS1Protocol::SetLSB(u8 data)
 {
 	u16 mask = (data << 8);
 	address &= mask;
-}
-
-u8 MemcardPS1Protocol::CalculateChecksum()
-{
-	u8 ret = GetMSB() ^ GetLSB();
-
-	for (u8 sectorByte : sectorBuffer)
-	{
-		ret ^= sectorByte;
-	}
-
-	return ret;
+	activeMemcard->SetSector(address);
 }
 
 u8 MemcardPS1Protocol::CommandRead(u8 data)
@@ -52,10 +41,12 @@ u8 MemcardPS1Protocol::CommandRead(u8 data)
 		break;
 	case 4: // MSB, no response
 		SetMSB(data);
+		checksum ^= data;
 		ret = 0x00;
 		break;
 	case 5: // LSB, no response
 		SetLSB(data);
+		checksum ^= data;
 		ret = 0x00;
 		break;
 	case 6: // Acknowledge 1, const value 
@@ -64,6 +55,7 @@ u8 MemcardPS1Protocol::CommandRead(u8 data)
 	case 7: // Acknowledge 2, const value 
 		ret = 0x5d;
 		break;
+	// TODO: Case 8 and 9 should respond 0xff if sector is out of bounds
 	case 8: // Echo back MSB 
 		ret = GetMSB();
 		break;
@@ -71,18 +63,22 @@ u8 MemcardPS1Protocol::CommandRead(u8 data)
 		ret = GetLSB();
 		break;
 	case 10: // Read sector data
-		activeMemcard->Read(sectorBuffer.data(), address, SECTOR_SIZE);
-		ret = sectorBuffer.at(0);
+		sectorBuffer = activeMemcard->Read(static_cast<u8>(SectorSize::PS1));
+		ret = sectorBuffer.front();
+		checksum ^= ret;
+		sectorBuffer.pop();
 		break;
 	case 138: // Checksum 
-		ret = CalculateChecksum();
+		ret = checksum;
 		break;
 	case 139: // End byte, const value
 		ret = 0x47;
-		Reset();
+		SoftReset();
 		break;
 	default: // 11-137: Continue to reply from the read buffer
-		ret = sectorBuffer.at(currentCommandByte - 10);
+		ret = sectorBuffer.front();
+		checksum ^= ret;
+		sectorBuffer.pop();
 		break;
 	}
 
@@ -118,7 +114,7 @@ u8 MemcardPS1Protocol::CommandState(u8 data)
 		break;
 	case 9:
 		ret = 0x80;
-		Reset();
+		SoftReset();
 		break;
 	default:
 		break;
@@ -141,19 +137,22 @@ u8 MemcardPS1Protocol::CommandWrite(u8 data)
 		break;
 	case 4: // MSB, no response
 		SetMSB(data);
+		checksum ^= data;
 		ret = 0x00;
 		break;
 	case 5: // LSB, no response
 		SetLSB(data);
+		checksum ^= data;
 		ret = 0x00;
 		break;
 	case 133: // Write sector data
-		sectorBuffer.at(currentCommandByte - 6) = data;
+		sectorBuffer.push(data);
+		checksum ^= data;
 		ret = 0x00;
-		activeMemcard->Write(activeMemcard->GetMemcardDataPointer(), address, 128);
+		activeMemcard->Write(sectorBuffer);
 		break;
 	case 134: // Checksum 
-		ret = CalculateChecksum();
+		ret = checksum;
 		break;
 	case 135: // Acknowledge 1, const value 
 		ret = 0x5c;
@@ -167,10 +166,11 @@ u8 MemcardPS1Protocol::CommandWrite(u8 data)
 		// it is cleared on writes, no$psx thinks its weird to do on
 		// writes not reads, so do I.
 		activeMemcard->SetFlag(activeMemcard->GetFlag() & ~Flag::DirectoryRead);
-		Reset();
+		SoftReset();
 		break;
 	default: // 6-132: Increment counter with no other action
-		sectorBuffer.at(currentCommandByte - 6) = data;
+		sectorBuffer.push(data);
+		checksum ^= data;
 		ret = 0x00;
 		break;
 	}
@@ -178,34 +178,25 @@ u8 MemcardPS1Protocol::CommandWrite(u8 data)
 	return ret;
 }
 
-MemcardPS1Protocol::MemcardPS1Protocol() noexcept
-{
-	memset(sectorBuffer.data(), 0xff, sectorBuffer.size());
-
-	for (size_t i = 0; i < MAX_PORTS; i++)
-	{
-		for (size_t j = 0; j < MAX_SLOTS; j++)
-		{
-			memcards.at(i).at(j) = std::make_unique<MemcardPS1>();
-		}
-	}
-}
-
+MemcardPS1Protocol::MemcardPS1Protocol() = default;
 MemcardPS1Protocol::~MemcardPS1Protocol() = default;
 
-void MemcardPS1Protocol::Reset()
+void MemcardPS1Protocol::SoftReset()
 {
 	mode = MemcardPS1Mode::NOT_SET;
 	currentCommandByte = 1;
+	checksum = 0x00;
 	address = 0;
-	sectorBuffer = {};
+	
+	while (!sectorBuffer.empty())
+	{
+		sectorBuffer.pop();
+	}
 }
 
-MemcardPS1* MemcardPS1Protocol::GetMemcard(size_t port, size_t slot)
+void MemcardPS1Protocol::FullReset()
 {
-	port = std::clamp<size_t>(port, 0, MAX_PORTS);
-	slot = std::clamp<size_t>(slot, 0, MAX_SLOTS);
-	return memcards.at(port).at(slot).get();
+	SoftReset();
 }
 
 void MemcardPS1Protocol::SetActiveMemcard(Memcard* memcard)
@@ -245,7 +236,7 @@ u8 MemcardPS1Protocol::SendToMemcard(u8 data)
 	default:
 		DevCon.Warning("%s(%02X) - Unexpected first command byte", __FUNCTION__, data);
 		ret = 0xff;
-		Reset();
+		SoftReset();
 		break;
 	}
 

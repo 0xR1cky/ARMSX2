@@ -7,7 +7,7 @@
 
 #define MultitapPS2ProtocolAssert(condition, msg) \
 	{ \
-		DevCon.Warning("MultitapPS2ProtocolAssert: %s", msg); \
+		if (!(condition)) DevCon.Warning("MultitapPS2ProtocolAssert: %s", msg); \
 		assert(condition); \
 	}
 
@@ -18,7 +18,6 @@ void MultitapPS2Protocol::SupportCheck()
 	g_Sio2.GetFifoOut().push(0x5a);
 	g_Sio2.GetFifoOut().push(0x04);
 	g_Sio2.GetFifoOut().push(0x00);
-	g_Sio2.GetFifoOut().push(0x5a);
 	g_Sio2.GetFifoOut().push(0x5a);
 }
 

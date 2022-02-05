@@ -48,16 +48,6 @@ void Memcard::FullReset()
 	LoadFromFileSystem();
 }
 
-bool Memcard::IsSlottedIn()
-{
-	return isSlottedIn;
-}
-
-void Memcard::SetSlottedIn(bool value)
-{
-	isSlottedIn = value;
-}
-
 void Memcard::InitializeOnFileSystem()
 {
 	if (memcardData.size() == 0)
@@ -142,6 +132,21 @@ void Memcard::WriteToFileSystem(u32 address, size_t length)
 	stream.flush();
 }
 
+bool Memcard::IsSlottedIn()
+{
+	return isSlottedIn;
+}
+
+MemcardType Memcard::GetMemcardType()
+{
+	return memcardType;
+}
+
+u8 Memcard::GetFlag()
+{
+	return flag;
+}
+
 u8 Memcard::GetTerminator()
 {
 	return terminator;
@@ -165,6 +170,21 @@ SectorCount Memcard::GetSectorCount()
 u32 Memcard::GetSector()
 {
 	return sector;
+}
+
+void Memcard::SetSlottedIn(bool value)
+{
+	isSlottedIn = value;
+}
+
+void Memcard::SetMemcardType(MemcardType newType)
+{
+	memcardType = newType;
+}
+
+void Memcard::SetFlag(u8 newFlag)
+{
+	flag = newFlag;
 }
 
 void Memcard::SetTerminator(u8 data)
