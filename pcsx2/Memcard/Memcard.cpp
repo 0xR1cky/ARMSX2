@@ -8,6 +8,126 @@
 #include "DirectoryHelper.h"
 
 #include <string>
+#include <array>
+
+void Memcard::InitializeFile()
+{
+	std::ofstream writer;
+	writer.open(fullPath);
+
+	if (writer.good())
+	{
+		const char* buf = reinterpret_cast<char*>(memcardData.data());
+		writer.write(buf, memcardData.size());
+	}
+	else
+	{
+		Console.Warning("%s() Failed to initialize memcard file (port %d slot %d) on file system!", __FUNCTION__, port, slot);
+	}
+
+	writer.close();
+}
+
+void Memcard::InitializeFolder()
+{
+	if (!ghc::filesystem::create_directories(fullPath))
+	{
+		Console.Warning("%s() Failed to create root of folder memcard (port %d slot %d) on file system!", __FUNCTION__, port, slot);
+		return;
+	}
+
+	std::ofstream writer;
+	writer.open(fullPath / "_pcsx2_superblock");
+
+	if (writer.good())
+	{
+		const std::array<char, FOLDER_MEMCARD_SUPERBLOCK_SIZE> buf{0};
+		writer.write(buf.data(), buf.size());
+	}
+	else
+	{
+		Console.Warning("%s() Failed to generate empty blob for memcard folder's superblock (port %d slot %d) on file system!", __FUNCTION__, port, slot);
+	}
+
+	writer.close();
+}
+
+void Memcard::LoadFile()
+{
+	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+
+	if (!stream.good())
+	{
+		Console.Warning("%s() Failed to open memcard file (port %d slot %d), ejecting it!", __FUNCTION__, port, slot);
+		SetMemcardType(MemcardType::EJECTED);
+		return;
+	}
+
+	// Buffer and memcpy because streams need a char* and refuse to use u8*
+	memcardData.clear();
+	std::vector<char> buf;
+	buf.resize(STREAM_BATCH_SIZE);
+
+	while (stream.good())
+	{
+		stream.read(buf.data(), STREAM_BATCH_SIZE);
+
+		if (!stream.eof())
+		{
+			for (size_t pos = 0; pos < buf.size(); pos++)
+			{
+				memcardData.push_back(buf.at(pos));
+			}
+		}
+	}
+
+	stream.flush();
+	stream.clear();
+	stream.seekg(0, stream.beg);
+	
+	// Update sector count to reflect size of the card
+	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
+
+	if (!IsFileSizeValid(memcardData.size()))
+	{
+		Console.Warning("%s() Memcard file (port %d slot %d) size does not match any known formats!", __FUNCTION__, port, slot);
+		return;
+	}
+
+	sectorCount = static_cast<SectorCount>(memcardData.size() / sectorSizeWithECC);
+	DevCon.WriteLn("%s() SectorCount updated: %08X", __FUNCTION__, sectorCount);
+}
+
+void Memcard::LoadFolder()
+{
+	// TODO: Construct a 8 MB card.
+	// Copy the superblock into the front.
+	// Build an IFAT and FAT
+	// Span data across the writeable sectors
+}
+
+bool Memcard::IsFileSizeValid(size_t size)
+{
+	if (size == BASE_PS1_SIZE)
+	{
+		return true;
+	}
+
+	if (size % BASE_8MB_SIZE != 0)
+	{
+		return false;
+	}
+	
+	for (size_t powerSize = BASE_8MB_SIZE; powerSize <= MAX_2GB_SIZE; powerSize * 2)
+	{
+		if (size == powerSize)
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
 
 Memcard::Memcard(size_t port, size_t slot)
 {
@@ -60,58 +180,44 @@ void Memcard::InitializeOnFileSystem()
 	directory = GetHomeDirectory() / g_MemcardConfig.GetMemcardsFolder();
 	fileName = g_MemcardConfig.GetMemcardName(port, slot);
 	fullPath = directory / fileName;
-	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
-
-	if (stream.good())
-	{
-		// File is already on disk, exit quietly.
-		return;
-	}
-
+	
 	if (!ghc::filesystem::is_directory(directory) && !ghc::filesystem::create_directories(directory))
 	{
 		Console.Warning("%s() Failed to create directory for memcard files!", __FUNCTION__);
 		return;
 	}
 
-	std::ofstream writer;
-	writer.open(fullPath);
-
-	if (writer.good())
+	if (!ghc::filesystem::is_regular_file(fullPath) && !ghc::filesystem::is_directory(fullPath))
 	{
-		const char* buf = reinterpret_cast<char*>(memcardData.data());
-		writer.write(buf, memcardData.size());
-	}
-	else
-	{
-		Console.Warning("%s() Failed to initialize memcard file (port %d slot %d) on file system!", __FUNCTION__, port, slot);
-	}
-
-	writer.close();
-
-	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
-
-	if (!stream.good())
-	{
-		Console.Warning("%s() Could not open memcard file (port %d slot %d)!", __FUNCTION__, port, slot);
+		switch (memcardHostType)
+		{
+			case MemcardHostType::FILE:
+				InitializeFile();
+				break;
+			case MemcardHostType::FOLDER:
+				InitializeFolder();
+				break;
+			default:
+				DevCon.Warning("%s() Sanity check!", __FUNCTION__);
+				break;
+		}
 	}
 }
 
 void Memcard::LoadFromFileSystem()
 {
-	if (!stream.good())
+	switch (memcardHostType)
 	{
-		Console.Warning("%s() Failed to open memcard file (port %d slot %d), ejecting it!", __FUNCTION__, port, slot);
-		SetSlottedIn(false);
-		return;
+		case MemcardHostType::FILE:
+			LoadFile();
+			break;
+		case MemcardHostType::FOLDER:
+			LoadFolder();
+			break;
+		default:
+			DevCon.Warning("%s() Sanity check!", __FUNCTION__);
+			break;
 	}
-
-	std::vector<char> buf;
-	buf.resize(memcardData.size());
-	stream.seekg(0);
-	stream.read(buf.data(), memcardData.size());
-	memcpy(memcardData.data(), buf.data(), memcardData.size());
-	SetSlottedIn(true);
 }
 
 void Memcard::WriteToFileSystem(u32 address, size_t length)
@@ -130,11 +236,6 @@ void Memcard::WriteToFileSystem(u32 address, size_t length)
 	stream.seekp(address);
 	stream.write(buf.data(), length);
 	stream.flush();
-}
-
-bool Memcard::IsSlottedIn()
-{
-	return isSlottedIn;
 }
 
 MemcardType Memcard::GetMemcardType()
@@ -170,11 +271,6 @@ SectorCount Memcard::GetSectorCount()
 u32 Memcard::GetSector()
 {
 	return sector;
-}
-
-void Memcard::SetSlottedIn(bool value)
-{
-	isSlottedIn = value;
 }
 
 void Memcard::SetMemcardType(MemcardType newType)
@@ -217,7 +313,7 @@ std::queue<u8> Memcard::Read(size_t length)
 		MEMCARDS_LOG("%s() FAT (%08X)", __FUNCTION__, sector);
 	}
 
-	if (address + sectorSizeWithECC <= memcardData.size())
+	if (address + length <= memcardData.size())
 	{
 		for (size_t i = 0; i < length; i++)
 		{
@@ -226,7 +322,7 @@ std::queue<u8> Memcard::Read(size_t length)
 	}
 	else
 	{
-		DevCon.Warning("%s() Calculated read address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
+		DevCon.Warning("%s() Calculated read address out of bounds (%08X > %08X)", __FUNCTION__, address + length, memcardData.size());
 	}
 
 	// Memcard commands issue a single sector assignment, then multiple reads. Offset the sector
@@ -266,11 +362,11 @@ void Memcard::Write(std::queue<u8>& data)
 			memcardData.at(address + bytesWritten++) = toWrite;
 		}
 
-		WriteToFileSystem(address, sectorSizeWithECC);
+		WriteToFileSystem(address, length);
 	}
 	else
 	{
-		DevCon.Warning("%s(queue) Calculated write address out of bounds (%08X > %08X)", __FUNCTION__, address + sectorSizeWithECC, memcardData.size());
+		DevCon.Warning("%s(queue) Calculated write address out of bounds (%08X > %08X)", __FUNCTION__, address + data.size(), memcardData.size());
 	}
 
 	// Memcard commands issue a single sector assignment, then multiple writes. Offset the sector

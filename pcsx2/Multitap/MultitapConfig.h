@@ -4,8 +4,8 @@
 class MultitapConfig 
 {
 private:
-	bool enableMultitap0 = true;
-	bool enableMultitap1 = true;
+	bool enableMultitap0 = false;
+	bool enableMultitap1 = false;
 
 public:
 	MultitapConfig();

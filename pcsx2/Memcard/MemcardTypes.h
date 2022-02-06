@@ -9,6 +9,15 @@ enum class MemcardType
 	EJECTED = 0xff
 };
 
+enum class MemcardHostType
+{
+	NOT_SET = 0xff,
+	FILE = 0x00,
+	FOLDER = 0x01
+};
+
+static constexpr size_t FOLDER_MEMCARD_SUPERBLOCK_SIZE = 8192;
+
 enum class MemcardPS2Mode
 {
 	NOT_SET = 0xff,
@@ -78,7 +87,7 @@ enum class EraseBlockSize
 // do dangerous I/O which can brick the memcard if it is not a standard size.
 // The only scenario we are safe from is a third party memcard which used low
 // quality NAND flash that was error prone and would corrupt data just from
-// normal operation. This is an important consideration, because
+// normal operation.
 //
 // The PS2 memcard file system has its 2 GiB upper limit, but it does seem to retain
 // some basic functionality up to even 8 GiB and can successfully format itself,
@@ -104,7 +113,10 @@ enum class SectorCount
 	X256 = 0x00400000 // 2 GiB
 };
 
-constexpr size_t ECC_BYTES = 16;
+static constexpr size_t ECC_BYTES = 16;
+static constexpr size_t BASE_PS1_SIZE = static_cast<u8>(SectorSize::PS1) * static_cast<u16>(SectorCount::PS1);
+static constexpr size_t BASE_8MB_SIZE = (static_cast<u16>(SectorSize::STANDARD) + ECC_BYTES) * static_cast<u32>(SectorCount::STANDARD);
+static constexpr size_t MAX_2GB_SIZE = (static_cast<u16>(SectorSize::STANDARD) + ECC_BYTES) * static_cast<u32>(SectorCount::X256);
 
 enum class MemcardPS1Mode
 {
@@ -125,3 +137,7 @@ namespace Flag
 }
 
 static constexpr size_t PS1_MEMCARD_SIZE = static_cast<u16>(SectorSize::PS1) * static_cast<u16>(SectorCount::PS1);
+
+// 128 KB read size, since that's the minimum size of a memcard file (PS1)
+// and a nice factor of all others (8 MB -> 2 GB)
+static constexpr size_t STREAM_BATCH_SIZE = 1024 * 128;

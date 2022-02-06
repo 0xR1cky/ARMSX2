@@ -14,9 +14,9 @@ private:
 	ghc::filesystem::path directory;
 	ghc::filesystem::path fileName;
 	ghc::filesystem::path fullPath;
+	MemcardHostType memcardHostType = MemcardHostType::FILE;
 	int port, slot;
 	
-	bool isSlottedIn = false;
 	MemcardType memcardType = MemcardType::PS2;
 	u8 flag = 0x08;
 	u8 terminator = static_cast<u8>(Terminator::DEFAULT);
@@ -26,6 +26,12 @@ private:
 	u32 sector = 0;
 	u32 offset = 0;
 	std::vector<u8> memcardData;
+
+	void InitializeFile();
+	void InitializeFolder();
+	void LoadFile();
+	void LoadFolder();
+	bool IsFileSizeValid(size_t size);
 
 public:
 	Memcard(size_t port, size_t slot);
@@ -38,7 +44,6 @@ public:
 	void LoadFromFileSystem();
 	void WriteToFileSystem(u32 address, size_t length);
 
-	bool IsSlottedIn();
 	MemcardType GetMemcardType();
 	u8 GetFlag();
 	u8 GetTerminator();
@@ -47,7 +52,6 @@ public:
 	SectorCount GetSectorCount();
 	u32 GetSector();
 
-	void SetSlottedIn(bool value);
 	void SetMemcardType(MemcardType newType);
 	void SetFlag(u8 newFlag);
 	void SetTerminator(u8 data);
