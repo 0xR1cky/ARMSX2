@@ -346,6 +346,8 @@
     <ClCompile Include="Host.cpp" />
     <ClCompile Include="HostDisplay.cpp" />
     <ClCompile Include="IopGte.cpp" />
+    <ClCompile Include="Memcard\MemcardFileIO.cpp" />
+    <ClCompile Include="Memcard\MemcardFolderIO.cpp" />
     <ClCompile Include="PINE.cpp" />
     <ClCompile Include="FW.cpp" />
     <ClCompile Include="Memcard\Memcard.cpp" />
@@ -806,6 +808,8 @@
     <ClInclude Include="Host.h" />
     <ClInclude Include="HostDisplay.h" />
     <ClInclude Include="IopGte.h" />
+    <ClInclude Include="Memcard\MemcardFileIO.h" />
+    <ClInclude Include="Memcard\MemcardFolderIO.h" />
     <ClInclude Include="PINE.h" />
     <ClInclude Include="FW.h" />
     <ClInclude Include="Memcard\Memcard.h" />

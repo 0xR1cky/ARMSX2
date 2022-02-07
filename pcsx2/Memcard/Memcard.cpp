@@ -6,27 +6,10 @@
 #include "fmt/format.h"
 #include "Memcard/MemcardConfig.h"
 #include "DirectoryHelper.h"
+#include "MemcardFileIO.h"
 
 #include <string>
 #include <array>
-
-void Memcard::InitializeFile()
-{
-	std::ofstream writer;
-	writer.open(fullPath);
-
-	if (writer.good())
-	{
-		const char* buf = reinterpret_cast<char*>(memcardData.data());
-		writer.write(buf, memcardData.size());
-	}
-	else
-	{
-		Console.Warning("%s() Failed to initialize memcard file (port %d slot %d) on file system!", __FUNCTION__, port, slot);
-	}
-
-	writer.close();
-}
 
 void Memcard::InitializeFolder()
 {
@@ -37,7 +20,7 @@ void Memcard::InitializeFolder()
 	}
 
 	std::ofstream writer;
-	writer.open(fullPath / "_pcsx2_superblock");
+	writer.open(fullPath / FOLDER_MEMCARD_SUPERBLOCK_NAME);
 
 	if (writer.good())
 	{
@@ -52,9 +35,13 @@ void Memcard::InitializeFolder()
 	writer.close();
 }
 
-void Memcard::LoadFile()
+void Memcard::LoadFolder()
 {
-	stream.open(fullPath, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+	// TODO: Construct a 8 MB card.
+	// Copy the superblock into the front.
+	// Build an IFAT and FAT
+	// Span data across the writeable sectors
+	stream.open(fullPath / FOLDER_MEMCARD_SUPERBLOCK_NAME, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
 
 	if (!stream.good())
 	{
@@ -63,7 +50,7 @@ void Memcard::LoadFile()
 		return;
 	}
 
-	// Buffer and memcpy because streams need a char* and refuse to use u8*
+	// First load the superblock
 	memcardData.clear();
 	std::vector<char> buf;
 	buf.resize(STREAM_BATCH_SIZE);
@@ -82,51 +69,6 @@ void Memcard::LoadFile()
 	}
 
 	stream.flush();
-	stream.clear();
-	stream.seekg(0, stream.beg);
-	
-	// Update sector count to reflect size of the card
-	const size_t sectorSizeWithECC = (static_cast<u16>(sectorSize) + ECC_BYTES);
-
-	if (!IsFileSizeValid(memcardData.size()))
-	{
-		Console.Warning("%s() Memcard file (port %d slot %d) size does not match any known formats!", __FUNCTION__, port, slot);
-		return;
-	}
-
-	sectorCount = static_cast<SectorCount>(memcardData.size() / sectorSizeWithECC);
-	DevCon.WriteLn("%s() SectorCount updated: %08X", __FUNCTION__, sectorCount);
-}
-
-void Memcard::LoadFolder()
-{
-	// TODO: Construct a 8 MB card.
-	// Copy the superblock into the front.
-	// Build an IFAT and FAT
-	// Span data across the writeable sectors
-}
-
-bool Memcard::IsFileSizeValid(size_t size)
-{
-	if (size == BASE_PS1_SIZE)
-	{
-		return true;
-	}
-
-	if (size % BASE_8MB_SIZE != 0)
-	{
-		return false;
-	}
-	
-	for (size_t powerSize = BASE_8MB_SIZE; powerSize <= MAX_2GB_SIZE; powerSize * 2)
-	{
-		if (size == powerSize)
-		{
-			return true;
-		}
-	}
-
-	return false;
 }
 
 Memcard::Memcard(size_t port, size_t slot)
@@ -192,7 +134,7 @@ void Memcard::InitializeOnFileSystem()
 		switch (memcardHostType)
 		{
 			case MemcardHostType::FILE:
-				InitializeFile();
+				g_MemcardFileIO.Initialize(this);
 				break;
 			case MemcardHostType::FOLDER:
 				InitializeFolder();
@@ -209,7 +151,8 @@ void Memcard::LoadFromFileSystem()
 	switch (memcardHostType)
 	{
 		case MemcardHostType::FILE:
-			LoadFile();
+			//LoadFile();
+			g_MemcardFileIO.Load(this);
 			break;
 		case MemcardHostType::FOLDER:
 			LoadFolder();
@@ -236,6 +179,26 @@ void Memcard::WriteToFileSystem(u32 address, size_t length)
 	stream.seekp(address);
 	stream.write(buf.data(), length);
 	stream.flush();
+}
+
+ghc::filesystem::fstream& Memcard::GetStreamRef()
+{
+	return stream;
+}
+
+size_t Memcard::GetPort()
+{
+	return port;
+}
+
+size_t Memcard::GetSlot()
+{
+	return slot;
+}
+
+ghc::filesystem::path Memcard::GetFullPath()
+{
+	return fullPath;
 }
 
 MemcardType Memcard::GetMemcardType()
@@ -273,6 +236,11 @@ u32 Memcard::GetSector()
 	return sector;
 }
 
+std::vector<u8>& Memcard::GetMemcardDataRef()
+{
+	return memcardData;
+}
+
 void Memcard::SetMemcardType(MemcardType newType)
 {
 	memcardType = newType;
@@ -286,6 +254,11 @@ void Memcard::SetFlag(u8 newFlag)
 void Memcard::SetTerminator(u8 data)
 {
 	terminator = data;
+}
+
+void Memcard::SetSectorCount(SectorCount newSectorCount)
+{
+	sectorCount = newSectorCount;
 }
 
 void Memcard::SetSector(u32 data)

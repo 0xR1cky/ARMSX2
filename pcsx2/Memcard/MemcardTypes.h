@@ -141,3 +141,5 @@ static constexpr size_t PS1_MEMCARD_SIZE = static_cast<u16>(SectorSize::PS1) * s
 // 128 KB read size, since that's the minimum size of a memcard file (PS1)
 // and a nice factor of all others (8 MB -> 2 GB)
 static constexpr size_t STREAM_BATCH_SIZE = 1024 * 128;
+
+static const std::string FOLDER_MEMCARD_SUPERBLOCK_NAME = "_pcsx2_superblock";

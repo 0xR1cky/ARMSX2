@@ -15,8 +15,8 @@ private:
 	ghc::filesystem::path fileName;
 	ghc::filesystem::path fullPath;
 	MemcardHostType memcardHostType = MemcardHostType::FILE;
-	int port, slot;
-	
+	size_t port;
+	size_t slot;
 	MemcardType memcardType = MemcardType::PS2;
 	u8 flag = 0x08;
 	u8 terminator = static_cast<u8>(Terminator::DEFAULT);
@@ -27,11 +27,8 @@ private:
 	u32 offset = 0;
 	std::vector<u8> memcardData;
 
-	void InitializeFile();
 	void InitializeFolder();
-	void LoadFile();
 	void LoadFolder();
-	bool IsFileSizeValid(size_t size);
 
 public:
 	Memcard(size_t port, size_t slot);
@@ -44,6 +41,10 @@ public:
 	void LoadFromFileSystem();
 	void WriteToFileSystem(u32 address, size_t length);
 
+	ghc::filesystem::fstream& GetStreamRef();
+	size_t GetPort();
+	size_t GetSlot();
+	ghc::filesystem::path GetFullPath();
 	MemcardType GetMemcardType();
 	u8 GetFlag();
 	u8 GetTerminator();
@@ -51,10 +52,12 @@ public:
 	EraseBlockSize GetEraseBlockSize();
 	SectorCount GetSectorCount();
 	u32 GetSector();
+	std::vector<u8>& GetMemcardDataRef();
 
 	void SetMemcardType(MemcardType newType);
 	void SetFlag(u8 newFlag);
 	void SetTerminator(u8 data);
+	void SetSectorCount(SectorCount newSectorCount);
 	void SetSector(u32 data);
 
 	std::queue<u8> Read(size_t length);
