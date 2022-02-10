@@ -15,6 +15,7 @@ public:
 
 	void Initialize(Memcard* memcard);
 	void Load(Memcard* memcard);
+	void Write(Memcard* memcard, u32 address, size_t length);
 };
 
 extern MemcardFileIO g_MemcardFileIO;

@@ -7,69 +7,10 @@
 #include "Memcard/MemcardConfig.h"
 #include "DirectoryHelper.h"
 #include "MemcardFileIO.h"
+#include "MemcardFolderIO.h"
 
 #include <string>
 #include <array>
-
-void Memcard::InitializeFolder()
-{
-	if (!ghc::filesystem::create_directories(fullPath))
-	{
-		Console.Warning("%s() Failed to create root of folder memcard (port %d slot %d) on file system!", __FUNCTION__, port, slot);
-		return;
-	}
-
-	std::ofstream writer;
-	writer.open(fullPath / FOLDER_MEMCARD_SUPERBLOCK_NAME);
-
-	if (writer.good())
-	{
-		const std::array<char, FOLDER_MEMCARD_SUPERBLOCK_SIZE> buf{0};
-		writer.write(buf.data(), buf.size());
-	}
-	else
-	{
-		Console.Warning("%s() Failed to generate empty blob for memcard folder's superblock (port %d slot %d) on file system!", __FUNCTION__, port, slot);
-	}
-
-	writer.close();
-}
-
-void Memcard::LoadFolder()
-{
-	// TODO: Construct a 8 MB card.
-	// Copy the superblock into the front.
-	// Build an IFAT and FAT
-	// Span data across the writeable sectors
-	stream.open(fullPath / FOLDER_MEMCARD_SUPERBLOCK_NAME, std::ios_base::in | std::ios_base::out | std::ios_base::binary);
-
-	if (!stream.good())
-	{
-		Console.Warning("%s() Failed to open memcard file (port %d slot %d), ejecting it!", __FUNCTION__, port, slot);
-		SetMemcardType(MemcardType::EJECTED);
-		return;
-	}
-
-	// First load the superblock
-	memcardData.clear();
-	std::vector<char> buf;
-	buf.resize(STREAM_BATCH_SIZE);
-
-	while (stream.good())
-	{
-		stream.read(buf.data(), STREAM_BATCH_SIZE);
-
-		if (!stream.eof())
-		{
-			for (size_t pos = 0; pos < buf.size(); pos++)
-			{
-				memcardData.push_back(buf.at(pos));
-			}
-		}
-	}
-
-	stream.flush();
-}
 
 Memcard::Memcard(size_t port, size_t slot)
 {
@@ -137,7 +78,7 @@ void Memcard::InitializeOnFileSystem()
 				g_MemcardFileIO.Initialize(this);
 				break;
 			case MemcardHostType::FOLDER:
-				InitializeFolder();
+				g_MemcardFolderIO.Initialize(this);
 				break;
 			default:
 				DevCon.Warning("%s() Sanity check!", __FUNCTION__);
@@ -151,11 +92,10 @@ void Memcard::LoadFromFileSystem()
 	switch (memcardHostType)
 	{
 		case MemcardHostType::FILE:
-			//LoadFile();
 			g_MemcardFileIO.Load(this);
 			break;
 		case MemcardHostType::FOLDER:
-			LoadFolder();
+			g_MemcardFolderIO.Load(this);
 			break;
 		default:
 			DevCon.Warning("%s() Sanity check!", __FUNCTION__);
@@ -165,20 +105,18 @@ void Memcard::LoadFromFileSystem()
 
 void Memcard::WriteToFileSystem(u32 address, size_t length)
 {
-	if (!stream.good())
+	switch (memcardHostType)
 	{
-		Console.Warning("%s(%08x, %d) Failed to open memcard file (port %d slot %d)!", __FUNCTION__, address, length, port, slot);
-		Console.Warning("This sector write will persist in memory, but will not be committed to disk!");
-		// TODO: Should we eject the card? What's the proper thing to do here...
-		return;
+		case MemcardHostType::FILE:
+			g_MemcardFileIO.Write(this, address, length);
+			break;
+		case MemcardHostType::FOLDER:
+			g_MemcardFolderIO.Write(this, address, length);
+			break;
+		default:
+			DevCon.Warning("%s() Sanity check!", __FUNCTION__);
+			break;
 	}
-
-	std::vector<char> buf;
-	buf.resize(length);
-	memcpy(buf.data(), memcardData.data() + address, length);
-	stream.seekp(address);
-	stream.write(buf.data(), length);
-	stream.flush();
 }
 
 ghc::filesystem::fstream& Memcard::GetStreamRef()

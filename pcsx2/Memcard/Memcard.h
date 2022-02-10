@@ -27,9 +27,6 @@ private:
 	u32 offset = 0;
 	std::vector<u8> memcardData;
 
-	void InitializeFolder();
-	void LoadFolder();
-
 public:
 	Memcard(size_t port, size_t slot);
 	~Memcard();

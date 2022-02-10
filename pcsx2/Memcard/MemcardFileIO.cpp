@@ -102,3 +102,21 @@ void MemcardFileIO::Load(Memcard* memcard)
 
 	DevCon.WriteLn("%s() SectorCount updated: %08X", __FUNCTION__, memcard->GetSectorCount());
 }
+
+void MemcardFileIO::Write(Memcard* memcard, u32 address, size_t length)
+{
+	if (!memcard->GetStreamRef().good())
+	{
+		Console.Warning("%s(%08x, %d) Failed to open memcard file (port %d slot %d)!", __FUNCTION__, address, length, memcard->GetPort(), memcard->GetSlot());
+		Console.Warning("This sector write will persist in memory, but will not be committed to disk!");
+		// TODO: Should we eject the card? What's the proper thing to do here...
+		return;
+	}
+
+	std::vector<char> buf;
+	buf.resize(length);
+	memcpy(buf.data(), memcard->GetMemcardDataRef().data() + address, length);
+	memcard->GetStreamRef().seekp(address);
+	memcard->GetStreamRef().write(buf.data(), length);
+	memcard->GetStreamRef().flush();
+}
