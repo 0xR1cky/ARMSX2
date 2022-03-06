@@ -2,27 +2,36 @@
 #pragma once
 
 #include "MemcardTypes.h"
-#include "ghc/filesystem.h"
 
 #include <vector>
 #include <queue>
+#include <array>
+#include <string>
+
+struct FolderMemcardAttributes
+{
+	std::array<u32, INDIRECT_FAT_CLUSTER_COUNT> indirectFat = {0};
+	std::vector<u32> fat = {0};
+};
 
 class Memcard
 {
 private:
 	ghc::filesystem::fstream stream;
-	ghc::filesystem::path directory;
-	ghc::filesystem::path fileName;
-	ghc::filesystem::path fullPath;
+	std::string directory;
+	std::string fileName;
+	std::string fullPath;
 	MemcardHostType memcardHostType = MemcardHostType::FILE;
 	size_t port;
 	size_t slot;
+	FolderMemcardAttributes fma;
 	MemcardType memcardType = MemcardType::PS2;
 	u8 flag = 0x08;
 	u8 terminator = static_cast<u8>(Terminator::DEFAULT);
 	SectorSize sectorSize = SectorSize::STANDARD;
 	EraseBlockSize eraseBlockSize = EraseBlockSize::STANDARD;
 	SectorCount sectorCount = SectorCount::STANDARD;
+	std::array<u32, INDIRECT_FAT_CLUSTER_COUNT> indirectFatClusterList = {0};
 	u32 sector = 0;
 	u32 offset = 0;
 	std::vector<u8> memcardData;
@@ -41,13 +50,15 @@ public:
 	ghc::filesystem::fstream& GetStreamRef();
 	size_t GetPort();
 	size_t GetSlot();
-	ghc::filesystem::path GetFullPath();
+	FolderMemcardAttributes& GetFolderMemcardAttributesRef();
+	std::string GetFullPath();
 	MemcardType GetMemcardType();
 	u8 GetFlag();
 	u8 GetTerminator();
 	SectorSize GetSectorSize();
 	EraseBlockSize GetEraseBlockSize();
 	SectorCount GetSectorCount();
+	u32 GetIndirectFatCluster(size_t position);
 	u32 GetSector();
 	std::vector<u8>& GetMemcardDataRef();
 

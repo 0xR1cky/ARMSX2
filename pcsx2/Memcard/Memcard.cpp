@@ -6,6 +6,7 @@
 #include "fmt/format.h"
 #include "Memcard/MemcardConfig.h"
 #include "DirectoryHelper.h"
+#include "common/FileSystem.h"
 #include "MemcardFileIO.h"
 #include "MemcardFolderIO.h"
 
@@ -21,13 +22,7 @@ Memcard::Memcard(size_t port, size_t slot)
 	SoftReset();
 }
 
-Memcard::~Memcard()
-{
-	if (stream.is_open())
-	{
-		stream.close();
-	}
-}
+Memcard::~Memcard() = default;
 
 void Memcard::SoftReset()
 {
@@ -60,18 +55,25 @@ void Memcard::InitializeOnFileSystem()
 	}
 
 	// TODO: Portable builds, only use the relative path specified in config, do not prefix with home directory
-	directory = GetHomeDirectory() / g_MemcardConfig.GetMemcardsFolder();
+	directory = GetHomeDirectory() + g_MemcardConfig.GetMemcardsFolder();
 	fileName = g_MemcardConfig.GetMemcardName(port, slot);
-	fullPath = directory / fileName;
-	
-	if (!ghc::filesystem::is_directory(directory) && !ghc::filesystem::create_directories(directory))
-	{
-		Console.Warning("%s() Failed to create directory for memcard files!", __FUNCTION__);
-		return;
-	}
+	fullPath = directory + fileName;
 
-	if (!ghc::filesystem::is_regular_file(fullPath) && !ghc::filesystem::is_directory(fullPath))
+	if (FileSystem::FileExists(fullPath.c_str()))
 	{
+		memcardHostType = MemcardHostType::FILE;
+	}
+	else if (FileSystem::DirectoryExists(fullPath.c_str()))
+	{
+		memcardHostType = MemcardHostType::FOLDER;
+	}
+	else
+	{
+		// The default MemcardHostType is FILE; if neither a file nor folder memcard exists already
+		// on the first game launch, this switch will always end up taking the FILE route. However,
+		// We have this switch because in the memcard configuration, creating a folder memcard will
+		// set the MemcardHostType to FOLDER, prior to invoking this function, thus taking the
+		// folder route.
 		switch (memcardHostType)
 		{
 			case MemcardHostType::FILE:
@@ -92,10 +94,24 @@ void Memcard::LoadFromFileSystem()
 	switch (memcardHostType)
 	{
 		case MemcardHostType::FILE:
-			g_MemcardFileIO.Load(this);
+			if (FileSystem::FileExists(fullPath.c_str()))
+			{
+				g_MemcardFileIO.Load(this);
+			}
+			else 
+			{
+				Console.Warning("%s() Configured memcard file %s does not exist on host file system!", __FUNCTION__, fullPath);
+			}
 			break;
 		case MemcardHostType::FOLDER:
-			g_MemcardFolderIO.Load(this);
+			if (FileSystem::DirectoryExists(fullPath.c_str()))
+			{
+				g_MemcardFolderIO.Load(this);
+			}
+			else
+			{
+				Console.Warning("%s() Configured memcard folder %s does not exist on host file system!", __FUNCTION__, fullPath);
+			}
 			break;
 		default:
 			DevCon.Warning("%s() Sanity check!", __FUNCTION__);
@@ -134,7 +150,12 @@ size_t Memcard::GetSlot()
 	return slot;
 }
 
-ghc::filesystem::path Memcard::GetFullPath()
+FolderMemcardAttributes& Memcard::GetFolderMemcardAttributesRef()
+{
+	return fma;
+}
+
+std::string Memcard::GetFullPath()
 {
 	return fullPath;
 }
@@ -167,6 +188,11 @@ EraseBlockSize Memcard::GetEraseBlockSize()
 SectorCount Memcard::GetSectorCount()
 {
 	return sectorCount;
+}
+
+u32 Memcard::GetIndirectFatCluster(size_t position){
+	position = std::clamp<size_t>(position, 0, INDIRECT_FAT_CLUSTER_COUNT);
+	return indirectFatClusterList.at(position);
 }
 
 u32 Memcard::GetSector()

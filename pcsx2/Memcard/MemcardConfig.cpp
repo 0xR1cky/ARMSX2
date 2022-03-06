@@ -7,17 +7,17 @@ MemcardConfig g_MemcardConfig;
 MemcardConfig::MemcardConfig() = default;
 MemcardConfig::~MemcardConfig() = default;
 
-ghc::filesystem::path MemcardConfig::GetMemcardsFolder()
+std::string MemcardConfig::GetMemcardsFolder()
 {
 	return memcardsFolder;
 }
 
-void MemcardConfig::SetMemcardsFolder(ghc::filesystem::path newPath)
+void MemcardConfig::SetMemcardsFolder(const std::string& newPath)
 {
 	memcardsFolder = newPath;
 }
 
-ghc::filesystem::path MemcardConfig::GetMemcardName(size_t port, size_t slot)
+std::string MemcardConfig::GetMemcardName(size_t port, size_t slot)
 {
 	port = std::clamp<size_t>(port, 0, MAX_PORTS);
 	slot = std::clamp<size_t>(slot, 0, MAX_SLOTS);

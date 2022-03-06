@@ -1,11 +1,11 @@
 
 #pragma once
 
-#include "ghc/filesystem.h"
+#include <string>
 #include <cstdlib>
 
 // OS-agnostic getter for the user folder.
-ghc::filesystem::path GetHomeDirectory()
+std::string GetHomeDirectory()
 {
 	char* ret;
 #ifdef _WIN32
@@ -13,5 +13,5 @@ ghc::filesystem::path GetHomeDirectory()
 #else
 	ret = std::getenv("HOME");
 #endif
-	return ghc::filesystem::path(ret);
+	return std::string(ret);
 }

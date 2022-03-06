@@ -2,6 +2,8 @@
 #include "PrecompiledHeader.h"
 #include "MemcardFileIO.h"
 
+#include "common/FileSystem.h"
+
 MemcardFileIO g_MemcardFileIO;
 
 bool MemcardFileIO::IsPS2Size(size_t size)
@@ -32,54 +34,24 @@ MemcardFileIO::~MemcardFileIO() = default;
 
 void MemcardFileIO::Initialize(Memcard* memcard)
 {
-	std::ofstream writer;
-	writer.open(memcard->GetFullPath());
-
-	if (writer.good())
-	{
-		std::vector<u8>& memcardDataRef = memcard->GetMemcardDataRef();
-		const char* buf = reinterpret_cast<char*>(memcardDataRef.data());
-		writer.write(buf, memcardDataRef.size());
-	}
-	else
-	{
-		Console.Warning("%s() Failed to initialize memcard file (port %d slot %d) on file system!", __FUNCTION__, memcard->GetPort(), memcard->GetSlot());
-	}
-
-	writer.close();
+	std::vector<u8>& memcardDataRef = memcard->GetMemcardDataRef();
+	FileSystem::WriteBinaryFile(memcard->GetFullPath().c_str(), memcardDataRef.data(), memcardDataRef.size());
 }
 
 void MemcardFileIO::Load(Memcard* memcard)
 {
-	memcard->GetStreamRef().open(memcard->GetFullPath(), std::ios_base::in | std::ios_base::out | std::ios_base::binary);
+	std::optional<std::vector<u8>> dataOpt = FileSystem::ReadBinaryFile(memcard->GetFullPath().c_str());
 
-	if (!memcard->GetStreamRef().good())
+	if (dataOpt.has_value())
 	{
-		Console.Warning("%s() Failed to open memcard file (port %d slot %d), ejecting it!", __FUNCTION__, memcard->GetPort(), memcard->GetSlot());
+		memcard->GetMemcardDataRef() = dataOpt.value();
+	}
+	else
+	{
+		Console.Warning("%s(memcard) Failed to read memcard! (Port = %d, Slot = %d)", __FUNCTION__, memcard->GetPort(), memcard->GetSlot());
 		memcard->SetMemcardType(MemcardType::EJECTED);
 		return;
 	}
-
-	memcard->GetMemcardDataRef().clear();
-	std::vector<char> buf;
-	buf.resize(STREAM_BATCH_SIZE);
-
-	while (memcard->GetStreamRef().good())
-	{
-		memcard->GetStreamRef().read(buf.data(), STREAM_BATCH_SIZE);
-
-		if (!memcard->GetStreamRef().eof())
-		{
-			for (size_t pos = 0; pos < buf.size(); pos++)
-			{
-				memcard->GetMemcardDataRef().push_back(buf.at(pos));
-			}
-		}
-	}
-
-	memcard->GetStreamRef().flush();
-	memcard->GetStreamRef().clear();
-	memcard->GetStreamRef().seekg(0, memcard->GetStreamRef().beg);
 
 	// Update sector count to reflect size of the card
 	if (IsPS2Size(memcard->GetMemcardDataRef().size()))
@@ -101,22 +73,32 @@ void MemcardFileIO::Load(Memcard* memcard)
 	}
 
 	DevCon.WriteLn("%s() SectorCount updated: %08X", __FUNCTION__, memcard->GetSectorCount());
+
+	// Finally, open a stream to the memcard file; this write-locks it and prevents file sync services
+	// (OneDrive, Dropbox, etc) from causing any concurrency issues, as well as allows us rapid access
+	// for in-place writes.
+	memcard->GetStreamRef().open(memcard->GetFullPath(), MEMCARD_OPEN_MODE);
+
+	if (!memcard->GetStreamRef().good())
+	{
+		Console.Warning("%s(memcard) Failed to open stream on memcard! Ejecting it! (Port = %d, Slot = %d)", __FUNCTION__, memcard->GetPort(), memcard->GetSlot());
+		memcard->SetMemcardType(MemcardType::EJECTED);
+		return;
+	}
 }
 
 void MemcardFileIO::Write(Memcard* memcard, u32 address, size_t length)
 {
 	if (!memcard->GetStreamRef().good())
 	{
-		Console.Warning("%s(%08x, %d) Failed to open memcard file (port %d slot %d)!", __FUNCTION__, address, length, memcard->GetPort(), memcard->GetSlot());
+		Console.Warning("%s(memcard, %08x, %d) Failed to open memcard file! (Port = %d, Slot = %d)", __FUNCTION__, address, length, memcard->GetPort(), memcard->GetSlot());
 		Console.Warning("This sector write will persist in memory, but will not be committed to disk!");
 		// TODO: Should we eject the card? What's the proper thing to do here...
 		return;
 	}
 
-	std::vector<char> buf;
-	buf.resize(length);
-	memcpy(buf.data(), memcard->GetMemcardDataRef().data() + address, length);
+	const char* data = reinterpret_cast<char*>(memcard->GetMemcardDataRef().data() + address);
 	memcard->GetStreamRef().seekp(address);
-	memcard->GetStreamRef().write(buf.data(), length);
+	memcard->GetStreamRef().write(data, length);
 	memcard->GetStreamRef().flush();
 }

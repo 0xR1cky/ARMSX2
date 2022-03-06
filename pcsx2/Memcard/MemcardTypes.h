@@ -1,6 +1,8 @@
 
 #pragma once
 
+#include <array>
+
 enum class MemcardType
 {
 	PS1 = 0x00,
@@ -69,6 +71,20 @@ enum class SectorSize
 enum class EraseBlockSize
 {
 	STANDARD = 0x10
+};
+
+// Transparent to pretty much anything except managing the FAT,
+// this describes how many pages make one cluster. Pretty much
+// every aspect of the memcard is addressed by page, yet for
+// whatever reason the FAT counts things by cluster. Known options
+// are 1 or 2, but cards have only been observed in the wild with 2.
+// I would guess changing to 1 has some implications for read/write
+// efficiency but I don't know if it would be a good or a bad thing.
+// 
+// For consistency sake, we'll enforce the standard 2 pages per cluster.
+enum class ClusterSize
+{
+	STANDARD = 0x02
 };
 
 // Size of a memcard, counted in sectors. Datatype is u32.
@@ -143,3 +159,74 @@ static constexpr size_t PS1_MEMCARD_SIZE = static_cast<u16>(SectorSize::PS1) * s
 static constexpr size_t STREAM_BATCH_SIZE = 1024 * 128;
 
 static const std::string FOLDER_MEMCARD_SUPERBLOCK_NAME = "_pcsx2_superblock";
+static const std::string FOLDER_MEMCARD_INDEX_NAME = "_pcsx2_index";
+static const char* SUPERBLOCK_FORMATTED_STRING = "Sony PS2 Memory Card Format ";
+static constexpr size_t SUPERBLOCK_FORMATTED_STRING_LENGTH = 28;
+
+// Though there are 32 positions reserved for these in an IFAT,
+// only one cluster is used on a standard 8 MB card. As capacity
+// increases, formatting a memcard will use more and more of these
+// positions in order to define its FAT locations.
+static constexpr size_t INDIRECT_FAT_CLUSTER_COUNT = 32;
+// Size of a cluster in bytes. Applies standard ClusterSize multiplier to standard SectorSize.
+static constexpr size_t STANDARD_CLUSTER_SIZE = ((static_cast<u16>(SectorSize::STANDARD) + ECC_BYTES) * static_cast<u16>(ClusterSize::STANDARD));
+// Number of clusters on a standard 8 MB card. Used for folder memcards.
+static constexpr size_t STANDARD_CLUSTERS_ON_CARD = 8192;
+
+// The indirect FAT which will appear on any 8 MB card.
+// The memory card spec allows the FAT to be placed anywhere on the memcard,
+// and it can also be fragmented. However, no 8 MB memcard has been spotted
+// in the wild using a non-standard starting location for the FAT, nor
+// fragmenting it. As such, it ends up being that this table remains an absolute
+// truth for 8 MB memcard sizes, and can be systematically relied on. In our case,
+// we will inject this into the standard "Indirect FAT" cluster when loading folder
+// memcards off the host filesystem.
+static constexpr std::array<u32, INDIRECT_FAT_CLUSTER_COUNT> STANDARD_INDIRECT_FAT =
+{
+	0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 
+	0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+	0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+	0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28
+};
+
+// Position of the FAT, in bytes, relative to the front of a 8 MB memcard. Used for folder memcards.
+static constexpr u32 STANDARD_FAT_OFFSET = STANDARD_CLUSTER_SIZE * (STANDARD_INDIRECT_FAT.at(0));
+
+// Value found in a PS2 memcard FAT. Indicates that cluster is currently unused.
+static constexpr u32 FAT_AVAILABLE = 0x7fffffff;
+// Value found in a PS2 memcard FAT. Indicates that cluster is the last of a file/directory.
+static constexpr u32 FAT_EOF = 0xffffffff;
+// Mask for the "in use" bit of a FAT entry
+static constexpr u32 FAT_IN_USE_MASK = 0x80000000;
+
+static constexpr std::ios_base::openmode MEMCARD_OPEN_MODE = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
+
+// Cluster index of the first "data cluster" on a standard 8 MB card.
+static constexpr size_t STANDARD_DATA_OFFSET_CLUSTERS = 41;
+// Byte offset of the first data cluster.
+static constexpr u32 STANDARD_DATA_OFFSET = STANDARD_CLUSTER_SIZE * STANDARD_DATA_OFFSET_CLUSTERS;
+
+enum class DirectoryModeFlag
+{
+	READ = 0x0001,
+	WRITE = 0x0002,
+	EXECUTE = 0x0004,
+	PROTECTED = 0x0008,
+	FILE = 0x0010,
+	DIRECTORY = 0x0020,
+	INTERNAL_DIRECTORY_HELPER = 0x0040,
+	UNKNOWN_COPIED = 0x0080, // Unknown, but suspected to indicate if a dir entry was copied
+	UNKNOWN_100 = 0x0100,
+	INTERNAL_CREATE_HELPER = 0x0200,
+	INTERNAL_CREATE = 0x0400, // Set when files and directories are created, otherwise ignored.
+	POCKETSTATION = 0x0800, // Pocketstation application file
+	PSX = 0x1000, // PlayStation 1 save file
+	HIDDEN = 0x2000,
+	UNKNOWN_4000 = 0x4000,
+	IN_USE = 0x8000 // If clear, file or directory has been deleted
+};
+
+static constexpr u16 DEFAULT_DIRECTORY_MODE_FLAGS = static_cast<u16>(DirectoryModeFlag::READ) | static_cast<u16>(DirectoryModeFlag::WRITE) | static_cast<u16>(DirectoryModeFlag::EXECUTE) | static_cast<u16>(DirectoryModeFlag::DIRECTORY) | static_cast<u16>(DirectoryModeFlag::INTERNAL_CREATE) | static_cast<u16>(DirectoryModeFlag::IN_USE);
+static constexpr u16 DEFAULT_FILE_MODE_FLAGS = static_cast<u16>(DirectoryModeFlag::READ) | static_cast<u16>(DirectoryModeFlag::WRITE) | static_cast<u16>(DirectoryModeFlag::EXECUTE) | static_cast<u16>(DirectoryModeFlag::FILE) | static_cast<u16>(DirectoryModeFlag::INTERNAL_CREATE) | static_cast<u16>(DirectoryModeFlag::IN_USE);
+static constexpr u16 SINGLE_DOT_MODE_FLAGS = DEFAULT_DIRECTORY_MODE_FLAGS;
+static constexpr u16 DOUBLE_DOT_MODE_FLAGS = static_cast<u16>(DirectoryModeFlag::WRITE) | static_cast<u16>(DirectoryModeFlag::EXECUTE) | static_cast<u16>(DirectoryModeFlag::DIRECTORY) | static_cast<u16>(DirectoryModeFlag::INTERNAL_CREATE) | static_cast<u16>(DirectoryModeFlag::HIDDEN) | static_cast<u16>(DirectoryModeFlag::IN_USE);
