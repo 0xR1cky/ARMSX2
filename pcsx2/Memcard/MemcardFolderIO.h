@@ -4,28 +4,41 @@
 #include "ryml_std.hpp"
 #include "ryml.hpp"
 
+#include "MemcardFolderIOTypes.h"
 #include "Memcard.h"
 
 #include <array>
 #include <vector>
 #include <optional>
 
-// Structure representing an individual entry in an index file. An individual entry is considered
-// the top level node (whose only parent is the root itself), and any of its children.
-struct DirectoryIndexEntry
+// Constant size structure representing a directory entry sector on a PS2 memcard.
+// Unlike the DirectoryEntry class below which is a high level, easier to use class
+// for manipulation, this should only be used as a nice stencil to copy directory
+// entries directly into memcard data, not any kind of data manipulation.
+struct PS2Directory
 {
-	std::string name;
-	std::array<u8, 8> created;
-	std::array<u8, 8> modified;
-	size_t position;
+	u16 mode = 0;
+	u16 unused = 0;
+	u32 length = 0;
+	char created[8] = {0};
+	u32 cluster = 0;
+	u32 dirEntry = 0;
+	char modified[8] = {0};
+	u32 attr1 = 0;
+	u32 attr2 = 0;
+	u32 attr3 = 0;
+	u32 attr4 = 0;
+	u32 attr5 = 0;
+	u32 attr6 = 0;
+	u32 attr7 = 0;
+	u32 attr8 = 0;
+	char name[32] = {0};
 };
 
-// Structure representing a first level directory (the directory's only parent level is the root itself)
-// which contains an index. Tracks the name of the directory, and each entry in the index file.
-struct DirectoryIndex
+enum class DirectoryType
 {
-	std::string name;
-	std::vector<DirectoryIndexEntry> entries;
+	DIRECTORY,
+	FILE
 };
 
 // Using a class instead of a struct; this is easier to manage on the heap with pointers than it is
@@ -37,9 +50,27 @@ public:
 	std::array<u8, 8> created = {0};
 	std::array<u8, 8> modified = {0};
 	std::string name;
+	DirectoryType type;
 	
 	std::vector<DirectoryEntry*> children;
 	std::vector<u8> fileData;
+};
+
+// Representation of a single entry in a _pcsx2_index file
+struct DirectoryIndexEntry
+{
+	std::string name;
+	std::array<u8, 8> created;
+	std::array<u8, 8> modified;
+	size_t order;
+};
+
+// Contains the DirectoryEntry that an index was found inside,
+// and pairs it with the collection of entries inside the index.
+struct DirectoryIndex
+{
+	DirectoryEntry* directoryEntry;
+	std::vector<DirectoryIndexEntry> entries;
 };
 
 class MemcardFolderIO
@@ -54,19 +85,23 @@ private:
 	ryml::Tree TreeFromString(const std::string& s);
 	std::optional<ryml::Tree> ReadYamlFromFile(const char* yamlFileName);
 	void WriteYamlToFile(const char* yamlFileName, const ryml::NodeRef& node);
-	void GenerateIndex();
 	void RecurseDirectory(const char* directory, DirectoryEntry* currentEntry);
-	void LoadIndexFile(const char* indexFilePath);
-	std::vector<u8> LoadFile(const char* fileName);
-	void PrintDirectoryTree(DirectoryEntry* entry, u32 level);
-	
-	DirectoryEntry* GetRootDirPtr();
 	void InsertDotDirectories(DirectoryEntry* dirEntry);
-	void CommitDirectoryTree(Memcard* memcard);
-	void CommitDirectoryEntry(Memcard* memcard, DirectoryEntry dirEntry);
-	size_t GetFreeFatCluster(Memcard* memcard);
-	void SetFatCluster(Memcard* memcard, size_t position, u32 newValue);
-	std::array<u8, ECC_BYTES> ComputeECC(std::vector<u8> sectorData);
+	void LoadIndexFile(const char* indexFilePath, DirectoryEntry* currentEntry);
+	std::vector<u8> LoadFile(const char* fileName);
+	void ApplyIndexes();
+	u32 CommitDirectory(Memcard* memcard, DirectoryEntry* dirEntry, u32 parentEntryPos = 0);
+	u32 CommitFile(Memcard* memcard, DirectoryEntry* fileEntry);
+	size_t GetDataClusterAddr(Memcard* memcard, size_t fatEntry);
+	size_t GetFirstFreeFatEntry(Memcard* memcard);
+	void SetFatEntry(Memcard* memcard, size_t position, u32 newValue);
+	void ComputeAllECC(Memcard* memcard);
+	std::array<u8, 3> ComputeECC(std::array<u8, 128> input);
+	void CleanupDirectoryEntries();
+
+	void Debug_PrintDirectoryTree(DirectoryEntry* entry, u32 level);
+	void Debug_DumpFat(Memcard* memcard);
+	void Debug_DumpCard(Memcard* memcard);
 
 public:
 	MemcardFolderIO();

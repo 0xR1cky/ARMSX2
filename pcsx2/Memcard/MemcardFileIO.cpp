@@ -34,8 +34,8 @@ MemcardFileIO::~MemcardFileIO() = default;
 
 void MemcardFileIO::Initialize(Memcard* memcard)
 {
-	std::vector<u8>& memcardDataRef = memcard->GetMemcardDataRef();
-	FileSystem::WriteBinaryFile(memcard->GetFullPath().c_str(), memcardDataRef.data(), memcardDataRef.size());
+	std::vector<u8> emptyMemcard = std::vector<u8>(BASE_8MB_SIZE, 0xff);
+	FileSystem::WriteBinaryFile(memcard->GetFullPath().c_str(), emptyMemcard.data(), emptyMemcard.size());
 }
 
 void MemcardFileIO::Load(Memcard* memcard)

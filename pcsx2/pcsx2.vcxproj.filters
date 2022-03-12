@@ -3002,6 +3002,9 @@
     <ClInclude Include="Memcard\MemcardFolderIO.h">
       <Filter>System\Ps2\Memcard</Filter>
     </ClInclude>
+    <ClInclude Include="Memcard\MemcardFolderIOTypes.h">
+      <Filter>System\Ps2\Memcard</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windows\wxResources.rc">

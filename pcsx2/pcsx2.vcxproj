@@ -810,6 +810,7 @@
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="Memcard\MemcardFileIO.h" />
     <ClInclude Include="Memcard\MemcardFolderIO.h" />
+    <ClInclude Include="Memcard\MemcardFolderIOTypes.h" />
     <ClInclude Include="PINE.h" />
     <ClInclude Include="FW.h" />
     <ClInclude Include="Memcard\Memcard.h" />

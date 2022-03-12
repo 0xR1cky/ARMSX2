@@ -17,8 +17,6 @@ Memcard::Memcard(size_t port, size_t slot)
 {
 	this->port = port;
 	this->slot = slot;
-	const size_t sizeBytes = (static_cast<u16>(sectorSize) + ECC_BYTES) * static_cast<u32>(sectorCount);
-	memcardData = std::vector<u8>(sizeBytes, 0xff);
 	SoftReset();
 }
 
@@ -48,12 +46,13 @@ void Memcard::FullReset()
 
 void Memcard::InitializeOnFileSystem()
 {
+/*
 	if (memcardData.size() == 0)
 	{
 		DevCon.Warning("%s() Attempted to initialize memcard on file system, but memcardData is not yet populated! That should be done prior to writing the data to disk!", __FUNCTION__);
 		return;
 	}
-
+*/
 	// TODO: Portable builds, only use the relative path specified in config, do not prefix with home directory
 	directory = GetHomeDirectory() + g_MemcardConfig.GetMemcardsFolder();
 	fileName = g_MemcardConfig.GetMemcardName(port, slot);

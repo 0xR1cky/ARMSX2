@@ -129,10 +129,12 @@ enum class SectorCount
 	X256 = 0x00400000 // 2 GiB
 };
 
+
 static constexpr size_t ECC_BYTES = 16;
+static constexpr size_t BASE_SECTOR_SIZE_WITH_ECC = static_cast<u16>(SectorSize::STANDARD) + ECC_BYTES;
 static constexpr size_t BASE_PS1_SIZE = static_cast<u8>(SectorSize::PS1) * static_cast<u16>(SectorCount::PS1);
-static constexpr size_t BASE_8MB_SIZE = (static_cast<u16>(SectorSize::STANDARD) + ECC_BYTES) * static_cast<u32>(SectorCount::STANDARD);
-static constexpr size_t MAX_2GB_SIZE = (static_cast<u16>(SectorSize::STANDARD) + ECC_BYTES) * static_cast<u32>(SectorCount::X256);
+static constexpr size_t BASE_8MB_SIZE = BASE_SECTOR_SIZE_WITH_ECC * static_cast<u32>(SectorCount::STANDARD);
+static constexpr size_t MAX_2GB_SIZE = BASE_SECTOR_SIZE_WITH_ECC * static_cast<u32>(SectorCount::X256);
 
 enum class MemcardPS1Mode
 {
@@ -162,6 +164,8 @@ static const std::string FOLDER_MEMCARD_SUPERBLOCK_NAME = "_pcsx2_superblock";
 static const std::string FOLDER_MEMCARD_INDEX_NAME = "_pcsx2_index";
 static const char* SUPERBLOCK_FORMATTED_STRING = "Sony PS2 Memory Card Format ";
 static constexpr size_t SUPERBLOCK_FORMATTED_STRING_LENGTH = 28;
+// The default Indirect FAT Cluster List in the superblock. Only one entry is defined.
+static constexpr u32 SUPERBLOCK_DEFAULT_IFC_LIST = 8;
 
 // Though there are 32 positions reserved for these in an IFAT,
 // only one cluster is used on a standard 8 MB card. As capacity
@@ -173,6 +177,10 @@ static constexpr size_t STANDARD_CLUSTER_SIZE = ((static_cast<u16>(SectorSize::S
 // Number of clusters on a standard 8 MB card. Used for folder memcards.
 static constexpr size_t STANDARD_CLUSTERS_ON_CARD = 8192;
 
+// The location of the Indirect FAT, based on superblock's IFC list and the cluster size.
+// Size in bytes.
+static constexpr u32 STANDARD_IFAT_OFFSET = SUPERBLOCK_DEFAULT_IFC_LIST * STANDARD_CLUSTER_SIZE;
+
 // The indirect FAT which will appear on any 8 MB card.
 // The memory card spec allows the FAT to be placed anywhere on the memcard,
 // and it can also be fragmented. However, no 8 MB memcard has been spotted
@@ -181,7 +189,7 @@ static constexpr size_t STANDARD_CLUSTERS_ON_CARD = 8192;
 // truth for 8 MB memcard sizes, and can be systematically relied on. In our case,
 // we will inject this into the standard "Indirect FAT" cluster when loading folder
 // memcards off the host filesystem.
-static constexpr std::array<u32, INDIRECT_FAT_CLUSTER_COUNT> STANDARD_INDIRECT_FAT =
+static constexpr std::array<u8, INDIRECT_FAT_CLUSTER_COUNT> STANDARD_INDIRECT_FAT =
 {
 	0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 
 	0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
@@ -192,12 +200,19 @@ static constexpr std::array<u32, INDIRECT_FAT_CLUSTER_COUNT> STANDARD_INDIRECT_F
 // Position of the FAT, in bytes, relative to the front of a 8 MB memcard. Used for folder memcards.
 static constexpr u32 STANDARD_FAT_OFFSET = STANDARD_CLUSTER_SIZE * (STANDARD_INDIRECT_FAT.at(0));
 
-// Value found in a PS2 memcard FAT. Indicates that cluster is currently unused.
-static constexpr u32 FAT_AVAILABLE = 0x7fffffff;
-// Value found in a PS2 memcard FAT. Indicates that cluster is the last of a file/directory.
-static constexpr u32 FAT_EOF = 0xffffffff;
-// Mask for the "in use" bit of a FAT entry
-static constexpr u32 FAT_IN_USE_MASK = 0x80000000;
+namespace FAT
+{
+	// Value found in a PS2 memcard FAT. Indicates that cluster is currently unused.
+	static constexpr u32 AVAILABLE = 0x7fffffff;
+	// Value found in a PS2 memcard FAT. Indicates that cluster is the last of a file/directory.
+	static constexpr u32 LAST_CLUSTER = 0xffffffff;
+	// Mask for the "in use" bit of a FAT entry
+	static constexpr u32 IN_USE_MASK = 0x80000000;
+}
+
+// Used in a directory entry's "cluster" attribute when the directory entry is for a file,
+// but the file is an empty file.
+static constexpr u32 EMPTY_FILE_CLUSTER_VALUE = 0xffffffff;
 
 static constexpr std::ios_base::openmode MEMCARD_OPEN_MODE = std::ios_base::in | std::ios_base::out | std::ios_base::binary;
 
