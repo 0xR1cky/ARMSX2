@@ -84,6 +84,11 @@ void MemcardFolderIO::RecurseDirectory(const char* directory, DirectoryEntry* cu
 
 	for (FILESYSTEM_FIND_DATA result : results)
 	{
+		if (FileSystem::GetFileNameFromPath(result.FileName) == "_pcsx2_superblock")
+		{
+			continue;
+		}
+
 		DirectoryEntry* child = new DirectoryEntry();
 		child->name = FileSystem::GetFileNameFromPath(result.FileName);
 
