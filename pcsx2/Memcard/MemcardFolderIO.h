@@ -33,6 +33,7 @@ struct PS2Directory
 	u32 attr7 = 0;
 	u32 attr8 = 0;
 	char name[32] = {0};
+	std::array<char, 448> padding = {0};
 };
 
 enum class DirectoryType
