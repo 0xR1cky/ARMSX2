@@ -299,9 +299,19 @@ u32 MemcardFolderIO::CommitDirectory(Memcard* memcard, DirectoryEntry* dirEntry,
 			ps2Dir.length = entry->children.size();
 			ps2Dir.cluster = CommitDirectory(memcard, entry, entryCount);
 
-			if (ps2Dir.name == "." && parentEntryPos != 0)
+			if (entry->name == ".")
 			{
-				ps2Dir.dirEntry = parentEntryPos;
+				// If this is the "." directory for the root,
+				// set length to the number of items in root
+				if (dirEntry->name == "")
+				{
+					ps2Dir.length = dirEntry->children.size();
+				}
+
+				if (parentEntryPos != 0)
+				{
+					ps2Dir.dirEntry = parentEntryPos;
+				}
 			}
 		}
 		else
