@@ -121,6 +121,15 @@ void MemcardFolderIO::InsertDotDirectories(DirectoryEntry* dirEntry)
 	DirectoryEntry* doubleDot = new DirectoryEntry();
 	doubleDot->name = "..";
 	doubleDot->flags = DOUBLE_DOT_MODE_FLAGS;
+
+	// Special case: ".." entry in the root does not have read flag set,
+	// and is hidden
+	if (dirEntry->name == "")
+	{
+		doubleDot->flags &= ~(static_cast<u16>(DirectoryModeFlag::READ));
+		doubleDot->flags |= static_cast<u16>(DirectoryModeFlag::HIDDEN);
+	}
+
 	dirEntry->children.insert(dirEntry->children.begin() + 1, doubleDot);
 }
 
@@ -280,13 +289,13 @@ u32 MemcardFolderIO::CommitDirectory(Memcard* memcard, DirectoryEntry* dirEntry,
 		
 		if (entry->type == DirectoryType::FILE)
 		{
-			ps2Dir.mode = DEFAULT_FILE_MODE_FLAGS;
+			ps2Dir.mode = entry->flags;
 			ps2Dir.length = entry->fileData.size();
 			ps2Dir.cluster = (ps2Dir.length > 0 ? CommitFile(memcard, entry) : EMPTY_FILE_CLUSTER_VALUE);
 		}
 		else if (entry->type == DirectoryType::DIRECTORY)
 		{
-			ps2Dir.mode = DEFAULT_DIRECTORY_MODE_FLAGS;
+			ps2Dir.mode = entry->flags;
 			ps2Dir.length = entry->children.size();
 			ps2Dir.cluster = CommitDirectory(memcard, entry, entryCount);
 
