@@ -302,10 +302,12 @@ u32 MemcardFolderIO::CommitDirectory(Memcard* memcard, DirectoryEntry* dirEntry,
 			if (entry->name == ".")
 			{
 				// If this is the "." directory for the root,
-				// set length to the number of items in root
+				// set length to the number of items in root,
+				// and set modified to the current time
 				if (dirEntry->name == "")
 				{
 					ps2Dir.length = dirEntry->children.size();
+					memcpy(ps2Dir.modified, UnixTimeToPS2(time(nullptr)).data(), 8);
 				}
 
 				if (parentEntryPos != 0)
