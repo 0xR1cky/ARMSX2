@@ -95,6 +95,7 @@ void MemcardFolderIO::RecurseDirectory(const char* directory, DirectoryEntry* cu
 		if (result.Attributes & FILESYSTEM_FILE_ATTRIBUTE_DIRECTORY)
 		{
 			child->type = DirectoryType::DIRECTORY;
+			child->flags = DEFAULT_DIRECTORY_MODE_FLAGS;
 			InsertDotDirectories(child);
 			currentEntry->children.push_back(child);
 			RecurseDirectory(result.FileName.c_str(), child);
@@ -106,6 +107,7 @@ void MemcardFolderIO::RecurseDirectory(const char* directory, DirectoryEntry* cu
 		else
 		{
 			child->type = DirectoryType::FILE;
+			child->flags = DEFAULT_FILE_MODE_FLAGS;
 			child->fileData = LoadFile(result.FileName.c_str());
 			currentEntry->children.push_back(child);
 		}
