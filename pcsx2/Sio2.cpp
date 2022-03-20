@@ -10,12 +10,6 @@
 #include "Multitap/MultitapConfig.h"
 #include "IopDma.h"
 
-#define Sio2Assert(condition, msg) \
-	{ \
-		if (!(condition)) DevCon.Warning("Sio2Assert: %s", msg); \
-		assert(condition); \
-	}
-
 Sio2 g_Sio2;
 
 // Drains fifoIn, and fills fifoOut with the same number of bytes.
@@ -140,7 +134,7 @@ void Sio2::Sio2Write(u8 data)
 	if (!send3Read)
 	{
 		// If send3Position somehow goes out of bounds
-		assert(send3Position < send3.size(), "SEND3 Overflow!");
+		assert(send3Position < send3.size());
 
 		const u32 s3 = send3.at(send3Position);
 
@@ -166,7 +160,7 @@ void Sio2::Sio2Write(u8 data)
 	// 2) This transaction was not DMA (block size will be zero and thus processed length always greater)
 	if (processedLength >= commandLength && processedLength >= GetDMABlockSize())
 	{
-		Sio2Assert(!fifoIn.empty(), "Sanity check, SIO2 fifoIn empty.");
+		assert(!fifoIn.empty());
 
 		mode = static_cast<Sio2Mode>(fifoIn.front());
 
@@ -227,7 +221,7 @@ void Sio2::Sio2Write(u8 data)
 
 u8 Sio2::Sio2Read()
 {
-	Sio2Assert(!fifoOut.empty(), "Attempted to read beyond FIFO contents");
+	assert(!fifoOut.empty());
 	
 	const u8 ret = fifoOut.front();
 	fifoOut.pop();
@@ -306,7 +300,7 @@ void Sio2::SetSend2(u8 index, u32 data)
 
 void Sio2::SetSend3(u8 index, u32 data)
 {
-	Sio2Assert(fifoOut.empty(), "Game is issuing its next SEND3 writes, but never fully cleared fifoOut contents!");
+	assert(fifoOut.empty());
 
 	// This function is only invoked by SEND3 writes and indicates
 	// a new wave of commands inbound. Reset send3Position to 0 so

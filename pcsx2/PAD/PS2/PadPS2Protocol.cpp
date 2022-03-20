@@ -4,12 +4,6 @@
 
 #include "Sio2.h"
 
-#define PadPS2ProtocolAssert(condition, msg) \
-	{ \
-		if (!(condition)) DevCon.Warning("PadPS2ProtocolAssert: %s", msg); \
-		assert(condition); \
-	}
-
 PadPS2Protocol g_PadPS2Protocol;
 
 void PadPS2Protocol::SoftReset()
@@ -346,7 +340,7 @@ PadPS2Mode PadPS2Protocol::GetPadMode()
 void PadPS2Protocol::SendToPad()
 {
 	const u8 deviceTypeByte = g_Sio2.GetFifoIn().front();
-	PadPS2ProtocolAssert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::PAD, "PadPS2Protocol was initiated, but this SIO2 command is targeting another device!");
+	assert(static_cast<Sio2Mode>(deviceTypeByte) == Sio2Mode::PAD);
 	g_Sio2.GetFifoIn().pop();
 	g_Sio2.GetFifoOut().push(0x00);
 
@@ -396,4 +390,3 @@ void PadPS2Protocol::SendToPad()
 			break;
 	}
 }
-
