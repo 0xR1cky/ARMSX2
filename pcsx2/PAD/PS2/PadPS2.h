@@ -20,6 +20,9 @@ public:
 	PadPS2();
 	~PadPS2();
 
+	void SoftReset();
+	void FullReset();
+
 	bool IsInConfigMode();
 	bool IsAnalogLightOn();
 	bool IsAnalogLocked();

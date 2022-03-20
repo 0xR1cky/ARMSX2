@@ -7,6 +7,24 @@
 PadPS2::PadPS2() = default;
 PadPS2::~PadPS2() = default;
 
+void PadPS2::SoftReset()
+{
+
+}
+
+void PadPS2::FullReset()
+{
+	SoftReset();
+
+	config = false;
+	analogLight = false;
+	analogLocked = false;
+	constantStage = false;
+	configResponse = false;
+	type = PadPS2Type::DIGITAL;
+	physical = PadPS2Physical::STANDARD;
+}
+
 bool PadPS2::IsInConfigMode()
 {
 	return config;

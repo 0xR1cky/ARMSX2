@@ -14,6 +14,18 @@ void PadPS2Protocol::SoftReset()
 void PadPS2Protocol::FullReset()
 {
 	SoftReset();
+
+	activePad = nullptr;
+	mode = PadPS2Mode::NOT_SET;
+
+	for (size_t port = 0; port < MAX_PORTS; port++)
+	{
+		for (size_t slot = 0; slot < MAX_SLOTS; slot++)
+		{
+			PadPS2* pad = pads.at(port).at(slot).get();
+			pad->FullReset();
+		}
+	}
 }
 
 size_t PadPS2Protocol::GetResponseSize(PadPS2Type padPS2Type)
