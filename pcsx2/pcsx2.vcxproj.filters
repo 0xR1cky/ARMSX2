@@ -1759,7 +1759,7 @@
     </ClCompile>
     <ClCompile Include="x86\iR5900Analysis.cpp">
       <Filter>System\Ps2\EmotionEngine\EE\Dynarec</Filter>
-    </ClInclude>
+    </ClCompile>
     <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.cpp" />
     <ClCompile Include="PAD\Devices\PadXInput.cpp">
       <Filter>System\Ps2\PAD\Devices</Filter>
