@@ -34,7 +34,8 @@
 #include "Elfheader.h"
 #include "Patch.h"
 #include "R5900Exceptions.h"
-#include "Sio.h"
+#include "Memcard/MemcardFolderIO.h"
+#include "SioCommon.h"
 
 #ifndef DISABLE_RECORDING
 #include "Recording/InputRecordingControls.h"
@@ -416,7 +417,6 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 	wxString gameWsHacks;
 
 	wxString gameCompat;
-	wxString gameMemCardFilter;
 
 	// The CRC can be known before the game actually starts (at the bios), so when
 	// we have the CRC but we're still at the bios and the settings are changed
@@ -447,7 +447,11 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 		{
 			GameInfo::gameName = StringUtil::UTF8StringToWxString(StringUtil::StdStringFromFormat("%s (%s)", game->name.c_str(), game->region.c_str()));
 			gameCompat.Printf(" [Status = %s]", game->compatAsString());
-			gameMemCardFilter = StringUtil::UTF8StringToWxString(game->memcardFiltersAsString());
+
+			// Tell FolderMemcardIO about the new memcard filters.
+			g_MemcardFolderIO.UpdateFilters(StringUtil::wxStringToUTF8String(curGameKey), game->memcardFilters);
+			// Then invoke a folder memcard reset.
+			g_SioCommon.FolderReload();
 
 			if (fixup.EnablePatches)
 			{
@@ -466,11 +470,6 @@ static void _ApplySettings(const Pcsx2Config& src, Pcsx2Config& fixup)
 			GameInfo::gameName = LastELF.AfterLast('\\');
 		}
 	}
-
-	if (!gameMemCardFilter.IsEmpty())
-		sioSetGameSerial(gameMemCardFilter);
-	else
-		sioSetGameSerial(curGameKey);
 
 	if (GameInfo::gameName.IsEmpty() && GameInfo::gameSerial.IsEmpty() && GameInfo::gameCRC.IsEmpty())
 	{
@@ -633,7 +632,6 @@ void AppCoreThread::GameStartingInThread()
 	m_ExecMode = ExecMode_Paused;
 	OnResumeReady();
 	_reset_stuff_as_needed();
-	ClearMcdEjectTimeoutNow(); // probably safe to do this when a game boots, eliminates annoying prompts
 	m_ExecMode = ExecMode_Opened;
 
 	_parent::GameStartingInThread();

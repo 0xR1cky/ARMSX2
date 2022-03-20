@@ -12,11 +12,6 @@ std::string MemcardConfig::GetMemcardsFolder()
 	return memcardsFolder;
 }
 
-void MemcardConfig::SetMemcardsFolder(const std::string& newPath)
-{
-	memcardsFolder = newPath;
-}
-
 std::string MemcardConfig::GetMemcardName(size_t port, size_t slot)
 {
 	port = std::clamp<size_t>(port, 0, MAX_PORTS);
@@ -64,4 +59,14 @@ std::string MemcardConfig::GetMemcardName(size_t port, size_t slot)
 			DevCon.Warning("%s(%d, %d) Sanity check! Please report to PCSX2 team!", __FUNCTION__, port, slot);
 			return "";
 	}
+}
+
+bool MemcardConfig::IsFilteringEnabled()
+{
+	return filteringEnabled;
+}
+
+void MemcardConfig::SetMemcardsFolder(const std::string& newPath)
+{
+	memcardsFolder = newPath;
 }

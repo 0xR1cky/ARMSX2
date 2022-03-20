@@ -33,6 +33,22 @@ void SioCommon::FullReset()
 	g_Sio2.FullReset();
 }
 
+void SioCommon::FolderReload()
+{
+	for (size_t port = 0; port < MAX_PORTS; port++)
+	{
+		for (size_t slot = 0; slot < MAX_SLOTS; slot++)
+		{
+			Memcard* memcard = memcards.at(port).at(slot).get();
+			
+			if (memcard->GetMemcardHostType() == MemcardHostType::FOLDER)
+			{
+				memcard->LoadFromFileSystem();
+			}
+		}
+	}
+}
+
 Memcard* SioCommon::GetMemcard(size_t port, size_t slot)
 {
 	port = std::clamp<size_t>(port, 0, MAX_PORTS);

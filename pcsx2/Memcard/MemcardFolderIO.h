@@ -55,6 +55,11 @@ public:
 	
 	std::vector<DirectoryEntry*> children;
 	std::vector<u8> fileData;
+
+	bool IsRoot()
+	{
+		return name == "";
+	}
 };
 
 // Representation of a single entry in a _pcsx2_index file
@@ -79,6 +84,10 @@ class MemcardFolderIO
 private:
 	std::vector<DirectoryIndex> indexes;
 	DirectoryEntry* root;
+	// Serial for the running game
+	std::string filterSerial;
+	// Additional serials to include in the memcard
+	std::vector<std::string> memcardFilters;
 
 	std::array<u8, 8> UnixTimeToPS2(const u64& unixTime);
 	u64 PS2TimeToUnix(const std::array<u8, 8>& ps2Time);
@@ -108,6 +117,9 @@ public:
 	MemcardFolderIO();
 	~MemcardFolderIO();
 
+	// Update memcard filter serials. No additional actions taken; to also reload
+	// folder memcards, consider SioCommon::FolderReload()
+	void UpdateFilters(const std::string& currentSerial, const std::vector<std::string>& filters);
 	void Initialize(Memcard* memcard);
 	void Load(Memcard* memcard);
 	void Write(Memcard* memcard, u32 address, size_t length);

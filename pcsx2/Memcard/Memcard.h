@@ -48,6 +48,7 @@ public:
 	void WriteToFileSystem(u32 address, size_t length);
 
 	ghc::filesystem::fstream& GetStreamRef();
+	MemcardHostType GetMemcardHostType();
 	size_t GetPort();
 	size_t GetSlot();
 	FolderMemcardAttributes& GetFolderMemcardAttributesRef();

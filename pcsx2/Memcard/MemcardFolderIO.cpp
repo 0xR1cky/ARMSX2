@@ -3,6 +3,11 @@
 #include "MemcardFolderIO.h"
 
 #include "common/FileSystem.h"
+#include "common/StringUtil.h"
+#include "Memcard/MemcardConfig.h"
+#include "Host.h"
+#include "GameDatabase.h"
+#include "System.h"
 
 #include <array>
 #include <sstream>
@@ -87,6 +92,29 @@ void MemcardFolderIO::RecurseDirectory(const char* directory, DirectoryEntry* cu
 		if (FileSystem::GetFileNameFromPath(result.FileName) == "_pcsx2_superblock")
 		{
 			continue;
+		}
+
+		// If the current directory is the memcard root and filtering is enabled in the config,
+		// then compare against the filters we have stored.
+		if (currentEntry->IsRoot() && g_MemcardConfig.IsFilteringEnabled())
+		{
+			bool hasFilter = false;
+
+			for (const std::string filter : memcardFilters)
+			{
+				// If the folder name matches this filter, set flag and stop iterating.
+				if (FileSystem::GetFileNameFromPath(result.FileName).substr(2, filter.size()) == filter)
+				{
+					hasFilter = true;
+					break;
+				}
+			}
+
+			// If no filters matched result, continue on to the next element in results.
+			if (!hasFilter)
+			{
+				continue;
+			}
 		}
 
 		DirectoryEntry* child = new DirectoryEntry();
@@ -306,7 +334,7 @@ u32 MemcardFolderIO::CommitDirectory(Memcard* memcard, DirectoryEntry* dirEntry,
 				// If this is the "." directory for the root,
 				// set length to the number of items in root,
 				// and set modified to the current time
-				if (dirEntry->name == "")
+				if (dirEntry->IsRoot())
 				{
 					ps2Dir.length = dirEntry->children.size();
 					memcpy(ps2Dir.modified, UnixTimeToPS2(time(nullptr)).data(), 8);
@@ -587,6 +615,12 @@ void MemcardFolderIO::Debug_DumpCard(Memcard* memcard)
 MemcardFolderIO::MemcardFolderIO() = default;
 MemcardFolderIO::~MemcardFolderIO() = default;
 
+void MemcardFolderIO::UpdateFilters(const std::string& currentSerial, const std::vector<std::string>& filters)
+{
+	memcardFilters = filters;
+	memcardFilters.push_back(currentSerial);
+}
+
 void MemcardFolderIO::Initialize(Memcard* memcard)
 {
 	FileSystem::CreateDirectoryPath(memcard->GetFullPath().c_str(), true);
@@ -602,6 +636,9 @@ void MemcardFolderIO::Initialize(Memcard* memcard)
 
 void MemcardFolderIO::Load(Memcard* memcard)
 {
+	// Clear any existing data
+	memcard->GetMemcardDataRef().clear();
+
 	// Set up the root
 	this->root = new DirectoryEntry();
 	InsertDotDirectories(root);

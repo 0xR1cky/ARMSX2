@@ -19,12 +19,15 @@ private:
 	std::string fileName_port_1_slot_2 = "Memcard_2-C.ps2";
 	std::string fileName_port_1_slot_3 = "Memcard_2-D.ps2";
 
+	bool filteringEnabled = true;
+
 public:
 	MemcardConfig();
 	~MemcardConfig();
 
 	std::string GetMemcardsFolder();
 	std::string GetMemcardName(size_t port, size_t slot);
+	bool IsFilteringEnabled();
 
 	void SetMemcardsFolder(const std::string& newPath);
 };

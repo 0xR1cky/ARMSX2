@@ -18,6 +18,10 @@ public:
 
 	void SoftReset();
 	void FullReset();
+	// Forces folder memcards to reload their contents from the host filesystem.
+	// Typically invoked after the core notifies MemcardFolderIO about a new serial
+	// and memcard filters
+	void FolderReload();
 
 	Memcard* GetMemcard(size_t port, size_t slot);
 };

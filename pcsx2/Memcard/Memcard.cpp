@@ -139,6 +139,11 @@ ghc::filesystem::fstream& Memcard::GetStreamRef()
 	return stream;
 }
 
+MemcardHostType Memcard::GetMemcardHostType()
+{
+	return memcardHostType;
+}
+
 size_t Memcard::GetPort()
 {
 	return port;
