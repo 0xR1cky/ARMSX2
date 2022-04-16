@@ -47,35 +47,62 @@ namespace InternalServers
 	}
 
 #ifdef _WIN32
-	void DHCP_Server::Init(PIP_ADAPTER_ADDRESSES adapter)
+	void DHCP_Server::Init(PIP_ADAPTER_ADDRESSES adapter, IP_Address ipOverride, IP_Address subnetOverride, IP_Address gatewayOverride)
 #elif defined(__POSIX__)
-	void DHCP_Server::Init(ifaddrs* adapter)
+	void DHCP_Server::Init(ifaddrs* adapter, IP_Address ipOverride, IP_Address subnetOverride, IP_Address gatewayOverride)
 #endif
 	{
-		ps2IP = config.PS2IP;
+		ps2IP = {0};
 		netmask = {0};
 		gateway = {0};
 		dns1 = {0};
 		dns2 = {0};
 		broadcastIP = {0};
 
-		if (config.AutoMask)
+		if (ipOverride.integer != 0)
+			ps2IP = ipOverride;
+		else
+			ps2IP = *(IP_Address*)&EmuConfig.DEV9.PS2IP;
+
+		if (subnetOverride.integer != 0)
+			netmask = subnetOverride;
+		else if (EmuConfig.DEV9.AutoMask)
 			AutoNetmask(adapter);
 		else
-			netmask = config.Mask;
+			netmask = *(IP_Address*)EmuConfig.DEV9.Mask;
 
-		if (config.AutoGateway)
+		if (gatewayOverride.integer != 0)
+			gateway = gatewayOverride;
+		else if (EmuConfig.DEV9.AutoGateway)
 			AutoGateway(adapter);
 		else
-			gateway = config.Gateway;
+			gateway = *(IP_Address*)EmuConfig.DEV9.Gateway;
 
-		if (!config.AutoDNS1)
-			dns1 = config.DNS1;
+		switch (EmuConfig.DEV9.ModeDNS1)
+		{
+			case Pcsx2Config::DEV9Options::DnsMode::Manual:
+				dns1 = *(IP_Address*)EmuConfig.DEV9.DNS1;
+				break;
+			case Pcsx2Config::DEV9Options::DnsMode::Internal:
+				dns1 = {192, 0, 2, 1};
+				break;
+			default:
+				break;
+		}
 
-		if (!config.AutoDNS2)
-			dns2 = config.DNS2;
+		switch (EmuConfig.DEV9.ModeDNS2)
+		{
+			case Pcsx2Config::DEV9Options::DnsMode::Manual:
+				dns2 = *(IP_Address*)EmuConfig.DEV9.DNS2;
+				break;
+			case Pcsx2Config::DEV9Options::DnsMode::Internal:
+				dns2 = {192, 0, 2, 1};
+				break;
+			default:
+				break;
+		}
 
-		AutoDNS(adapter, config.AutoDNS1, config.AutoDNS2);
+		AutoDNS(adapter, EmuConfig.DEV9.ModeDNS1 != Pcsx2Config::DEV9Options::DnsMode::Manual, EmuConfig.DEV9.ModeDNS2 != Pcsx2Config::DEV9Options::DnsMode::Manual);
 		AutoBroadcast(ps2IP, netmask);
 	}
 
@@ -476,7 +503,7 @@ namespace InternalServers
 		retPay->options.push_back(new DHCPopSERVIP(NetAdapter::internalIP));
 		retPay->options.push_back(new DHCPopEND());
 
-		retPay->maxLenth = maxMs;
+		retPay->maxLength = maxMs;
 		UDP_Packet* retUdp = new UDP_Packet(retPay);
 		retUdp->sourcePort = 67;
 		retUdp->destinationPort = 68;

@@ -9,21 +9,21 @@ jobs:
     if: github.repository == 'PCSX2/pcsx2'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: Get Latest DB and Prepare DB File
         run: |
           cd .github/workflows/scripts/controller-db/
           wget -O game_controller_db.txt https://raw.githubusercontent.com/gabomdq/SDL_GameControllerDB/master/gamecontrollerdb.txt
           python ./update-db.py
-          mv ./game_controller_db.txt ${{github.workspace}}/pcsx2/PAD/Linux/res/game_controller_db.txt
+          mv ./game_controller_db.txt ${{github.workspace}}/bin/resources/game_controller_db.txt
 
       - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@v4
         with:
-          title: "pad-linux: Update to latest controller database"
-          commit-message: "pad-linux: Update to latest controller database."
+          title: "PAD: Update to latest controller database"
+          commit-message: "PAD: Update to latest controller database."
           committer: "PCSX2 Bot <PCSX2Bot@users.noreply.github.com>"
           author: "PCSX2 Bot <PCSX2Bot@users.noreply.github.com>"
-          body: "Weekly automatic update of SDL Controller DB for Linux / Mac OS"
+          body: "Weekly automatic update of SDL Controller DB"
           reviewers: lightningterror

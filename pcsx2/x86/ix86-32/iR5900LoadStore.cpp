@@ -179,23 +179,11 @@ void recLoad32(u32 bits, bool sign)
 
 	if (_Rt_)
 	{
-#if __M_X86_64
 		// EAX holds the loaded value, so sign extend as needed:
 		if (sign)
 			xCDQE();
 
 		xMOV(ptr64[&cpuRegs.GPR.r[_Rt_].UD[0]], rax);
-#else
-		// EAX holds the loaded value, so sign extend as needed:
-		if (sign)
-			xCDQ();
-
-		xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[0]], eax);
-		if (sign)
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[1]], edx);
-		else
-			xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[1]], 0);
-#endif
 	}
 }
 
@@ -291,7 +279,6 @@ void recLWL()
 	xMOV(ecx, calleeSavedReg1d);
 	xMOV(edx, 0xffffff);
 	xSHR(edx, cl);
-# ifdef __M_X86_64
 	xAND(edx, ptr32[&cpuRegs.GPR.r[_Rt_].UL[0]]);
 
 	// OR in bytes loaded
@@ -301,19 +288,6 @@ void recLWL()
 	xOR(eax, edx);
 
 	eeSignExtendTo(_Rt_);
-# else
-	xAND(ptr32[&cpuRegs.GPR.r[_Rt_].UL[0]], edx);
-
-	// OR in bytes loaded
-	xNEG(ecx);
-	xADD(ecx, 24);
-	xSHL(eax, cl);
-	xOR(ptr32[&cpuRegs.GPR.r[_Rt_].UL[0]], eax);
-
-	// eax will always have the sign bit
-	xCDQ();
-	xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[1]], edx);
-# endif
 #else
 	iFlushCall(FLUSH_INTERPRETER);
 	_deleteEEreg(_Rs_, 1);
@@ -535,6 +509,12 @@ void recLDL()
 #ifdef LOADSTORE_RECOMPILE
 	int t2reg;
 
+	if (GPR_IS_CONST1(_Rt_))
+	{
+		_flushConstReg(_Rt_);
+		_eeOnWriteReg(_Rt_, 0);
+	}
+
 	if (GPR_IS_CONST1(_Rs_))
 	{
 		u32 srcadr = g_cpuConstRegs[_Rs_].UL[0] + _Imm_;
@@ -610,6 +590,12 @@ void recLDR()
 
 #ifdef LOADSTORE_RECOMPILE
 	int t2reg;
+	
+	if (GPR_IS_CONST1(_Rt_))
+	{
+		_flushConstReg(_Rt_);
+		_eeOnWriteReg(_Rt_, 0);
+	}
 
 	if (GPR_IS_CONST1(_Rs_))
 	{
@@ -959,11 +945,12 @@ void recLQC2()
 	xForwardJZ32 skipvuidle;
 	xSUB(eax, ptr32[&VU0.cycle]);
 	xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-	xCMP(eax, EmuConfig.Gamefixes.VUKickstartHack ? 4 : 0);
+	xCMP(eax, 4);
 	xForwardJL32 skip;
 	_cop2BackupRegs();
 	xLoadFarAddr(arg1reg, CpuVU0);
-	xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+	xMOV(arg2reg, s_nBlockInterlocked);
+	xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 	_cop2RestoreRegs();
 	skip.SetTarget();
 	skipvuidle.SetTarget();
@@ -1008,11 +995,12 @@ void recSQC2()
 	xForwardJZ32 skipvuidle;
 	xSUB(eax, ptr32[&VU0.cycle]);
 	xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-	xCMP(eax, EmuConfig.Gamefixes.VUKickstartHack ? 4 : 0);
+	xCMP(eax, 4);
 	xForwardJL32 skip;
 	_cop2BackupRegs();
 	xLoadFarAddr(arg1reg, CpuVU0);
-	xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+	xMOV(arg2reg, s_nBlockInterlocked);
+	xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 	_cop2RestoreRegs();
 	skip.SetTarget();
 	skipvuidle.SetTarget();

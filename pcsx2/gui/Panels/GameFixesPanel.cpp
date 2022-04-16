@@ -49,6 +49,10 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			wxEmptyString
 		},
 		{
+			_("Switch to Software renderer for FMVs"),
+			wxEmptyString
+		},
+		{
 			_("Skip MPEG hack - Skips videos/FMVs in games to avoid game hanging/freezes."),
 			wxEmptyString
 		},
@@ -89,7 +93,7 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			wxEmptyString
 		},
 		{
-			_("VU Kickstart (Run ahead) to avoid sync problems when reading or writing VU registers"),
+			_("VU Sync (Run behind) to avoid sync problems when reading or writing VU registers"),
 			wxEmptyString
 		},
 		{

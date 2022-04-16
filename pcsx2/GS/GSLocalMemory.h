@@ -310,6 +310,7 @@ public:
 		int bp;   ///< Page offset of y=top x=0
 		int yInc; ///< Amount to add to bp when increasing y by one page
 		int yCnt; ///< Number of pages the rect covers in the y direction
+		bool slowPath; ///< True if the texture is big enough to wrap around GS memory and overlap itself
 
 		friend class GSOffset;
 
@@ -320,30 +321,68 @@ public:
 		void loopPagesWithBreak(Fn&& fn) const
 		{
 			int lineBP = bp;
-			int nextMin = 0;
-
 			int startOff = firstRowPgXStart;
 			int endOff   = firstRowPgXEnd;
 			int yCnt = this->yCnt;
-			for (int y = 0; y < yCnt; y++)
-			{
-				int start = std::max(nextMin, lineBP + startOff);
-				int end = lineBP + endOff;
-				nextMin = end;
-				lineBP += yInc;
-				for (int pos = start; pos < end; pos++)
-					if (!fn(pos % MAX_PAGES))
-						return;
 
-				if (y < yCnt - 1)
+			if (unlikely(slowPath))
+			{
+				u32 touched[MAX_PAGES / 32] = {};
+				for (int y = 0; y < yCnt; y++)
 				{
-					startOff = midRowPgXStart;
-					endOff   = midRowPgXEnd;
+					u32 start = lineBP + startOff;
+					u32 end   = lineBP + endOff;
+					lineBP += yInc;
+					for (u32 pos = start; pos < end; pos++)
+					{
+						u32 page = pos % MAX_PAGES;
+						u32 idx = page / 32;
+						u32 mask = 1 << (page % 32);
+						if (touched[idx] & mask)
+							continue;
+						if (!fn(page))
+							return;
+						touched[idx] |= mask;
+					}
+
+					if (y < yCnt - 2)
+					{
+						// Next iteration is not last (y + 1 < yCnt - 1).
+						startOff = midRowPgXStart;
+						endOff   = midRowPgXEnd;
+					}
+					else
+					{
+						startOff = lastRowPgXStart;
+						endOff   = lastRowPgXEnd;
+					}
 				}
-				else
+			}
+			else
+			{
+				u32 nextMin = 0;
+
+				for (int y = 0; y < yCnt; y++)
 				{
-					startOff = lastRowPgXStart;
-					endOff   = lastRowPgXEnd;
+					u32 start = std::max<u32>(nextMin, lineBP + startOff);
+					u32 end   = lineBP + endOff;
+					nextMin = end;
+					lineBP += yInc;
+					for (u32 pos = start; pos < end; pos++)
+						if (!fn(pos % MAX_PAGES))
+							return;
+
+					if (y < yCnt - 2)
+					{
+						// Next iteration is not last (y + 1 < yCnt - 1).
+						startOff = midRowPgXStart;
+						endOff   = midRowPgXEnd;
+					}
+					else
+					{
+						startOff = lastRowPgXStart;
+						endOff   = lastRowPgXEnd;
+					}
 				}
 			}
 		}
@@ -429,6 +468,7 @@ public:
 		u16 bpp, trbpp, pal, fmt;
 		GSVector2i bs, pgs;
 		u8 msk, depth;
+		u32 fmsk;
 	};
 
 	static psm_t m_psm[64];
@@ -1116,6 +1156,13 @@ public:
 	void ReadTextureBlock8H(u32 bp, u8* dst, int dstpitch, const GIFRegTEXA& TEXA) const;
 	void ReadTextureBlock4HL(u32 bp, u8* dst, int dstpitch, const GIFRegTEXA& TEXA) const;
 	void ReadTextureBlock4HH(u32 bp, u8* dst, int dstpitch, const GIFRegTEXA& TEXA) const;
+
+#if _M_SSE == 0x501
+	void ReadTexture8HSW(const GSOffset& off, const GSVector4i& r, u8* dst, int dstpitch, const GIFRegTEXA& TEXA);
+	void ReadTexture8HHSW(const GSOffset& off, const GSVector4i& r, u8* dst, int dstpitch, const GIFRegTEXA& TEXA);
+	void ReadTextureBlock8HSW(u32 bp, u8* dst, int dstpitch, const GIFRegTEXA& TEXA) const;
+	void ReadTextureBlock8HHSW(u32 bp, u8* dst, int dstpitch, const GIFRegTEXA& TEXA) const;
+#endif
 
 	// pal ? 8 : 32
 

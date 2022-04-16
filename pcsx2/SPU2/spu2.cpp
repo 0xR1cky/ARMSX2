@@ -17,15 +17,17 @@
 #include "Global.h"
 #include "spu2.h"
 #include "Dma.h"
+#ifndef PCSX2_CORE
 #if defined(_WIN32)
 #include "Windows/Dialogs.h"
 #else // BSD, Macos
 #include "Linux/Dialogs.h"
 #include "Linux/Config.h"
 #endif
+#else
+#include "Host/Dialogs.h"
+#endif
 #include "R3000A.h"
-#include "common/pxStreams.h"
-#include "gui/AppCoreThread.h"
 
 using namespace Threading;
 
@@ -38,6 +40,9 @@ static bool IsInitialized = false;
 
 u32 lClocks = 0;
 
+#ifndef PCSX2_CORE
+#include "gui/AppCoreThread.h"
+
 void SPU2configure()
 {
 	ScopedCoreThreadPause paused_core(SystemsMask::System_SPU2);
@@ -45,6 +50,8 @@ void SPU2configure()
 	configure();
 	paused_core.AllowResume();
 }
+
+#endif
 
 // --------------------------------------------------------------------------------------
 //  DMA 4/7 Callbacks from Core Emulator
@@ -208,7 +215,7 @@ s32 SPU2init()
 	return 0;
 }
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(PCSX2_CORE)
 // Bit ugly to have this here instead of in RealttimeDebugger.cpp, but meh :p
 extern bool debugDialogOpen;
 extern HWND hDebugDialog;
@@ -258,7 +265,7 @@ s32 SPU2open()
 
 	FileLog("[%10d] SPU2 Open\n", Cycles);
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER) && !defined(PCSX2_CORE)
 #ifdef PCSX2_DEVBUILD // Define may not be needed but not tested yet. Better make sure.
 	if (IsDevBuild && VisualDebug())
 	{
@@ -284,7 +291,7 @@ s32 SPU2open()
 	{
 		SndBuffer::Init();
 
-#ifndef __POSIX__
+#if defined(_WIN32) && !defined(PCSX2_CORE)
 		DspLoadLibrary(dspPlugin, dspPluginModule);
 #endif
 		WaveDump::Open();
@@ -307,7 +314,7 @@ void SPU2close()
 
 	FileLog("[%10d] SPU2 Close\n", Cycles);
 
-#ifndef __POSIX__
+#if defined(_WIN32) && !defined(PCSX2_CORE)
 	DspCloseLibrary();
 #endif
 
@@ -349,6 +356,11 @@ void SPU2shutdown()
 	if (spu2Log)
 		fclose(spu2Log);
 #endif
+}
+
+void SPU2SetOutputPaused(bool paused)
+{
+	SndBuffer::SetPaused(paused);
 }
 
 #ifdef DEBUG_KEYS

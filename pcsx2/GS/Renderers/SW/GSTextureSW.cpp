@@ -32,6 +32,11 @@ GSTextureSW::~GSTextureSW()
 	_aligned_free(m_data);
 }
 
+void* GSTextureSW::GetNativeHandle() const
+{
+	return nullptr;
+}
+
 bool GSTextureSW::Update(const GSVector4i& r, const void* data, int pitch, int layer)
 {
 	GSMap m;
@@ -81,11 +86,19 @@ void GSTextureSW::Unmap()
 
 bool GSTextureSW::Save(const std::string& fn)
 {
-#ifdef ENABLE_OGL_DEBUG
+#ifdef PCSX2_DEVBUILD
 	GSPng::Format fmt = GSPng::RGB_A_PNG;
 #else
 	GSPng::Format fmt = GSPng::RGB_PNG;
 #endif
 	int compression = theApp.GetConfigI("png_compression_level");
 	return GSPng::Save(fmt, fn, static_cast<u8*>(m_data), m_size.x, m_size.y, m_pitch, compression);
+}
+
+void GSTextureSW::Swap(GSTexture* tex)
+{
+	GSTexture::Swap(tex);
+	std::swap(m_pitch, static_cast<GSTextureSW*>(tex)->m_pitch);
+	std::swap(m_data, static_cast<GSTextureSW*>(tex)->m_data);
+	// std::swap(m_mapped, static_cast<GSTextureSW*>(tex)->m_mapped);
 }

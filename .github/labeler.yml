@@ -27,6 +27,16 @@
 'GUI/WX':
   - 'pcsx2/gui/*'
   - 'pcsx2/gui/**/*'
+  - 'pcsx2/SPU2/wx/*'
+  - 'pcsx2/SPU2/wx/**/*'
+  - 'pcsx2/PAD/Linux/wx_dialog/*'
+  - 'pcsx2/PAD/Linux/wx_dialog/**/*'
+  - 'pcsx2/GS/Window/GSwxDialog.h'
+'GUI/Qt':
+  - 'pcsx2-qt/*'
+  - 'pcsx2-qt/**/*'
+  - '3rdparty/Qt/*'
+  - '3rdparty/Qt/**/*'
 'GameDB':
   - '**/GameIndex.*'
 'Installer | Package':
@@ -74,6 +84,9 @@
 'GS: OpenGL':
   - 'pcsx2/GS/Renderers/OpenGL/*'
   - 'pcsx2/GS/Renderers/OpenGL/**/*'
+'GS: Vulkan':
+  - 'pcsx2/GS/Renderers/Vulkan/*'
+  - 'pcsx2/GS/Renderers/Vulkan/**/*'
 'GS: Texture Cache':
   - 'pcsx2/GS/Renderers/*TextureCache*.*'
   - 'pcsx2/GS/Renderers/**/*TextureCache*.*'

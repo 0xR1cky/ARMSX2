@@ -13,12 +13,12 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #pragma once
 
-
-#include "IopCommon.h"
 #include "CDVDaccess.h"
+
+#include <string>
+#include <string_view>
 
 #define btoi(b) ((b) / 16 * 10 + (b) % 16) /* BCD to u_char */
 #define itob(i) ((i) / 10 * 16 + (i) % 10) /* u_char to BCD */
@@ -95,21 +95,25 @@ struct cdvdStruct
 	u8 nCommand;
 	u8 Ready;
 	u8 Error;
-	u8 PwOff;
+	u8 IntrStat;
 	u8 Status;
+	u8 StatusSticky;
 	u8 Type;
 	u8 sCommand;
 	u8 sDataIn;
 	u8 sDataOut;
 	u8 HowTo;
 
-	u8 Param[32];
-	u8 Result[32];
+	u8 NCMDParam[16];
+	u8 SCMDParam[16];
+	u8 SCMDResult[16];
 
-	u8 ParamC;
-	u8 ParamP;
-	u8 ResultC;
-	u8 ResultP;
+	u8 NCMDParamC;
+	u8 NCMDParamP;
+	u8 SCMDParamC;
+	u8 SCMDParamP;
+	u8 SCMDResultC;
+	u8 SCMDResultP;
 
 	u8 CBlockIndex;
 	u8 COffset;
@@ -148,12 +152,12 @@ struct cdvdStruct
 	u8 TrayTimeout;
 	u8 Action;        // the currently scheduled emulated action
 	u32 SeekToSector; // Holds the destination sector during seek operations.
+	u32 MaxSector;    // Current disc max sector.
 	u32 ReadTime;     // Avg. time to read one block of data (in Iop cycles)
 	bool Spinning;    // indicates if the Cdvd is spinning or needs a spinup delay
-	bool mediaChanged;
 	cdvdTrayTimer Tray;
 	u8 nextSectorsBuffered;
-	bool triggerDataReady;
+	bool AbortRequested;
 };
 
 extern cdvdStruct cdvd;
@@ -172,8 +176,8 @@ extern void cdvdNewDiskCB();
 extern u8 cdvdRead(u8 key);
 extern void cdvdWrite(u8 key, u8 rt);
 
-extern void cdvdReloadElfInfo(wxString elfoverride = wxEmptyString);
+extern void cdvdReloadElfInfo(std::string elfoverride = std::string());
 extern s32 cdvdCtrlTrayOpen();
 extern s32 cdvdCtrlTrayClose();
 
-extern wxString DiscSerial;
+extern std::string DiscSerial;

@@ -49,39 +49,16 @@ namespace D3D
 		return factory;
 	}
 
-	std::vector<std::string> GetAdapterList(IDXGIFactory2* factory)
-	{
-		ASSERT(factory);
-
-		UINT index = 0;
-		wil::com_ptr_nothrow<IDXGIAdapter1> adapter;
-
-		std::vector<std::string> adapter_list;
-		while (factory->EnumAdapters1(index, adapter.put()) != DXGI_ERROR_NOT_FOUND)
-		{
-			DXGI_ADAPTER_DESC1 desc;
-
-			std::string name;
-			if (SUCCEEDED(adapter->GetDesc1(&desc)))
-				name = convert_utf16_to_utf8(desc.Description);
-
-			adapter_list.push_back(std::move(name));
-
-			index++;
-		}
-
-		return adapter_list;
-	}
-
 	wil::com_ptr_nothrow<IDXGIAdapter1> GetAdapterFromIndex(IDXGIFactory2* factory, int index)
 	{
 		ASSERT(factory);
 
 		wil::com_ptr_nothrow<IDXGIAdapter1> adapter;
-		if (factory->EnumAdapters1(index, adapter.put()) == DXGI_ERROR_NOT_FOUND)
+		if (index < 0 || factory->EnumAdapters1(index, adapter.put()) == DXGI_ERROR_NOT_FOUND)
 		{
 			// try index 0 (default adapter)
-			fprintf(stderr, "D3D: adapter not found, falling back to the default\n");
+			if (index >= 0)
+				fprintf(stderr, "D3D: adapter not found, falling back to the default\n");
 			if (FAILED(factory->EnumAdapters1(0, adapter.put())))
 			{
 				// either there are no adapters connected or something major is wrong with the system

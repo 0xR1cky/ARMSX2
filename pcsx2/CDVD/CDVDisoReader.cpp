@@ -24,6 +24,7 @@
 
 #include "CDVDisoReader.h"
 #include "AsyncFileReader.h"
+#include "CDVD/CDVD.h"
 
 #include <cstring>
 #include <array>
@@ -52,7 +53,7 @@ s32 CALLBACK ISOopen(const char* pTitle)
 
 	try
 	{
-		iso.Open(fromUTF8(pTitle));
+		iso.Open(pTitle);
 	}
 	catch (BaseException& ex)
 	{

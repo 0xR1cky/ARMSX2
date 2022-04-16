@@ -16,8 +16,7 @@
 #include "PrecompiledHeader.h"
 #include "App.h"
 #include "MainFrame.h"
-
-#include "common/IniInterface.h"
+#include "IniInterface.h"
 #include "common/SettingsWrapper.h"
 #include "wxSettingsInterface.h"
 
@@ -87,7 +86,7 @@ namespace PathDefs
 
 		const wxDirName& Langs()
 		{
-			static const wxDirName retval(L"Langs");
+			static const wxDirName retval(L"locale");
 			return retval;
 		}
 
@@ -102,7 +101,25 @@ namespace PathDefs
 			static const wxDirName retval(L"docs");
 			return retval;
 		}
-	}; // namespace Base
+
+		const wxDirName& Resources()
+		{
+			static const wxDirName retval(L"resources");
+			return retval;
+		}
+
+		const wxDirName& Cache()
+		{
+			static const wxDirName retval(L"cache");
+			return retval;
+		}
+
+		const wxDirName& Textures()
+		{
+			static const wxDirName retval(L"textures");
+			return retval;
+		}
+	};
 
 	// Specifies the root folder for the application install.
 	// (currently it's the CWD, but in the future I intend to move all binaries to a "bin"
@@ -173,14 +190,12 @@ namespace PathDefs
 	{
 #ifdef __APPLE__
 		return wxDirName(wxStandardPaths::Get().GetResourcesDir());
-#elif !defined(GAMEINDEX_DIR_COMPILATION)
+#elif !defined(PCSX2_APP_DATADIR)
 		return AppRoot();
 #else
 		// Each linux distributions have his rules for path so we give them the possibility to
 		// change it with compilation flags. -- Gregory
-#define xGAMEINDEX_str(s) GAMEINDEX_DIR_str(s)
-#define GAMEINDEX_DIR_str(s) #s
-		return wxDirName(xGAMEINDEX_str(GAMEINDEX_DIR_COMPILATION));
+		return wxDirName(PCSX2_APP_DATADIR).MakeAbsolute(AppRoot().ToString());
 #endif
 	}
 
@@ -192,7 +207,6 @@ namespace PathDefs
 	wxDirName GetBios()
 	{
 		return GetDocuments() + Base::Bios();
-		;
 	}
 
 	wxDirName GetCheats()
@@ -207,7 +221,11 @@ namespace PathDefs
 
 	wxDirName GetDocs()
 	{
+#if !defined(PCSX2_APP_DOCDIR)
 		return AppRoot() + Base::Docs();
+#else
+		return wxDirName(PCSX2_APP_DOCDIR).MakeAbsolute(AppRoot().ToString());
+#endif
 	}
 
 	wxDirName GetSavestates()
@@ -230,13 +248,29 @@ namespace PathDefs
 		return GetDocuments() + Base::Logs();
 	}
 
-	wxDirName GetLangs()
+	wxDirName GetResources()
 	{
+		// ifdef is only needed here because mac doesn't put its resources in a subdirectory..
 #ifdef __APPLE__
 		return wxDirName(wxStandardPaths::Get().GetResourcesDir());
 #else
-		return AppRoot() + Base::Langs();
+		return GetProgramDataDir() + Base::Resources();
 #endif
+	}
+
+	wxDirName GetLangs()
+	{
+		return GetResources() + Base::Langs();
+	}
+
+	wxDirName GetCache()
+	{
+		return GetDocuments() + Base::Cache();
+	}
+
+	wxDirName GetTextures()
+	{
+		return GetDocuments() + Base::Textures();
 	}
 
 	wxDirName Get(FoldersEnum_t folderidx)
@@ -261,6 +295,10 @@ namespace PathDefs
 				return GetCheats();
 			case FolderId_CheatsWS:
 				return GetCheatsWS();
+			case FolderId_Cache:
+				return GetCache();
+			case FolderId_Textures:
+				return GetTextures();
 
 			case FolderId_Documents:
 				return CustomDocumentsFolder;
@@ -374,6 +412,10 @@ wxDirName& AppConfig::FolderOptions::operator[](FoldersEnum_t folderidx)
 			return Cheats;
 		case FolderId_CheatsWS:
 			return CheatsWS;
+		case FolderId_Cache:
+			return Cache;
+		case FolderId_Textures:
+			return Textures;
 
 		case FolderId_Documents:
 			return CustomDocumentsFolder;
@@ -410,6 +452,10 @@ bool AppConfig::FolderOptions::IsDefault(FoldersEnum_t folderidx) const
 			return UseDefaultCheats;
 		case FolderId_CheatsWS:
 			return UseDefaultCheatsWS;
+		case FolderId_Cache:
+			return UseDefaultCache;
+		case FolderId_Textures:
+			return UseDefaultTextures;
 
 		case FolderId_Documents:
 			return false;
@@ -481,14 +527,22 @@ void AppConfig::FolderOptions::Set(FoldersEnum_t folderidx, const wxString& src,
 			EmuFolders::CheatsWS = GetResolvedFolder(FolderId_CheatsWS);
 			break;
 
+		case FolderId_Cache:
+			Cache = src;
+			UseDefaultCache = useDefault;
+			EmuFolders::Cache = GetResolvedFolder(FolderId_Cache);
+			EmuFolders::Cache.Mkdir();
+			break;
+
+		case FolderId_Textures:
+			Textures = src;
+			UseDefaultTextures = useDefault;
+			EmuFolders::Textures = GetResolvedFolder(FolderId_Textures);
+			EmuFolders::Textures.Mkdir();
+			break;
+
 			jNO_DEFAULT
 	}
-}
-
-wxString AppConfig::FullpathToSaveState(wxString serialName, wxString CRCvalue) const
-{
-	wxString Sstate_append = serialName + " - " + "(" + CRCvalue + ")";
-	return Path::Combine(Folders.Savestates, Sstate_append);
 }
 
 bool IsPortable()
@@ -687,6 +741,8 @@ AppConfig::FolderOptions::FolderOptions()
 	, Logs(PathDefs::GetLogs())
 	, Cheats(PathDefs::GetCheats())
 	, CheatsWS(PathDefs::GetCheatsWS())
+	, Resources(PathDefs::GetResources())
+	, Cache(PathDefs::GetCache())
 
 	, RunIso(PathDefs::GetDocuments()) // raw default is always the Documents folder.
 	, RunELF(PathDefs::GetDocuments()) // raw default is always the Documents folder.
@@ -712,6 +768,7 @@ void AppConfig::FolderOptions::LoadSave(IniInterface& ini)
 	IniBitBool(UseDefaultLangs);
 	IniBitBool(UseDefaultCheats);
 	IniBitBool(UseDefaultCheatsWS);
+	IniBitBool(UseDefaultTextures);
 
 	//when saving in portable mode, we save relative paths if possible
 	//  --> on load, these relative paths will be expanded relative to the exe folder.
@@ -725,6 +782,8 @@ void AppConfig::FolderOptions::LoadSave(IniInterface& ini)
 	IniEntryDirFile(Langs, rel);
 	IniEntryDirFile(Cheats, rel);
 	IniEntryDirFile(CheatsWS, rel);
+	IniEntryDirFile(Cache, rel);
+	IniEntryDirFile(Textures, rel);
 
 	IniEntryDirFile(RunIso, rel);
 	IniEntryDirFile(RunELF, rel);
@@ -752,6 +811,12 @@ void AppSetEmuFolders()
 	EmuFolders::Langs = GetResolvedFolder(FolderId_Langs);
 	EmuFolders::Cheats = GetResolvedFolder(FolderId_Cheats);
 	EmuFolders::CheatsWS = GetResolvedFolder(FolderId_CheatsWS);
+	EmuFolders::Resources = g_Conf->Folders.Resources;
+	EmuFolders::Cache = GetResolvedFolder(FolderId_Cache);
+	EmuFolders::Textures = GetResolvedFolder(FolderId_Textures);
+
+	// Ensure cache directory exists, since we're going to write to it (e.g. game database)
+	EmuFolders::Cache.Mkdir();
 }
 
 // ------------------------------------------------------------------------
@@ -809,6 +874,7 @@ void AppConfig::GSWindowOptions::LoadSave(IniInterface& ini)
 	static const wxChar* AspectRatioNames[] =
 		{
 			L"Stretch",
+			L"Auto 4:3/3:2 (Progressive)",
 			L"4:3",
 			L"16:9",
 			// WARNING: array must be NULL terminated to compute it size
@@ -821,6 +887,7 @@ void AppConfig::GSWindowOptions::LoadSave(IniInterface& ini)
 	static const wxChar* FMVAspectRatioSwitchNames[] =
 		{
 			L"Off",
+			L"Auto 4:3/3:2 (Progressive)",
 			L"4:3",
 			L"16:9",
 			// WARNING: array must be NULL terminated to compute it size

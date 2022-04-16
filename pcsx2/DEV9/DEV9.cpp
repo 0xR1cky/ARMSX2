@@ -16,7 +16,7 @@
 #include "PrecompiledHeader.h"
 
 #ifdef _WIN32
-//#include <winsock2.h>
+#include "common/RedtapeWindows.h"
 #include <Winioctl.h>
 #include <windows.h>
 #else
@@ -24,8 +24,6 @@
 #include <sys/mman.h>
 #include <err.h>
 #endif
-
-#include "ghc/filesystem.h"
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -36,6 +34,7 @@
 #include "DEV9.h"
 #undef EXTERN
 #include "Config.h"
+#include "DEV9Config.h"
 #include "smap.h"
 
 
@@ -91,10 +90,24 @@ int hEeprom;
 int mapping;
 #endif
 
-std::string s_strIniPath = "inis";
-std::string s_strLogPath = "logs";
-
 bool isRunning = false;
+
+fs::path GetHDDPath()
+{
+	//GHC uses UTF8 on all platforms
+	fs::path hddPath(EmuConfig.DEV9.HddFile);
+
+	if (hddPath.empty())
+		EmuConfig.DEV9.HddEnable = false;
+
+	if (hddPath.is_relative())
+	{
+		fs::path path(EmuFolders::Settings.ToString().wx_str());
+		hddPath = path / hddPath;
+	}
+
+	return hddPath;
+}
 
 s32 DEV9init()
 {
@@ -186,34 +199,20 @@ void DEV9shutdown()
 s32 DEV9open()
 {
 	DevCon.WriteLn("DEV9: DEV9open");
-	LoadConf();
-#ifdef _WIN32
-	//Convert to utf8
-	char mbHdd[sizeof(config.Hdd)] = {0};
-	WideCharToMultiByte(CP_UTF8, 0, config.Hdd, -1, mbHdd, sizeof(mbHdd) - 1, nullptr, nullptr);
-	DevCon.WriteLn("DEV9: open r+: %s", mbHdd);
-#else
-	DevCon.WriteLn("DEV9: open r+: %s", config.Hdd);
+#ifndef PCSX2_CORE
+	LoadDnsHosts();
 #endif
+	DevCon.WriteLn("DEV9: open r+: %s", EmuConfig.DEV9.HddFile.c_str());
 
-	ghc::filesystem::path hddPath(config.Hdd);
+	fs::path hddPath = GetHDDPath();
 
-	if (hddPath.empty())
-		config.hddEnable = false;
-
-	if (hddPath.is_relative())
-	{
-		ghc::filesystem::path path(EmuFolders::Settings.ToString().wx_str());
-		hddPath = path / hddPath;
-	}
-
-	if (config.hddEnable)
+	if (EmuConfig.DEV9.HddEnable)
 	{
 		if (dev9.ata->Open(hddPath) != 0)
-			config.hddEnable = false;
+			EmuConfig.DEV9.HddEnable = false;
 	}
 
-	if (config.ethEnable)
+	if (EmuConfig.DEV9.EthEnable)
 		InitNet();
 
 	isRunning = true;
@@ -313,7 +312,7 @@ void FIFOIntr()
 
 u8 DEV9read8(u32 addr)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return 0;
 
 	u8 hard;
@@ -379,7 +378,7 @@ u8 DEV9read8(u32 addr)
 
 u16 DEV9read16(u32 addr)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return 0;
 
 	u16 hard;
@@ -455,9 +454,9 @@ u16 DEV9read16(u32 addr)
 
 		case SPD_R_REV_3:
 			hard = 0;
-			if (config.hddEnable)
+			if (EmuConfig.DEV9.HddEnable)
 				hard |= SPD_CAPS_ATA;
-			if (config.ethEnable)
+			if (EmuConfig.DEV9.EthEnable)
 				hard |= SPD_CAPS_SMAP;
 			hard |= SPD_CAPS_FLASH;
 			//DevCon.WriteLn("DEV9: SPD_R_REV_3 16bit read %x", hard);
@@ -519,7 +518,7 @@ u16 DEV9read16(u32 addr)
 
 u32 DEV9read32(u32 addr)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return 0;
 
 	u32 hard;
@@ -545,7 +544,7 @@ u32 DEV9read32(u32 addr)
 
 void DEV9write8(u32 addr, u8 value)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return;
 
 	if (addr >= ATA_DEV9_HDD_BASE && addr < ATA_DEV9_HDD_END)
@@ -657,7 +656,7 @@ void DEV9write8(u32 addr, u8 value)
 
 void DEV9write16(u32 addr, u16 value)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return;
 
 	if (addr >= ATA_DEV9_HDD_BASE && addr < ATA_DEV9_HDD_END)
@@ -967,7 +966,7 @@ void DEV9write16(u32 addr, u16 value)
 
 void DEV9write32(u32 addr, u32 value)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return;
 
 	if (addr >= ATA_DEV9_HDD_BASE && addr < ATA_DEV9_HDD_END)
@@ -1003,7 +1002,7 @@ void DEV9write32(u32 addr, u32 value)
 
 void DEV9readDMA8Mem(u32* pMem, int size)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return;
 
 	size >>= 1;
@@ -1029,7 +1028,7 @@ void DEV9readDMA8Mem(u32* pMem, int size)
 
 void DEV9writeDMA8Mem(u32* pMem, int size)
 {
-	if (!config.ethEnable & !config.hddEnable)
+	if (!EmuConfig.DEV9.EthEnable && !EmuConfig.DEV9.HddEnable)
 		return;
 
 	size >>= 1;
@@ -1059,69 +1058,36 @@ void DEV9async(u32 cycles)
 	dev9.ata->Async(cycles);
 }
 
-// extended funcs
-
-void DEV9setSettingsDir(const char* dir)
-{
-	// Grab the ini directory.
-	// TODO: Use
-	s_strIniPath = (dir == NULL) ? "inis" : dir;
-}
-
-void DEV9setLogDir(const char* dir)
-{
-	// Get the path to the log directory.
-	s_strLogPath = (dir == NULL) ? "logs" : dir;
-}
-
-void ApplyConfigIfRunning(ConfigDEV9 oldConfig)
+void DEV9CheckChanges(const Pcsx2Config& old_config)
 {
 	if (!isRunning)
 		return;
 
 	//Eth
-	ReconfigureLiveNet(&oldConfig);
+	ReconfigureLiveNet(old_config);
 
 	//Hdd
 	//Hdd Validate Path
-	ghc::filesystem::path hddPath(config.Hdd);
-
-	if (hddPath.empty())
-		config.hddEnable = false;
-
-	if (hddPath.is_relative())
-	{
-		//GHC uses UTF8 on all platforms
-		ghc::filesystem::path path(EmuFolders::Settings.ToString().wx_str());
-		hddPath = path / hddPath;
-	}
+	fs::path hddPath = GetHDDPath();
 
 	//Hdd Compare with old config
-	if (config.hddEnable)
+	if (EmuConfig.DEV9.HddEnable)
 	{
-		if (oldConfig.hddEnable)
+		if (old_config.DEV9.HddEnable)
 		{
 			//ATA::Open/Close dosn't set any regs
 			//So we can close/open to apply settings
-#ifdef _WIN32
-			if (wcscmp(config.Hdd, oldConfig.Hdd))
-#else
-			if (strcmp(config.Hdd, oldConfig.Hdd))
-#endif
+			if (EmuConfig.DEV9.HddFile != old_config.DEV9.HddFile ||
+				EmuConfig.DEV9.HddSizeSectors != old_config.DEV9.HddSizeSectors)
 			{
 				dev9.ata->Close();
 				if (dev9.ata->Open(hddPath) != 0)
-					config.hddEnable = false;
-			}
-
-			if (config.HddSize != oldConfig.HddSize)
-			{
-				dev9.ata->Close();
-				if (dev9.ata->Open(hddPath) != 0)
-					config.hddEnable = false;
+					EmuConfig.DEV9.HddEnable = false;
 			}
 		}
+		else if (dev9.ata->Open(hddPath) != 0)
+			EmuConfig.DEV9.HddEnable = false;
 	}
-	else if (oldConfig.hddEnable)
+	else if (old_config.DEV9.HddEnable)
 		dev9.ata->Close();
 }

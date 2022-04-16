@@ -19,7 +19,7 @@
 
 class PADconf
 {
-	u32 ff_intensity;
+	float ff_intensity;
 	u32 sensibility;
 
 public:
@@ -39,20 +39,19 @@ public:
 		u32 packed_options;            // Only first 8 bits of each 16 bits series are really used, rest is padding
 	};
 
-	u32 log;
 	u32 ftw;
 	std::map<u32, u32> keysym_map[GAMEPAD_NUMBER];
 	std::array<size_t, GAMEPAD_NUMBER> unique_id;
 	std::vector<std::string> sdl2_mapping;
+	std::vector<std::pair<std::string, std::string>> sdl2_hints;
 
 	PADconf() { init(); }
 
 	void init()
 	{
-		log = 0;
 		ftw = 1;
 		packed_options = 0;
-		ff_intensity = 0x7FFF; // set it at max value by default
+		ff_intensity = 1.0; // set it at max value by default
 		sensibility = 100;
 		for (u32 pad = 0; pad < GAMEPAD_NUMBER; pad++)
 		{
@@ -79,7 +78,7 @@ public:
 	/**
 	 * Return (a copy of) private memner ff_instensity
 	 **/
-	u32 get_ff_intensity()
+	float get_ff_intensity()
 	{
 		return ff_intensity;
 	}
@@ -88,12 +87,9 @@ public:
 	 * Set intensity while checking that the new value is within
 	 * valid range, more than 0x7FFF will cause pad not to rumble(and less than 0 is obviously bad)
 	 **/
-	void set_ff_intensity(u32 new_intensity)
+	void set_ff_intensity(float new_intensity)
 	{
-		if (new_intensity <= 0x7FFF)
-		{
-			ff_intensity = new_intensity;
-		}
+		ff_intensity = std::min(std::max(new_intensity, 0.f), 1.f);
 	}
 
 	/**

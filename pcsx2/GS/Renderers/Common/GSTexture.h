@@ -26,29 +26,38 @@ public:
 		int pitch;
 	};
 
-	enum class Type
+	enum class Type : u8
 	{
 		Invalid = 0,
 		RenderTarget = 1,
 		DepthStencil,
 		Texture,
 		Offscreen,
-		Backbuffer,
 		SparseRenderTarget,
 		SparseDepthStencil,
 	};
 
-	enum class Format
+	enum class Format : u8
 	{
 		Invalid = 0,  ///< Used for initialization
-		Backbuffer,   ///< For displaying to the screen
 		Color,        ///< Standard (RGBA8) color texture
 		FloatColor,   ///< Float-based color texture for colclip emulation (RGBA32F)
 		DepthStencil, ///< Depth stencil texture
 		UNorm8,       ///< A8UNorm texture for paletted textures and the OSD font
 		UInt16,       ///< UInt16 texture for reading back 16-bit depth
 		UInt32,       ///< UInt32 texture for reading back 24 and 32-bit depth
-		Int32,        ///< Int32 texture for date emulation
+		PrimID,       ///< Prim ID tracking texture for date emulation
+		BC1,          ///< BC1, aka DXT1 compressed texture for replacements
+		BC2,          ///< BC2, aka DXT2/3 compressed texture for replacements
+		BC3,          ///< BC3, aka DXT4/5 compressed texture for replacements
+		BC7,          ///< BC7, aka BPTC compressed texture for replacements
+	};
+
+	enum class State : u8
+	{
+		Dirty,
+		Cleared,
+		Invalidated
 	};
 
 protected:
@@ -56,9 +65,12 @@ protected:
 	GSVector2i m_size;
 	GSVector2i m_committed_size;
 	GSVector2i m_gpu_page_size;
+	int m_mipmap_levels;
 	Type m_type;
 	Format m_format;
+	State m_state;
 	bool m_sparse;
+	bool m_needs_mipmaps_generated;
 
 public:
 	GSTexture();
@@ -70,11 +82,15 @@ public:
 		return false;
 	}
 
+	// Returns the native handle of a texture.
+	virtual void* GetNativeHandle() const = 0;
+
 	virtual bool Update(const GSVector4i& r, const void* data, int pitch, int layer = 0) = 0;
 	virtual bool Map(GSMap& m, const GSVector4i* r = NULL, int layer = 0) = 0;
 	virtual void Unmap() = 0;
 	virtual void GenerateMipmap() {}
-	virtual bool Save(const std::string& fn) = 0;
+	virtual bool Save(const std::string& fn);
+	virtual void Swap(GSTexture* tex);
 	virtual u32 GetID() { return 0; }
 
 	GSVector2 GetScale() const { return m_scale; }
@@ -83,9 +99,37 @@ public:
 	int GetWidth() const { return m_size.x; }
 	int GetHeight() const { return m_size.y; }
 	GSVector2i GetSize() const { return m_size; }
+	int GetMipmapLevels() const { return m_mipmap_levels; }
+	bool IsMipmap() const { return m_mipmap_levels > 1; }
 
 	Type GetType() const { return m_type; }
 	Format GetFormat() const { return m_format; }
+	bool IsCompressedFormat() const { return IsCompressedFormat(m_format); }
+
+	u32 GetCompressedBytesPerBlock() const;
+	u32 GetCompressedBlockSize() const;
+	u32 CalcUploadRowLengthFromPitch(u32 pitch) const;
+	u32 CalcUploadSize(u32 height, u32 pitch) const;
+
+	bool IsRenderTargetOrDepthStencil() const
+	{
+		return (m_type >= Type::RenderTarget && m_type <= Type::DepthStencil) ||
+			(m_type >= Type::SparseRenderTarget && m_type <= Type::SparseDepthStencil);
+	}
+	bool IsRenderTarget() const
+	{
+		return (m_type == Type::RenderTarget || m_type == Type::SparseRenderTarget);
+	}
+	bool IsDepthStencil() const
+	{
+		return (m_type == Type::DepthStencil || m_type == Type::SparseDepthStencil);
+	}
+
+	State GetState() const { return m_state; }
+	void SetState(State state) { m_state = state; }
+
+	void GenerateMipmapsIfNeeded();
+	void ClearMipmapGenerationFlag() { m_needs_mipmaps_generated = false; }
 
 	virtual void CommitPages(const GSVector2i& region, bool commit) {}
 	void CommitRegion(const GSVector2i& region);
@@ -104,5 +148,8 @@ public:
 	float OffsetHack_mody;
 
 	// Typical size of a RGBA texture
-	virtual u32 GetMemUsage() { return m_size.x * m_size.y * 4; }
+	virtual u32 GetMemUsage() { return m_size.x * m_size.y * (m_format == Format::UNorm8 ? 1 : 4); }
+
+	// Helper routines for formats/types
+	static bool IsCompressedFormat(Format format) { return (format >= Format::BC1 && format <= Format::BC7); }
 };

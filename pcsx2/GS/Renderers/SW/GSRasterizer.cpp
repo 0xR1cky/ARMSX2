@@ -18,6 +18,11 @@
 #include "PrecompiledHeader.h"
 #include "GSRasterizer.h"
 #include "GS/GSExtra.h"
+#include "PerformanceMetrics.h"
+#include "common/StringUtil.h"
+#include "common/PersistentThread.h"
+
+#define ENABLE_DRAW_STATS 0
 
 int GSRasterizerData::s_counter = 0;
 
@@ -40,6 +45,7 @@ GSRasterizer::GSRasterizer(IDrawScanline* ds, int id, int threads, GSPerfMon* pe
 	, m_ds(ds)
 	, m_id(id)
 	, m_threads(threads)
+	, m_scanmsk_value(0)
 {
 	memset(&m_pixels, 0, sizeof(m_pixels));
 	m_primcount = 0;
@@ -52,14 +58,9 @@ GSRasterizer::GSRasterizer(IDrawScanline* ds, int id, int threads, GSPerfMon* pe
 	int rows = (2048 >> m_thread_height) + 16;
 	m_scanline = (u8*)_aligned_malloc(rows, 64);
 
-	int row = 0;
-
-	while (row < rows)
+	for (int i = 0; i < rows; i++)
 	{
-		for (int i = 0; i < threads; i++, row++)
-		{
-			m_scanline[row] = i == id ? 1 : 0;
-		}
+		m_scanline[i] = (i % threads) == id ? 1 : 0;
 	}
 }
 
@@ -132,8 +133,6 @@ int GSRasterizer::GetPixels(bool reset)
 
 void GSRasterizer::Draw(GSRasterizerData* data)
 {
-	GSPerfMonAutoTimer pmat(m_perfmon, GSPerfMon::WorkerDraw0 + m_id);
-
 	if (data->vertex != NULL && data->vertex_count == 0 || data->index != NULL && data->index_count == 0)
 		return;
 
@@ -141,7 +140,8 @@ void GSRasterizer::Draw(GSRasterizerData* data)
 	m_pixels.total = 0;
 	m_primcount = 0;
 
-	data->start = __rdtsc();
+	if constexpr (ENABLE_DRAW_STATS)
+		data->start = __rdtsc();
 
 	m_ds->BeginDraw(data);
 
@@ -158,6 +158,7 @@ void GSRasterizer::Draw(GSRasterizerData* data)
 	m_scissor = data->scissor;
 	m_fscissor_x = GSVector4(data->scissor).xzxz();
 	m_fscissor_y = GSVector4(data->scissor).ywyw();
+	m_scanmsk_value = data->scanmsk_value;
 
 	switch (data->primclass)
 	{
@@ -247,11 +248,10 @@ void GSRasterizer::Draw(GSRasterizerData* data)
 
 	data->pixels = m_pixels.actual;
 
-	u64 ticks = __rdtsc() - data->start;
-
 	m_pixels.sum += m_pixels.actual;
 
-	m_ds->EndDraw(data->frame, ticks, m_pixels.actual, m_pixels.total, m_primcount);
+	if constexpr (ENABLE_DRAW_STATS)
+		m_ds->EndDraw(data->frame, __rdtsc() - data->start, m_pixels.actual, m_pixels.total, m_primcount);
 }
 
 template <bool scissor_test>
@@ -834,7 +834,7 @@ void GSRasterizer::DrawSprite(const GSVertexSW* vertex, const u32* index)
 
 	GSVertexSW scan = v[0];
 
-	if (m_ds->IsSolidRect())
+	if ((m_scanmsk_value & 2) == 0 && m_ds->IsSolidRect())
 	{
 		if (m_threads == 1)
 		{
@@ -1158,6 +1158,7 @@ void GSRasterizer::Flush(const GSVertexSW* vertex, const u32* index, const GSVer
 
 void GSRasterizer::DrawScanline(int pixels, int left, int top, const GSVertexSW& scan)
 {
+	if ((m_scanmsk_value & 2) && (m_scanmsk_value & 1) == (top & 1)) return;
 	m_pixels.actual += pixels;
 	m_pixels.total += ((left + pixels + (PIXELS_PER_LOOP - 1)) & ~(PIXELS_PER_LOOP - 1)) - (left & ~(PIXELS_PER_LOOP - 1));
 	//m_pixels.total += ((left + pixels + (PIXELS_PER_LOOP - 1)) & ~(PIXELS_PER_LOOP - 1)) - left;
@@ -1169,6 +1170,7 @@ void GSRasterizer::DrawScanline(int pixels, int left, int top, const GSVertexSW&
 
 void GSRasterizer::DrawEdge(int pixels, int left, int top, const GSVertexSW& scan)
 {
+	if ((m_scanmsk_value & 2) && (m_scanmsk_value & 1) == (top & 1)) return;
 	m_pixels.actual += 1;
 	m_pixels.total += PIXELS_PER_LOOP - 1;
 
@@ -1187,20 +1189,29 @@ GSRasterizerList::GSRasterizerList(int threads, GSPerfMon* perfmon)
 	int rows = (2048 >> m_thread_height) + 16;
 	m_scanline = (u8*)_aligned_malloc(rows, 64);
 
-	int row = 0;
-
-	while (row < rows)
+	for (int i = 0; i < rows; i++)
 	{
-		for (int i = 0; i < threads; i++, row++)
-		{
-			m_scanline[row] = (u8)i;
-		}
+		m_scanline[i] = static_cast<u8>(i % threads);
 	}
+
+	PerformanceMetrics::SetGSSWThreadCount(threads);
 }
 
 GSRasterizerList::~GSRasterizerList()
 {
+	PerformanceMetrics::SetGSSWThreadCount(0);
 	_aligned_free(m_scanline);
+}
+
+void GSRasterizerList::OnWorkerStartup(int i)
+{
+	Threading::SetNameOfCurrentThread(StringUtil::StdStringFromFormat("GS-SW-%d", i).c_str());
+	PerformanceMetrics::SetGSSWThreadTimer(i, Common::ThreadCPUTimer::GetForCallingThread());
+}
+
+void GSRasterizerList::OnWorkerShutdown(int i)
+{
+	PerformanceMetrics::SetGSSWThreadTimer(i, Common::ThreadCPUTimer());
 }
 
 void GSRasterizerList::Queue(const GSRingHeap::SharedPtr<GSRasterizerData>& data)

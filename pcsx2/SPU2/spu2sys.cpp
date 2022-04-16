@@ -24,7 +24,9 @@
 #include "Global.h"
 #include "Dma.h"
 #include "IopDma.h"
-#include "IopCommon.h"
+#include "IopCounters.h"
+#include "R3000A.h"
+#include "IopHw.h"
 
 #include "spu2.h" // needed until I figure out a nice solution for irqcallback dependencies.
 
@@ -35,8 +37,8 @@ V_CoreDebug DebugCores[2];
 V_Core Cores[2];
 V_SPDIF Spdif;
 
-s16 OutPos;
-s16 InputPos;
+u16 OutPos;
+u16 InputPos;
 u32 Cycles;
 
 int PlayMode;
@@ -415,7 +417,7 @@ __forceinline void TimeUpdate(u32 cClocks)
 	}
 
 // Visual debug display showing all core's activity! Disabled via #define on release builds.
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(PCSX2_CORE)
 	UpdateDebugDialog();
 #endif
 
@@ -662,9 +664,7 @@ void V_Core::WriteRegPS1(u32 mem, u16 value)
 				break;
 			}
 			case 0x4:
-				if (value > 0x3fff)
-					ConLog("* SPU2: Pitch setting too big: 0x%x\n", value);
-				Voices[voice].Pitch = value & 0x3fff;
+				Voices[voice].Pitch = value;
 				//ConLog("voice %x Pitch write: %x\n", voice, Voices[voice].Pitch);
 				break;
 			case 0x6:
@@ -1160,9 +1160,7 @@ static void __fastcall RegWrite_VoiceParams(u16 value)
 		break;
 
 		case 2:
-			if (value > 0x3fff)
-				ConLog("* SPU2: Pitch setting too big: 0x%x\n", value);
-			thisvoice.Pitch = value & 0x3fff;
+			thisvoice.Pitch = value;
 			break;
 
 		case 3: // ADSR1 (Envelope)

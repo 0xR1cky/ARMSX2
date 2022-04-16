@@ -81,16 +81,7 @@ public:
 
 	__forceinline GSVector4i(int x, int y, int z, int w)
 	{
-		// 4 gprs
-
-		// m = _mm_set_epi32(w, z, y, x);
-
-		// 2 gprs
-
-		GSVector4i xz = load(x).upl32(load(z));
-		GSVector4i yw = load(y).upl32(load(w));
-
-		*this = xz.upl32(yw);
+		m = _mm_set_epi32(w, z, y, x);
 	}
 
 	__forceinline GSVector4i(int x, int y)
@@ -447,6 +438,31 @@ public:
 		constexpr int bit0 = (mask & 1) * 3;
 		return blend16<bit3 | bit2 | bit1 | bit0>(v);
 #endif
+	}
+
+	/// Equivalent to blend with the given mask broadcasted across the vector
+	/// May be faster than blend in some cases
+	template <u32 mask>
+	__forceinline GSVector4i smartblend(const GSVector4i& a) const
+	{
+		if (mask == 0)
+			return *this;
+		if (mask == 0xffffffff)
+			return a;
+
+		if (mask == 0x0000ffff)
+			return blend16<0x55>(a);
+		if (mask == 0xffff0000)
+			return blend16<0xaa>(a);
+
+		for (int i = 0; i < 32; i += 8)
+		{
+			u8 byte = (mask >> i) & 0xff;
+			if (byte != 0xff && byte != 0)
+				return blend(a, GSVector4i(mask));
+		}
+
+		return blend8(a, GSVector4i(mask));
 	}
 
 	__forceinline GSVector4i blend(const GSVector4i& a, const GSVector4i& mask) const
@@ -1678,21 +1694,21 @@ public:
 		d = _mm_castps_si128(_mm_shuffle_ps(tmp2, tmp3, 0xDD));
 	}
 
+	__forceinline static void mix4(GSVector4i& a, GSVector4i& b)
+	{
+		GSVector4i mask(_mm_set1_epi32(0x0f0f0f0f));
+
+		GSVector4i c = (b << 4).blend(a, mask);
+		GSVector4i d = b.blend(a >> 4, mask);
+		a = c;
+		b = d;
+	}
+
 	__forceinline static void sw4(GSVector4i& a, GSVector4i& b, GSVector4i& c, GSVector4i& d)
 	{
-		const __m128i epi32_0f0f0f0f = _mm_set1_epi32(0x0f0f0f0f);
-
-		GSVector4i mask(epi32_0f0f0f0f);
-
-		GSVector4i e = (b << 4).blend(a, mask);
-		GSVector4i f = b.blend(a >> 4, mask);
-		GSVector4i g = (d << 4).blend(c, mask);
-		GSVector4i h = d.blend(c >> 4, mask);
-
-		a = e.upl8(f);
-		c = e.uph8(f);
-		b = g.upl8(h);
-		d = g.uph8(h);
+		mix4(a, b);
+		mix4(c, d);
+		sw8(a, b, c, d);
 	}
 
 	__forceinline static void sw8(GSVector4i& a, GSVector4i& b, GSVector4i& c, GSVector4i& d)
@@ -1749,6 +1765,8 @@ public:
 		b = f.upl32(d);
 		d = f.uph32(d);
 	}
+
+	__forceinline static void sw32_inv(GSVector4i& a, GSVector4i& b, GSVector4i& c, GSVector4i& d);
 
 	__forceinline static void sw64(GSVector4i& a, GSVector4i& b, GSVector4i& c, GSVector4i& d)
 	{
@@ -2002,6 +2020,13 @@ public:
 	VECTOR4i_SHUFFLE_1(w, 3)
 
 	// clang-format on
+
+	/// Noop, here so broadcast128 can be used generically over all vectors
+	__forceinline static GSVector4i broadcast128(const GSVector4i& v)
+	{
+		return v;
+	}
+
 
 	__forceinline static GSVector4i zero() { return GSVector4i(_mm_setzero_si128()); }
 

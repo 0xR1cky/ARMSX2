@@ -70,22 +70,22 @@ __ri void mVUallocSFLAGc(const x32& reg, const x32& regT, int fInstance)
 	xOR(reg, regT);
 }
 
-// Denormalizes Status Flag
-__ri void mVUallocSFLAGd(u32* memAddr)
+// Denormalizes Status Flag; destroys tmp1/tmp2
+__ri void mVUallocSFLAGd(u32* memAddr, const x32& reg = eax, const x32& tmp1 = ecx, const x32& tmp2 = edx)
 {
-	xMOV(edx, ptr32[memAddr]);
-	xMOV(eax, edx);
-	xSHR(eax, 3);
-	xAND(eax, 0x18);
+	xMOV(tmp2, ptr32[memAddr]);
+	xMOV(reg, tmp2);
+	xSHR(reg, 3);
+	xAND(reg, 0x18);
 
-	xMOV(ecx, edx);
-	xSHL(ecx, 11);
-	xAND(ecx, 0x1800);
-	xOR(eax, ecx);
+	xMOV(tmp1, tmp2);
+	xSHL(tmp1, 11);
+	xAND(tmp1, 0x1800);
+	xOR(reg, tmp1);
 
-	xSHL(edx, 14);
-	xAND(edx, 0x3cf0000);
-	xOR(eax, edx);
+	xSHL(tmp2, 14);
+	xAND(tmp2, 0x3cf0000);
+	xOR(reg, tmp2);
 }
 
 __fi void mVUallocMFLAGa(mV, const x32& reg, int fInstance)
@@ -110,16 +110,6 @@ __fi void mVUallocCFLAGb(mV, const x32& reg, int fInstance)
 {
 	if (fInstance < 4) xMOV(ptr32[&mVU.clipFlag[fInstance]], reg);         // microVU
 	else               xMOV(ptr32[&mVU.regs().VI[REG_CLIP_FLAG].UL], reg); // macroVU
-
-	// On COP2 modifying the CLIP flag we need to update the microVU version for when it's restored on new program
-	if (fInstance == 0xff)
-	{
-		int t0reg = _allocTempXMMreg(XMMT_INT, -1);
-		xMOVDZX(xRegisterSSE(t0reg), reg);
-		xPSHUF.D(xRegisterSSE(t0reg), xRegisterSSE(t0reg), 0);
-		xMOVDQA(ptr128[&mVU.regs().micro_clipflags], xRegisterSSE(t0reg));
-		_freeXMMreg(t0reg);
-	}
 }
 
 //------------------------------------------------------------------

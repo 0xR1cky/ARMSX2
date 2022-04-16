@@ -16,21 +16,6 @@
 #include "PrecompiledHeader.h"
 #include "GSDeviceNull.h"
 
-bool GSDeviceNull::Create(const WindowInfo& wi)
-{
-	if (!GSDevice::Create(wi))
-		return false;
-
-	Reset(1, 1);
-
-	return true;
-}
-
-bool GSDeviceNull::Reset(int w, int h)
-{
-	return GSDevice::Reset(w, h);
-}
-
 GSTexture* GSDeviceNull::CreateSurface(GSTexture::Type type, int w, int h, GSTexture::Format format)
 {
 	return new GSTextureNull(type, w, h, format);

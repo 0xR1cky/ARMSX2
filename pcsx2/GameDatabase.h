@@ -15,18 +15,18 @@
 
 #pragma once
 
-#include "yaml-cpp/yaml.h"
-
+#include "Config.h"
+#include <optional>
+#include <string>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
-#include <string>
 
-// Since this is kinda yaml specific, might be a good idea to
-// relocate this into the yaml class
-// or put the serialization methods inside the yaml
-class GameDatabaseSchema
+enum GamefixId;
+enum SpeedhackId;
+
+namespace GameDatabaseSchema
 {
-public:
 	enum class Compatibility
 	{
 		Unknown = 0,
@@ -56,15 +56,38 @@ public:
 		Full
 	};
 
-	struct Patch
+	enum class GSHWFixId : u32
 	{
-		std::string author;
-		std::vector<std::string> patchLines;
+		// boolean settings
+		AutoFlush,
+		ConservativeFramebuffer,
+		CPUFramebufferConversion,
+		DisableDepthSupport,
+		WrapGSMem,
+		PreloadFrameData,
+		DisablePartialInvalidation,
+		TextureInsideRT,
+		AlignSprite,
+		MergeSprite,
+		WildArmsHack,
+		PointListPalette,
+
+		// integer settings
+		Mipmap,
+		TrilinearFiltering,
+		SkipDrawStart,
+		SkipDrawEnd,
+		HalfBottomOverride,
+		HalfPixelOffset,
+		RoundSprite,
+		TexturePreloading,
+		Deinterlace,
+
+		Count
 	};
 
 	struct GameEntry
 	{
-		bool isValid = true;
 		std::string name;
 		std::string region;
 		Compatibility compat = Compatibility::Unknown;
@@ -72,39 +95,27 @@ public:
 		RoundMode vuRoundMode = RoundMode::Undefined;
 		ClampMode eeClampMode = ClampMode::Undefined;
 		ClampMode vuClampMode = ClampMode::Undefined;
-		std::vector<std::string> gameFixes;
-		std::unordered_map<std::string, int> speedHacks;
+		std::vector<GamefixId> gameFixes;
+		std::vector<std::pair<SpeedhackId, int>> speedHacks;
+		std::vector<std::pair<GSHWFixId, s32>> gsHWFixes;
 		std::vector<std::string> memcardFilters;
-		std::unordered_map<std::string, Patch> patches;
+		std::unordered_map<u32, std::string> patches;
 
 		// Returns the list of memory card serials as a `/` delimited string
 		std::string memcardFiltersAsString() const;
-		bool findPatch(const std::string crc, Patch& patch) const;
+		const std::string* findPatch(u32 crc) const;
+		const char* compatAsString() const;
+
+		/// Applies Core game fixes to an existing config. Returns the number of applied fixes.
+		u32 applyGameFixes(Pcsx2Config& config, bool applyAuto) const;
+
+		/// Applies GS hardware fixes to an existing config. Returns the number of applied fixes.
+		u32 applyGSHardwareFixes(Pcsx2Config::GSOptions& config) const;
 	};
 };
 
-class IGameDatabase
+namespace GameDatabase
 {
-public:
-	virtual bool initDatabase(std::ifstream& stream) = 0;
-	virtual GameDatabaseSchema::GameEntry findGame(const std::string serial) = 0;
-	virtual int numGames() = 0;
-};
-
-class YamlGameDatabaseImpl : public IGameDatabase
-{
-public:
-	bool initDatabase(std::ifstream& stream) override;
-	GameDatabaseSchema::GameEntry findGame(const std::string serial) override;
-	int numGames() override;
-
-private:
-	std::unordered_map<std::string, GameDatabaseSchema::GameEntry> gameDb;
-	GameDatabaseSchema::GameEntry entryFromYaml(const std::string serial, const YAML::Node& node);
-
-	std::vector<std::string> convertMultiLineStringToVector(const std::string multiLineString);
-};
-
-extern IGameDatabase* AppHost_GetGameDatabase();
-extern std::string strToLower(std::string str);
-extern bool compareStrNoCase(const std::string str1, const std::string str2);
+	void ensureLoaded();
+	const GameDatabaseSchema::GameEntry* findGame(const std::string_view& serial);
+}; // namespace GameDatabase

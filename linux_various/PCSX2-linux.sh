@@ -43,7 +43,7 @@ fi
 DIR=`dirname $current_script`
 MY_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
 
-if [ ! -x "$DIR/PCSX2" ]
+if [ ! -x "$DIR/pcsx2" ]
 then
     echo "Error PCSX2 not found in $DIR"
     echo "Maybe the script was directly 'called'"
@@ -58,4 +58,4 @@ MY_LD_LIBRARY_PATH=${MY_LD_LIBRARY_PATH:+$MY_LD_LIBRARY_PATH:}$DIR/3rdPartyLibs
 MY_LD_LIBRARY_PATH=${MY_LD_LIBRARY_PATH:+$MY_LD_LIBRARY_PATH:}/usr/lib/wx-2.8-stl
 
 # And finally launch me
-GDK_BACKEND=x11 LD_LIBRARY_PATH="$MY_LD_LIBRARY_PATH" MESA_NO_ERROR=1 $DIR/PCSX2 "$@"
+GDK_BACKEND=x11 LD_LIBRARY_PATH="$MY_LD_LIBRARY_PATH" MESA_NO_ERROR=1 $DIR/pcsx2 "$@"

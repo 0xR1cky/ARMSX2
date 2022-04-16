@@ -15,12 +15,15 @@
 
 
 #include "PrecompiledHeader.h"
-#include "IopCommon.h"
+#include "R3000A.h"
+#include "Common.h"
 #include "Config.h"
-#include "gui/AppCoreThread.h"
+#include "System/SysThreads.h"
 
 #include "R5900OpcodeTables.h"
 #include "DebugTools/Breakpoints.h"
+#include "IopBios.h"
+#include "IopHw.h"
 
 using namespace R3000A;
 
@@ -141,7 +144,9 @@ void psxBreakpoint(bool memcheck)
 	}
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
+#endif
 	throw Exception::ExitCpuExecute();
 }
 
@@ -151,10 +156,7 @@ void psxMemcheck(u32 op, u32 bits, bool store)
 	u32 start = psxRegs.GPR.r[(op >> 21) & 0x1F];
 	if ((s16)op != 0)
 		start += (s16)op;
-	if (bits == 128)
-		start &= ~0x0F;
 
-	start = standardizeBreakpointAddress(BREAKPOINT_IOP, start);
 	u32 end = start + bits / 8;
 
 	auto checks = CBreakPoints::GetMemChecks();
@@ -202,9 +204,6 @@ void psxCheckMemcheck()
 	case MEMTYPE_DWORD:
 		psxMemcheck(op, 64, store);
 		break;
-	case MEMTYPE_QWORD:
-		psxMemcheck(op, 128, store);
-		break;
 	}
 }
 
@@ -216,7 +215,7 @@ static __fi void execI()
 	// This function is called for every instruction.
 	// Enabling the define below will probably, no, will cause the interpretor to be slower.
 //#define EXTRA_DEBUG
-#ifdef EXTRA_DEBUG
+#if defined(EXTRA_DEBUG) || defined(PCSX2_DEVBUILD)
 	if (psxIsBreakpointNeeded(psxRegs.pc))
 		psxBreakpoint(false);
 
@@ -274,24 +273,29 @@ static void intReset() {
 	intAlloc();
 }
 
-static void intExecute() {
-	for (;;) execI();
-}
-
 static s32 intExecuteBlock( s32 eeCycles )
 {
 	iopBreak = 0;
 	iopCycleEE = eeCycles;
 
-	while (iopCycleEE > 0){
-		if ((psxHu32(HW_ICFG) & 8) && ((psxRegs.pc & 0x1fffffffU) == 0xa0 || (psxRegs.pc & 0x1fffffffU) == 0xb0 || (psxRegs.pc & 0x1fffffffU) == 0xc0))
-			psxBiosCall();
+	try
+	{
+		while (iopCycleEE > 0) {
+			if ((psxHu32(HW_ICFG) & 8) && ((psxRegs.pc & 0x1fffffffU) == 0xa0 || (psxRegs.pc & 0x1fffffffU) == 0xb0 || (psxRegs.pc & 0x1fffffffU) == 0xc0))
+				psxBiosCall();
 
-		branch2 = 0;
-		while (!branch2) {
-			execI();
-        }
+			branch2 = 0;
+			while (!branch2) {
+				execI();
+			}
+		}
 	}
+	catch (Exception::ExitCpuExecute&)
+	{
+		// Get out of the EE too, regardless of whether it's int or rec.
+		Cpu->ExitExecution();
+	}
+
 	return iopBreak + iopCycleEE;
 }
 
@@ -313,7 +317,6 @@ static uint intGetCacheReserve()
 R3000Acpu psxInt = {
 	intReserve,
 	intReset,
-	intExecute,
 	intExecuteBlock,
 	intClear,
 	intShutdown,

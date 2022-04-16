@@ -17,7 +17,6 @@
 #pragma once
 
 #include "AppCommon.h"
-#include "CpuUsageProvider.h"
 #include "common/WindowInfo.h"
 #include <memory>
 #include <optional>
@@ -62,8 +61,7 @@ public:
 protected:
 	void AppStatusEvent_OnSettingsApplied();
 
-	void OnCloseWindow( wxCloseEvent& evt );
-	void OnResize(wxSizeEvent& event);
+	void OnResize(wxEvent& event);
 	void OnMouseEvent( wxMouseEvent& evt );
 	void OnHideMouseTimeout( wxTimerEvent& evt );
 	void OnKeyDownOrUp( wxKeyEvent& evt );
@@ -106,8 +104,6 @@ protected:
 	wxWindowID				m_id_gspanel;
 	wxStatusBar*			m_statusbar;
 
-	CpuUsageProvider		m_CpuUsage;
-
 public:
 	GSFrame( const wxString& title);
 	virtual ~GSFrame() = default;
@@ -121,6 +117,7 @@ public:
 
 protected:
 	void OnCloseWindow( wxCloseEvent& evt );
+	void OnDestroyWindow( wxWindowDestroyEvent& evt );
 	void OnMove( wxMoveEvent& evt );
 	void OnResize( wxSizeEvent& evt );
 	void OnFocus( wxFocusEvent& evt );

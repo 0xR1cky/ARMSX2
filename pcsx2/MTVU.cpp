@@ -105,10 +105,7 @@ VU_Thread::~VU_Thread()
 
 void VU_Thread::Reset()
 {
-	ScopedLock lock(mtxBusy);
-
 	vuCycleIdx = 0;
-	isBusy = false;
 	m_ato_write_pos = 0;
 	m_write_pos = 0;
 	m_ato_read_pos = 0;
@@ -133,8 +130,7 @@ void VU_Thread::ExecuteRingBuffer()
 {
 	for (;;)
 	{
-		semaEvent.WaitWithoutYield();
-		ScopedLockBool lock(mtxBusy, isBusy);
+		semaEvent.WaitForWork();
 		while (m_ato_read_pos.load(std::memory_order_relaxed) != GetWritePos())
 		{
 			u32 tag = Read();
@@ -146,7 +142,7 @@ void VU_Thread::ExecuteRingBuffer()
 					s32 addr = Read();
 					vifRegs.top = Read();
 					vifRegs.itop = Read();
-
+					vuFBRST = Read();
 					if (addr != -1)
 						vuRegs.VI[REG_TPC].UL = addr & 0x7FF;
 					vuCPU->SetStartPC(vuRegs.VI[REG_TPC].UL << 3);
@@ -406,23 +402,22 @@ void VU_Thread::Get_MTVUChanges()
 	{
 		mtvuInterrupts.fetch_and(~InterruptFlagVUEBit, std::memory_order_relaxed);
 		
-		VU0.VI[REG_VPU_STAT].UL &= ~0x0100;
+		VU0.VI[REG_VPU_STAT].UL &= ~0xFF00;
 		//DevCon.Warning("E-Bit registered %x", VU0.VI[REG_VPU_STAT].UL);
 	}
 	if (interrupts & InterruptFlagVUTBit)
 	{
 		mtvuInterrupts.fetch_and(~InterruptFlagVUTBit, std::memory_order_relaxed);
-		VU0.VI[REG_VPU_STAT].UL &= ~0x0100;
+		VU0.VI[REG_VPU_STAT].UL &= ~0xFF00;
 		VU0.VI[REG_VPU_STAT].UL |= 0x0400;
 		//DevCon.Warning("T-Bit registered %x", VU0.VI[REG_VPU_STAT].UL);
 		hwIntcIrq(7);
 	}
 }
 
-void VU_Thread::KickStart(bool forceKick)
+void VU_Thread::KickStart()
 {
-	if ((forceKick && !semaEvent.Count()) || (!isBusy.load(std::memory_order_acquire) && GetReadPos() != m_ato_write_pos.load(std::memory_order_relaxed)))
-		semaEvent.Post();
+	semaEvent.NotifyOfWork();
 }
 
 bool VU_Thread::IsDone()
@@ -433,27 +428,19 @@ bool VU_Thread::IsDone()
 void VU_Thread::WaitVU()
 {
 	MTVU_LOG("MTVU - WaitVU!");
-	for (;;)
-	{
-		if (IsDone())
-			break;
-		//DevCon.WriteLn("WaitVU()");
-		//pxAssert(THREAD_VU1);
-		KickStart();
-		std::this_thread::yield(); // Give a chance to the MTVU thread to actually start
-		ScopedLock lock(mtxBusy);
-	}
+	semaEvent.WaitForEmpty();
 }
 
-void VU_Thread::ExecuteVU(u32 vu_addr, u32 vif_top, u32 vif_itop)
+void VU_Thread::ExecuteVU(u32 vu_addr, u32 vif_top, u32 vif_itop, u32 fbrst)
 {
 	MTVU_LOG("MTVU - ExecuteVU!");
 	Get_MTVUChanges(); // Clear any pending interrupts
-	ReserveSpace(4);
+	ReserveSpace(5);
 	Write(MTVU_VU_EXECUTE);
 	Write(vu_addr);
 	Write(vif_top);
 	Write(vif_itop);
+	Write(fbrst);
 	CommitWritePos();
 	gifUnit.TransferGSPacketData(GIF_TRANS_MTVU, NULL, 0);
 	KickStart();

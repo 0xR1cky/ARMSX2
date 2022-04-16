@@ -55,6 +55,7 @@ bool rx_fifo_can_rx();
 #define HDD_MIN_GB 40
 #define HDD_MAX_GB 120
 
+#ifndef PCSX2_CORE
 struct ConfigHost
 {
 	std::string Url;
@@ -65,33 +66,11 @@ struct ConfigHost
 
 struct ConfigDEV9
 {
-	char Eth[256];
-	NetApi EthApi;
-	bool InterceptDHCP;
-	PacketReader::IP::IP_Address PS2IP;
-	PacketReader::IP::IP_Address Mask;
-	PacketReader::IP::IP_Address Gateway;
-	PacketReader::IP::IP_Address DNS1;
-	PacketReader::IP::IP_Address DNS2;
-	int AutoMask;
-	int AutoGateway;
-	int AutoDNS1;
-	int AutoDNS2;
-	int EthLogDNS;
 	std::vector<ConfigHost> EthHosts;
-#ifdef _WIN32
-	wchar_t Hdd[256];
-#else
-	char Hdd[256];
-#endif
-	int HddSize;
-
-	int hddEnable;
-	int ethEnable;
 };
 
-
 EXTERN ConfigDEV9 config;
+#endif
 
 typedef struct
 {
@@ -155,10 +134,6 @@ EXTERN dev9Struct dev9;
 #define dev9Ru32(mem) (*(u32*)&dev9.dev9R[(mem)&0xffff])
 
 EXTERN int ThreadRun;
-
-//Yes these are meant to be a lowercase extern
-extern std::string s_strIniPath;
-extern std::string s_strLogPath;
 
 #define DEV9_R_REV 0x1f80146e
 
@@ -742,7 +717,7 @@ u32 DEV9read32(u32 addr);
 void DEV9write8(u32 addr, u8 value);
 void DEV9write16(u32 addr, u16 value);
 void DEV9write32(u32 addr, u32 value);
-void ApplyConfigIfRunning(ConfigDEV9 oldConfig);
+void DEV9CheckChanges(const Pcsx2Config& old_config);
 
 #ifdef _WIN32
 #pragma warning(error : 4013)

@@ -153,10 +153,37 @@ namespace StringUtil
 		return (str.length() >= suffix_length && str.compare(str.length() - suffix_length, suffix_length, suffix) == 0);
 	}
 
+	/// StartsWith/EndsWith variants which aren't case sensitive.
+	static inline bool StartsWithNoCase(const std::string_view& str, const char* prefix)
+	{
+		return (Strncasecmp(str.data(), prefix, std::strlen(prefix)) == 0);
+	}
+	static inline bool EndsWithNoCase(const std::string_view& str, const char* suffix)
+	{
+		const std::size_t suffix_length = std::strlen(suffix);
+		return (str.length() >= suffix_length && Strncasecmp(str.data() + (str.length() - suffix_length), suffix, suffix_length) == 0);
+	}
+
+	/// Strip whitespace from the start/end of the string.
+	std::string_view StripWhitespace(const std::string_view& str);
+	void StripWhitespace(std::string* str);
+
+	/// Splits a string based on a single character delimiter.
+	std::vector<std::string_view> SplitString(const std::string_view& str, char delimiter, bool skip_empty = true);
+
+	/// Parses an assignment string (Key = Value) into its two components.
+	bool ParseAssignmentString(const std::string_view& str, std::string_view* key, std::string_view* value);
+
 	/// Strided memcpy/memcmp.
 	static inline void StrideMemCpy(void* dst, std::size_t dst_stride, const void* src, std::size_t src_stride,
 		std::size_t copy_size, std::size_t count)
 	{
+		if (src_stride == dst_stride && src_stride == copy_size)
+		{
+			std::memcpy(dst, src, src_stride * count);
+			return;
+		}
+
 		const u8* src_ptr = static_cast<const u8*>(src);
 		u8* dst_ptr = static_cast<u8*>(dst);
 		for (std::size_t i = 0; i < count; i++)
@@ -170,6 +197,9 @@ namespace StringUtil
 	static inline int StrideMemCmp(const void* p1, std::size_t p1_stride, const void* p2, std::size_t p2_stride,
 		std::size_t copy_size, std::size_t count)
 	{
+		if (p1_stride == p2_stride && p1_stride == copy_size)
+			return std::memcmp(p1, p2, p1_stride * count);
+
 		const u8* p1_ptr = static_cast<const u8*>(p1);
 		const u8* p2_ptr = static_cast<const u8*>(p2);
 		for (std::size_t i = 0; i < count; i++)
@@ -184,26 +214,28 @@ namespace StringUtil
 		return 0;
 	}
 
+	std::string toLower(const std::string_view& str);
+	bool compareNoCase(const std::string_view& str1, const std::string_view& str2);
+	std::vector<std::string> splitOnNewLine(const std::string& str);
+
 	/// Converts a wxString to a UTF-8 std::string.
-	static std::string wxStringToUTF8String(const wxString& str)
+	static inline std::string wxStringToUTF8String(const wxString& str)
 	{
 		const wxScopedCharBuffer buf(str.ToUTF8());
 		return std::string(buf.data(), buf.length());
 	}
 
 	/// Converts a UTF-8 std::string to a wxString.
-	static wxString UTF8StringToWxString(const std::string_view& str)
+	static inline wxString UTF8StringToWxString(const std::string_view& str)
 	{
 		return wxString::FromUTF8(str.data(), str.length());
 	}
 
 	/// Converts a UTF-8 std::string to a wxString.
-	static wxString UTF8StringToWxString(const std::string& str)
+	static inline wxString UTF8StringToWxString(const std::string& str)
 	{
 		return wxString::FromUTF8(str.data(), str.length());
 	}
-
-#ifdef _WIN32
 
 	/// Converts the specified UTF-8 string to a wide string.
 	std::wstring UTF8StringToWideString(const std::string_view& str);
@@ -212,7 +244,4 @@ namespace StringUtil
 	/// Converts the specified wide string to a UTF-8 string.
 	std::string WideStringToUTF8String(const std::wstring_view& str);
 	bool WideStringToUTF8String(std::string& dest, const std::wstring_view& str);
-
-#endif
-
 } // namespace StringUtil

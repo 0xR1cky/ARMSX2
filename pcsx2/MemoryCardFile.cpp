@@ -14,25 +14,24 @@
  */
 
 #include "PrecompiledHeader.h"
+#include "common/FileSystem.h"
 #include "common/SafeArray.inl"
 #include "common/StringUtil.h"
 #include <wx/file.h>
 #include <wx/dir.h>
 #include <wx/stopwatch.h>
 
+#include <array>
 #include <chrono>
-
-struct Component_FileMcd;
 
 #include "MemoryCardFile.h"
 #include "MemoryCardFolder.h"
 
 #include "System.h"
 #include "Config.h"
+#include "Host.h"
 
 #include "svnrev.h"
-
-#include "gui/ConsoleLogger.h"
 
 #include <wx/ffile.h>
 #include <map>
@@ -40,6 +39,8 @@ struct Component_FileMcd;
 static const int MCD_SIZE = 1024 * 8 * 16; // Legacy PSX card default size
 
 static const int MC2_MBSIZE = 1024 * 528 * 2; // Size of a single megabyte of card data
+
+static const char* s_folder_mem_card_id_file = "_pcsx2_superblock";
 
 bool FileMcd_Open = false;
 
@@ -316,17 +317,19 @@ void FileMemoryCard::Open()
 
 			if (!Create(str, 8))
 			{
+#ifndef PCSX2_CORE
 				Msgbox::Alert(
 					wxsFormat(_("Could not create a memory card: \n\n%s\n\n"), str.c_str()) +
 					GetDisabledMessage(slot));
+#endif
 			}
 		}
 
 		// [TODO] : Add memcard size detection and report it to the console log.
 		//   (8MB, 256Mb, formatted, unformatted, etc ...)
 
-#ifdef __WXMSW__
-		NTFS_CompressFile(str, EmuConfig.McdCompressNTFS);
+#ifdef _WIN32
+		FileSystem::SetPathCompression(StringUtil::wxStringToUTF8String(str).c_str(), EmuConfig.McdCompressNTFS);
 #endif
 
 		if (str.EndsWith(".bin"))
@@ -345,9 +348,11 @@ void FileMemoryCard::Open()
 		{
 			// Translation note: detailed description should mention that the memory card will be disabled
 			// for the duration of this session.
+#ifndef PCSX2_CORE
 			Msgbox::Alert(
 				wxsFormat(_("Access denied to memory card: \n\n%s\n\n"), str.c_str()) +
 				GetDisabledMessage(slot));
+#endif
 		}
 		else // Load checksum
 		{
@@ -522,7 +527,7 @@ s32 FileMemoryCard::Save(uint slot, const u8* src, u32 adr, int size)
 		{
 			wxString name, ext;
 			wxFileName::SplitPath(m_file[slot].GetName(), NULL, NULL, &name, &ext);
-			OSDlog(Color_StrongYellow, true, "Memory Card %s written.", (const char*)(name + "." + ext).c_str());
+			Host::AddOSDMessage(StringUtil::StdStringFromFormat("Memory Card %s written.", (const char*)(name + "." + ext).c_str()), 10.0f);
 			last = std::chrono::system_clock::now();
 		}
 		return 1;
@@ -814,5 +819,276 @@ bool isValidNewFilename(wxString filenameStringToTest, wxDirName atBasePath, wxS
 	wxRemoveFile((atBasePath + wxFileName(filenameStringToTest)).GetFullPath());
 
 	out_errorMessage = L"[OK - New file name is valid]"; //shouldn't be displayed on success, hence not translatable.
+	return true;
+}
+
+static MemoryCardFileType GetMemoryCardFileTypeFromSize(s64 size)
+{
+	if (size == (8 * MC2_MBSIZE))
+		return MemoryCardFileType::PS2_8MB;
+	else if (size == (16 * MC2_MBSIZE))
+		return MemoryCardFileType::PS2_16MB;
+	else if (size == (32 * MC2_MBSIZE))
+		return MemoryCardFileType::PS2_32MB;
+	else if (size == (64 * MC2_MBSIZE))
+		return MemoryCardFileType::PS2_64MB;
+	else if (size == MCD_SIZE)
+		return MemoryCardFileType::PS1;
+	else
+		return MemoryCardFileType::Unknown;
+}
+
+static bool IsMemoryCardFolder(const std::string& path)
+{
+	const std::string superblock_path(Path::CombineStdString(path, s_folder_mem_card_id_file));
+	return FileSystem::FileExists(superblock_path.c_str());
+}
+
+static bool IsMemoryCardFormatted(const std::string& path)
+{
+	auto fp = FileSystem::OpenManagedCFile(path.c_str(), "rb");
+	if (!fp)
+		return false;
+
+	static const char formatted_psx[] = "MC";
+	static const char formatted_string[] = "Sony PS2 Memory Card Format";
+	static constexpr size_t read_length = sizeof(formatted_string) - 1;
+
+	u8 data[read_length];
+	if (std::fread(data, read_length, 1, fp.get()) != 1)
+		return false;
+
+	return (std::memcmp(data, formatted_string, sizeof(formatted_string) - 1) == 0 ||
+			std::memcmp(data, formatted_psx, sizeof(formatted_psx) - 1) == 0);
+}
+
+std::vector<AvailableMcdInfo> FileMcd_GetAvailableCards(bool include_in_use_cards)
+{
+	std::vector<FILESYSTEM_FIND_DATA> files;
+	FileSystem::FindFiles(EmuFolders::MemoryCards.ToUTF8(), "*",
+		FILESYSTEM_FIND_FILES | FILESYSTEM_FIND_FOLDERS | FILESYSTEM_FIND_HIDDEN_FILES, &files);
+
+	std::vector<AvailableMcdInfo> mcds;
+	mcds.reserve(files.size());
+
+	for (FILESYSTEM_FIND_DATA& fd : files)
+	{
+		std::string basename(FileSystem::GetFileNameFromPath(fd.FileName));
+		if (!include_in_use_cards)
+		{
+			bool in_use = false;
+			for (size_t i = 0; i < std::size(EmuConfig.Mcd); i++)
+			{
+				if (EmuConfig.Mcd[i].Filename == basename)
+				{
+					in_use = true;
+					break;
+				}
+			}
+			if (in_use)
+				continue;
+		}
+
+		if (fd.Attributes & FILESYSTEM_FILE_ATTRIBUTE_DIRECTORY)
+		{
+			if (!IsMemoryCardFolder(fd.FileName))
+				continue;
+
+			mcds.push_back({std::move(basename), std::move(fd.FileName), fd.ModificationTime,
+				MemoryCardType::Folder, MemoryCardFileType::Unknown, 0u, true});
+		}
+		else
+		{
+			if (fd.Size < MCD_SIZE)
+				continue;
+
+			const bool formatted = IsMemoryCardFormatted(fd.FileName);
+			mcds.push_back({std::move(basename), std::move(fd.FileName), fd.ModificationTime,
+				MemoryCardType::File, GetMemoryCardFileTypeFromSize(fd.Size),
+				static_cast<u32>(fd.Size), formatted});
+		}
+	}
+
+	return mcds;
+}
+
+std::optional<AvailableMcdInfo> FileMcd_GetCardInfo(const std::string_view& name)
+{
+	std::optional<AvailableMcdInfo> ret;
+
+	std::string basename(name);
+	std::string path(Path::CombineStdString(EmuFolders::MemoryCards, basename));
+
+	FILESYSTEM_STAT_DATA sd;
+	if (!FileSystem::StatFile(path.c_str(), &sd))
+		return ret;
+
+	if (sd.Attributes & FILESYSTEM_FILE_ATTRIBUTE_DIRECTORY)
+	{
+		if (IsMemoryCardFolder(path))
+		{
+			ret = {std::move(basename), std::move(path), sd.ModificationTime,
+				MemoryCardType::Folder, MemoryCardFileType::Unknown, 0u, true};
+		}
+	}
+	else
+	{
+		if (sd.Size >= MCD_SIZE)
+		{
+			const bool formatted = IsMemoryCardFormatted(path);
+			ret = {std::move(basename), std::move(path), sd.ModificationTime,
+				MemoryCardType::File, GetMemoryCardFileTypeFromSize(sd.Size),
+				static_cast<u32>(sd.Size), formatted};
+		}
+	}
+
+	return ret;
+}
+
+bool FileMcd_CreateNewCard(const std::string_view& name, MemoryCardType type, MemoryCardFileType file_type)
+{
+	const std::string full_path(Path::CombineStdString(EmuFolders::MemoryCards, name));
+
+	if (type == MemoryCardType::Folder)
+	{
+		Console.WriteLn("(FileMcd) Creating new PS2 folder memory card: '%.*s'", static_cast<int>(name.size()), name.data());
+
+		if (!FileSystem::CreateDirectoryPath(full_path.c_str(), false))
+		{
+			Host::ReportFormattedErrorAsync("Memory Card Creation Failed", "Failed to create directory '%s'.", full_path.c_str());
+			return false;
+		}
+
+		// write the superblock
+		auto fp = FileSystem::OpenManagedCFile(Path::CombineStdString(full_path, s_folder_mem_card_id_file).c_str(), "wb");
+		if (!fp)
+		{
+			Host::ReportFormattedErrorAsync("Memory Card Creation Failed", "Failed to write memory card folder superblock '%s'.", full_path.c_str());
+			return false;
+		}
+
+		return true;
+	}
+
+	if (type == MemoryCardType::File)
+	{
+		if (file_type <= MemoryCardFileType::Unknown || file_type >= MemoryCardFileType::MaxCount)
+			return false;
+
+		static constexpr std::array<u32, static_cast<size_t>(MemoryCardFileType::MaxCount)> sizes = {{0, 8 * MC2_MBSIZE, 16 * MC2_MBSIZE, 32 * MC2_MBSIZE, 64 * MC2_MBSIZE, MCD_SIZE}};
+
+		const bool isPSX = (type == MemoryCardType::File && file_type == MemoryCardFileType::PS1);
+		const u32 size = sizes[static_cast<u32>(file_type)];
+		if (!isPSX && size == 0)
+			return false;
+
+		auto fp = FileSystem::OpenManagedCFile(full_path.c_str(), "wb");
+		if (!fp)
+		{
+			Host::ReportFormattedErrorAsync("Memory Card Creation Failed", "Failed to open file '%s'.", full_path.c_str());
+			return false;
+		}
+
+		if (!isPSX)
+		{
+			Console.WriteLn("(FileMcd) Creating new PS2 %uMB memory card: '%s'", size / MC2_MBSIZE, full_path.c_str());
+
+			// PS2 Memory Card
+			u8 m_effeffs[528 * 16];
+			memset8<0xff>(m_effeffs);
+
+			const u32 count = size / sizeof(m_effeffs);
+			for (uint i = 0; i < count; i++)
+			{
+				if (std::fwrite(m_effeffs, sizeof(m_effeffs), 1, fp.get()) != 1)
+				{
+					Host::ReportFormattedErrorAsync("Memory Card Creation Failed", "Failed to write file '%s'.", full_path.c_str());
+					return false;
+				}
+			}
+
+			return true;
+		}
+		else
+		{
+			Console.WriteLn("(FileMcd) Creating new PSX 128 KiB memory card: '%s'", full_path.c_str());
+
+			// PSX Memory Card; 8192 is the size in bytes of a single block of a PSX memory card (8 KiB).
+			u8 m_effeffs_psx[8192];
+			memset8<0xff>(m_effeffs_psx);
+
+			// PSX cards consist of 16 blocks, each 8 KiB in size.
+			for (uint i = 0; i < 16; i++)
+			{
+				if (std::fwrite(m_effeffs_psx, sizeof(m_effeffs_psx), 1, fp.get()) != 1)
+				{
+					Host::ReportFormattedErrorAsync("Memory Card Creation Failed", "Failed to write file '%s'.", full_path.c_str());
+					return false;
+				}
+			}
+
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool FileMcd_RenameCard(const std::string_view& name, const std::string_view& new_name)
+{
+	const std::string name_path(Path::CombineStdString(EmuFolders::MemoryCards, name));
+	const std::string new_name_path(Path::CombineStdString(EmuFolders::MemoryCards, new_name));
+
+	FILESYSTEM_STAT_DATA sd, new_sd;
+	if (!FileSystem::StatFile(name_path.c_str(), &sd) || FileSystem::StatFile(new_name_path.c_str(), &new_sd))
+	{
+		Console.Error("(FileMcd) New name already exists, or old name does not");
+		return false;
+	}
+
+	Console.WriteLn("(FileMcd) Renaming memory card '%.*s' to '%.*s'",
+		static_cast<int>(name.size()), name.data(),
+		static_cast<int>(new_name.size()), new_name.data());
+
+	if (!FileSystem::RenamePath(name_path.c_str(), new_name_path.c_str()))
+	{
+		Console.Error("(FileMcd) Failed to rename '%s' to '%s'", name_path.c_str(), new_name_path.c_str());
+		return false;
+	}
+
+	return true;
+}
+
+bool FileMcd_DeleteCard(const std::string_view& name)
+{
+	const std::string name_path(Path::CombineStdString(EmuFolders::MemoryCards, name));
+
+	FILESYSTEM_STAT_DATA sd;
+	if (!FileSystem::StatFile(name_path.c_str(), &sd))
+	{
+		Console.Error("(FileMcd) Can't stat '%s' for deletion", name_path.c_str());
+		return false;
+	}
+
+	Console.WriteLn("(FileMcd) Deleting memory card '%.*s'", static_cast<int>(name.size()), name.data());
+
+	if (sd.Attributes & FILESYSTEM_FILE_ATTRIBUTE_DIRECTORY)
+	{
+		// must be a folder memcard, so do a recursive delete (scary)
+		if (!FileSystem::RecursiveDeleteDirectory(name_path.c_str()))
+		{
+			Console.Error("(FileMcd) Failed to recursively delete '%s'", name_path.c_str());
+			return false;
+		}
+	}
+	else
+	{
+		if (!FileSystem::DeleteFilePath(name_path.c_str()))
+		{
+			Console.Error("(FileMcd) Failed to delete file '%s'", name_path.c_str());
+			return false;
+		}
+	}
+
 	return true;
 }

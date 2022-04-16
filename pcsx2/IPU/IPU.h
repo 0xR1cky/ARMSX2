@@ -16,6 +16,8 @@
 #pragma once
 
 #include "IPU_Fifo.h"
+#include "IPUdma.h"
+#include "Common.h"
 
 #define ipumsk( src ) ( (src) & 0xff )
 #define ipucase( src ) case ipumsk(src)
@@ -71,7 +73,7 @@ union tIPU_CTRL {
 	bool test(u32 flags) const { return !!(_u32 & flags); }
 	void set_flags(u32 flags) { _u32 |= flags; }
 	void clear_flags(u32 flags) { _u32 &= ~flags; }
-	void reset() { _u32 = 0; }
+	void reset() { _u32 &= 0x7F33F00; }
 };
 
 struct alignas(16) tIPU_BP {
@@ -120,15 +122,16 @@ struct alignas(16) tIPU_BP {
 
 	__fi bool FillBuffer(u32 bits)
 	{
-		while (FP < 2)
+		while ((FP * 128) < (BP + bits))
 		{
 			if (ipu_fifo.in.read(&internal_qwc[FP]) == 0)
 			{
 				// Here we *try* to fill the entire internal QWC buffer; however that may not necessarily
 				// be possible -- so if the fill fails we'll only return 0 if we don't have enough
 				// remaining bits in the FIFO to fill the request.
+				// Used to do ((FP!=0) && (BP + bits) <= 128) if we get here there's defo not enough data now though
 
-				return ((FP!=0) && (BP + bits) <= 128);
+				return false;
 			}
 
 			++FP;
@@ -137,9 +140,9 @@ struct alignas(16) tIPU_BP {
 		return true;
 	}
 
-	wxString desc() const
+	std::string desc() const
 	{
-		return wxsFormat(L"Ipu BP: bp = 0x%x, IFC = 0x%x, FP = 0x%x.", BP, IFC, FP);
+		return StringUtil::StdStringFromFormat("Ipu BP: bp = 0x%x, IFC = 0x%x, FP = 0x%x.", BP, IFC, FP);
 	}
 };
 
@@ -274,9 +277,9 @@ union tIPU_cmd
 	u128 _u128[2];
 
 	void clear();
-	wxString desc() const
+	std::string desc() const
 	{
-		return pxsFmt(L"Ipu cmd: index = 0x%x, current = 0x%x, pos[0] = 0x%x, pos[1] = 0x%x",
+		return StringUtil::StdStringFromFormat("Ipu cmd: index = 0x%x, current = 0x%x, pos[0] = 0x%x, pos[1] = 0x%x",
 			index, current, pos[0], pos[1]);
 	}
 };

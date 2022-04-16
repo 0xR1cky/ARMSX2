@@ -19,7 +19,11 @@
 
 #include "R5900OpcodeTables.h"
 #include "R5900Exceptions.h"
+#ifndef PCSX2_CORE
 #include "System/SysThreads.h"
+#else
+#include "VMManager.h"
+#endif
 
 #include "Elfheader.h"
 
@@ -34,17 +38,11 @@ extern int vu0branch, vu1branch;
 static int branch2 = 0;
 static u32 cpuBlockCycles = 0;		// 3 bit fixed point version of cycle count
 static std::string disOut;
+static bool intExitExecution = false;
 
 static void intEventTest();
 
 // These macros are used to assemble the repassembler functions
-
-static void debugI()
-{
-	if( !IsDevBuild ) return;
-	if( cpuRegs.GPR.n.r0.UD[0] || cpuRegs.GPR.n.r0.UD[1] ) Console.Error("R0 is not zero!!!!");
-}
-
 
 void intBreakpoint(bool memcheck)
 {
@@ -60,7 +58,9 @@ void intBreakpoint(bool memcheck)
 	}
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
+#endif
 	throw Exception::ExitCpuExecute();
 }
 
@@ -73,7 +73,7 @@ void intMemcheck(u32 op, u32 bits, bool store)
 	if (bits == 128)
 		start &= ~0x0F;
 
-	start = standardizeBreakpointAddress(BREAKPOINT_EE, start);
+	start = standardizeBreakpointAddress(start);
 	u32 end = start + bits/8;
 	
 	auto checks = CBreakPoints::GetMemChecks();
@@ -134,7 +134,7 @@ static void execI()
 	// Extra note: due to some cycle count issue PCSX2's internal debugger is
 	// not yet usable with the interpreter
 //#define EXTRA_DEBUG
-#ifdef EXTRA_DEBUG
+#if defined(EXTRA_DEBUG) || defined(PCSX2_DEVBUILD)
 	// check if any breakpoints or memchecks are triggered by this instruction
 	if (isBreakpointNeeded(cpuRegs.pc))
 		intBreakpoint(false);
@@ -149,11 +149,6 @@ static void execI()
 
 	// interprete instruction
 	cpuRegs.code = memRead32( pc );
-	// Honestly I think this code is useless nowadays.
-#ifdef EXTRA_DEBUG
-	if( IsDebugBuild )
-		debugI();
-#endif
 
 	const OPCODE& opcode = GetCurrentInstruction();
 #if 0
@@ -504,6 +499,12 @@ static void intEventTest()
 {
 	// Perform counters, ints, and IOP updates:
 	_cpuEventTest_Shared();
+	
+	if (intExitExecution)
+	{
+		intExitExecution = false;
+		throw Exception::ExitCpuExecute();
+	}
 }
 
 static void intExecute()
@@ -580,9 +581,13 @@ static void intExecute()
 	} while (instruction_was_cancelled);
 }
 
-static void intCheckExecutionState()
+static void intSafeExitExecution()
 {
-	if( GetCoreThread().HasPendingStateChangeRequest() )
+	// If we're currently processing events, we can't safely jump out of the interpreter here, because we'll
+	// leave things in an inconsistent state. So instead, we flag it for exiting once cpuEventTest() returns.
+	if (eeEventTestIsActive)
+		intExitExecution = true;
+	else
 		throw Exception::ExitCpuExecute();
 }
 
@@ -628,7 +633,7 @@ R5900cpu intCpu =
 	intStep,
 	intExecute,
 
-	intCheckExecutionState,
+	intSafeExitExecution,
 	intThrowException,
 	intThrowException,
 	intClear,

@@ -18,7 +18,6 @@
 #include <stdio.h>
 
 #include <vector>
-#include <ghc/filesystem.h>
 
 #include <wx/wx.h>
 #include <wx/collpane.h>
@@ -27,9 +26,12 @@
 #include <wx/spinctrl.h>
 #include <wx/gbsizer.h>
 
+#include "common/StringUtil.h"
+
 #include "Config.h"
 #include "DEV9.h"
 #include "pcap_io.h"
+#include "sockets.h"
 #include "net.h"
 #include "PacketReader/IP/IP_Address.h"
 #include "gui/AppCoreThread.h"
@@ -37,7 +39,7 @@
 	#include "Win32/tap.h"
 #endif
 
-#include "ATA/HddCreate.h"
+#include "ATA/HddCreateWx.h"
 
 using PacketReader::IP::IP_Address;
 
@@ -80,7 +82,7 @@ class DEV9Dialog : public wxDialog
 			IPControl_SetValue(m_ip, ip);
 			m_auto->SetValue(is_auto);
 		}
-		void save(IP_Address& ip, int& is_auto)
+		void save(IP_Address& ip, bool& is_auto)
 		{
 			ip = IPControl_GetValue(m_ip);
 			is_auto = m_auto->GetValue();
@@ -89,7 +91,7 @@ class DEV9Dialog : public wxDialog
 	wxCheckBox* m_eth_enable;
 	wxChoice* m_eth_adapter_api;
 	wxChoice* m_eth_adapter;
-	std::vector<NetApi> m_api_list;
+	std::vector<Pcsx2Config::DEV9Options::NetApi> m_api_list;
 	std::vector<std::vector<AdapterEntry>> m_adapter_list;
 	wxCheckBox* m_intercept_dhcp;
 	wxTextCtrl* m_ps2_address;
@@ -137,13 +139,16 @@ public:
 		for (const AdapterEntry& adapter : TAPAdapter::GetAdapters())
 			addAdapter(adapter);
 #endif
+		for (const AdapterEntry& adapter : SocketAdapter::GetAdapters())
+			addAdapter(adapter);
+
 		std::sort(m_api_list.begin(), m_api_list.end());
 		for (auto& list : m_adapter_list)
 			std::sort(list.begin(), list.end(), [](const AdapterEntry& a, AdapterEntry& b){ return a.name < b.name; });
 		wxArrayString adapter_api_name_list;
 		adapter_api_name_list.Add("");
-		for (const NetApi& type : m_api_list)
-			adapter_api_name_list.Add(NetApiToWxString(type));
+		for (const Pcsx2Config::DEV9Options::NetApi& type : m_api_list)
+			adapter_api_name_list.Add(Pcsx2Config::DEV9Options::NetApiNames[(int)type]);
 
 		auto* eth_adapter_api_label = new wxStaticText(this, wxID_ANY, _("Ethernet Device Type:"));
 		auto* eth_adapter_label     = new wxStaticText(this, wxID_ANY, _("Ethernet Device:"));
@@ -217,9 +222,9 @@ public:
 		Bind(wxEVT_BUTTON,   &DEV9Dialog::OnOK,     this, wxID_OK);
 	}
 
-	void Load(const ConfigDEV9& config)
+	void Load(const Pcsx2Config::DEV9Options& config)
 	{
-		m_eth_enable->SetValue(config.ethEnable);
+		m_eth_enable->SetValue(config.EthEnable);
 		m_eth_adapter_api->SetSelection(0);
 		for (size_t i = 0; i < m_api_list.size(); i++)
 		{
@@ -233,7 +238,7 @@ public:
 			const auto& list = m_adapter_list[static_cast<u32>(config.EthApi)];
 			for (size_t i = 0; i < list.size(); i++)
 			{
-				if (list[i].guid == config.Eth)
+				if (list[i].guid == config.EthDevice)
 				{
 					m_eth_adapter->SetSelection(i + 1);
 					break;
@@ -241,61 +246,91 @@ public:
 			}
 		}
 		m_intercept_dhcp->SetValue(config.InterceptDHCP);
-		IPControl_SetValue(m_ps2_address, config.PS2IP);
-		m_subnet_mask    .load(config.Mask,    config.AutoMask);
-		m_gateway_address.load(config.Gateway, config.AutoGateway);
-		m_dns1_address   .load(config.DNS1,    config.AutoDNS1);
-		m_dns2_address   .load(config.DNS2,    config.AutoDNS2);
+		IPControl_SetValue(m_ps2_address, *(IP_Address*)config.PS2IP);
+		m_subnet_mask    .load(*(IP_Address*)config.Mask,    config.AutoMask);
+		m_gateway_address.load(*(IP_Address*)config.Gateway, config.AutoGateway);
+		m_dns1_address   .load(*(IP_Address*)config.DNS1,    config.ModeDNS1 == Pcsx2Config::DEV9Options::DnsMode::Auto);
+		m_dns2_address   .load(*(IP_Address*)config.DNS2,    config.ModeDNS2 == Pcsx2Config::DEV9Options::DnsMode::Auto);
 
-		m_hdd_enable->SetValue(config.hddEnable);
-		m_hdd_file->SetInitialDirectory(config.Hdd);
-		m_hdd_file->SetPath(config.Hdd);
-		m_hdd_size_spin->SetValue(config.HddSize / 1024);
-		m_hdd_size_slider->SetValue(config.HddSize / 1024);
+		m_hdd_enable->SetValue(config.HddEnable);
+		wxString wxHddFile = StringUtil::UTF8StringToWxString(config.HddFile);
+		m_hdd_file->SetInitialDirectory(wxHddFile);
+		m_hdd_file->SetPath(wxHddFile);
+		m_hdd_size_spin->SetValue((u64)config.HddSizeSectors * 512 / (1024 * 1024 * 1024));
+		m_hdd_size_slider->SetValue((u64)config.HddSizeSectors * 512 / (1024 * 1024 * 1024));
 
 		UpdateEnable();
 	}
 
-	void Save(ConfigDEV9& config)
+	void Save(Pcsx2Config::DEV9Options& config)
 	{
-		config.ethEnable = m_eth_enable->GetValue();
+		config.EthEnable = m_eth_enable->GetValue();
 		int api = m_eth_adapter_api->GetSelection();
 		int eth = m_eth_adapter->GetSelection();
 		if (api && eth)
 		{
 			const AdapterEntry& adapter = m_adapter_list[static_cast<u32>(m_api_list[api - 1])][eth - 1];
-			wxStrncpy(config.Eth, adapter.guid, std::size(config.Eth) - 1);
+			config.EthDevice = adapter.guid;
 			config.EthApi = adapter.type;
 		}
 		else
 		{
-			config.Eth[0] = 0;
-			config.EthApi = NetApi::Unset;
+			config.EthDevice = "";
+			config.EthApi = Pcsx2Config::DEV9Options::NetApi::Unset;
 		}
 		config.InterceptDHCP = m_intercept_dhcp->GetValue();
-		config.PS2IP = IPControl_GetValue(m_ps2_address);
-		m_subnet_mask    .save(config.Mask,    config.AutoMask);
-		m_gateway_address.save(config.Gateway, config.AutoGateway);
-		m_dns1_address   .save(config.DNS1,    config.AutoDNS1);
-		m_dns2_address   .save(config.DNS2,    config.AutoDNS2);
+		*(IP_Address*)&config.PS2IP = IPControl_GetValue(m_ps2_address);
+		m_subnet_mask    .save(*(IP_Address*)config.Mask,    config.AutoMask);
+		m_gateway_address.save(*(IP_Address*)config.Gateway, config.AutoGateway);
 
-		config.hddEnable = m_hdd_enable->GetValue();
-		wxStrncpy(config.Hdd, m_hdd_file->GetPath(), std::size(config.Hdd) - 1);
-		config.HddSize = m_hdd_size_spin->GetValue() * 1024;
+		bool autoDNS1;
+		bool autoDNS2;
+		m_dns1_address.save(*(IP_Address*)config.DNS1, autoDNS1);
+		m_dns2_address.save(*(IP_Address*)config.DNS2, autoDNS2);
+		config.ModeDNS1 = autoDNS1 ? Pcsx2Config::DEV9Options::DnsMode::Auto : Pcsx2Config::DEV9Options::DnsMode::Manual;
+		config.ModeDNS2 = autoDNS2 ? Pcsx2Config::DEV9Options::DnsMode::Auto : Pcsx2Config::DEV9Options::DnsMode::Manual;
+
+		config.HddEnable = m_hdd_enable->GetValue();
+		config.HddFile = StringUtil::wxStringToUTF8String(m_hdd_file->GetPath());
+		config.HddSizeSectors = (u64)m_hdd_size_spin->GetValue() * 1024 * 1024 * 1024 / 512;
 	}
 
 	void UpdateEnable()
 	{
+		AdapterOptions adapterOptions = AdapterOptions::None;
+		const int api = m_eth_adapter_api->GetSelection();
+		if (api)
+		{
+			const Pcsx2Config::DEV9Options::NetApi netApi = m_api_list[api - 1];
+			switch (netApi)
+			{
+#ifdef _WIN32
+				case Pcsx2Config::DEV9Options::NetApi::TAP:
+					adapterOptions = TAPAdapter::GetAdapterOptions();
+					break;
+#endif
+				case Pcsx2Config::DEV9Options::NetApi::PCAP_Bridged:
+				case Pcsx2Config::DEV9Options::NetApi::PCAP_Switched:
+					adapterOptions = PCAPAdapter::GetAdapterOptions();
+					break;
+				case Pcsx2Config::DEV9Options::NetApi::Sockets:
+					adapterOptions = SocketAdapter::GetAdapterOptions();
+					break;
+				default:
+					break;
+			}
+		}
+
 		bool eth_enable = m_eth_enable->GetValue();
 		bool hdd_enable = m_hdd_enable->GetValue();
-		bool dhcp_enable = eth_enable && m_intercept_dhcp->GetValue();
+		bool dhcp_enable = eth_enable && (m_intercept_dhcp->GetValue() || ((adapterOptions & AdapterOptions::DHCP_ForcedOn) == AdapterOptions::DHCP_ForcedOn));
 
 		m_eth_adapter_api->Enable(eth_enable);
 		m_eth_adapter->Enable(eth_enable);
-		m_intercept_dhcp->Enable(eth_enable);
-		m_ps2_address->Enable(dhcp_enable);
-		m_subnet_mask.setEnabled(dhcp_enable);
-		m_gateway_address.setEnabled(dhcp_enable);
+		m_intercept_dhcp->Enable(eth_enable      && ((adapterOptions & AdapterOptions::DHCP_ForcedOn)       == AdapterOptions::None));
+		m_ps2_address->Enable(dhcp_enable        && ((adapterOptions & AdapterOptions::DHCP_OverrideIP)     == AdapterOptions::None));
+		m_subnet_mask.setEnabled(dhcp_enable     && ((adapterOptions & AdapterOptions::DHCP_OverideSubnet)  == AdapterOptions::None));
+		m_gateway_address.setEnabled(dhcp_enable && ((adapterOptions & AdapterOptions::DHCP_OverideGateway) == AdapterOptions::None));
 		m_dns1_address.setEnabled(dhcp_enable);
 		m_dns2_address.setEnabled(dhcp_enable);
 		m_hdd_file->Enable(hdd_enable);
@@ -316,11 +351,12 @@ public:
 			if (m_eth_adapter->GetCount())
 				current = m_eth_adapter->GetString(m_eth_adapter->GetSelection());
 			if (current.empty())
-				current = config.Eth;
+				current = StringUtil::UTF8StringToWxString(g_Conf->EmuOptions.DEV9.EthDevice);
 			for (size_t i = 0; i < list.size(); i++)
 			{
-				options.Add(list[i].name);
-				if (list[i].name == current)
+				wxString wxAdapterName = StringUtil::UTF8StringToWxString(list[i].name);
+				options.Add(wxAdapterName);
+				if (wxAdapterName == current)
 					selection = i + 1;
 			}
 		}
@@ -349,7 +385,10 @@ public:
 	void OnChoice(wxCommandEvent& ev)
 	{
 		if (ev.GetEventObject() == m_eth_adapter_api)
+		{
 			UpdateAdapters();
+			UpdateEnable();
+		}
 	}
 
 	void OnOK(wxCommandEvent& ev)
@@ -373,33 +412,29 @@ void DEV9configure()
 	ScopedCoreThreadPause paused_core;
 
 	DEV9Dialog dialog;
-	LoadConf();
-	dialog.Load(config);
+	dialog.Load(g_Conf->EmuOptions.DEV9);
 	if (dialog.ShowModal() == wxID_OK)
 	{
-		ConfigDEV9 oldConfig = config;
-		dialog.Save(config);
+		dialog.Save(g_Conf->EmuOptions.DEV9);
 
-		ghc::filesystem::path hddPath(config.Hdd);
+		fs::path hddPath(g_Conf->EmuOptions.DEV9.HddFile);
 
 		if (hddPath.is_relative())
 		{
 			//GHC uses UTF8 on all platforms
-			ghc::filesystem::path path(EmuFolders::Settings.ToString().wx_str());
+			fs::path path(EmuFolders::Settings.ToString().wx_str());
 			hddPath = path / hddPath;
 		}
 
-		if (config.hddEnable && !ghc::filesystem::exists(hddPath))
+		if (g_Conf->EmuOptions.DEV9.HddEnable && !fs::exists(hddPath))
 		{
-			HddCreate hddCreator;
+			HddCreateWx hddCreator;
 			hddCreator.filePath = hddPath;
-			hddCreator.neededSize = config.HddSize;
+			hddCreator.neededSize = ((u64)g_Conf->EmuOptions.DEV9.HddSizeSectors) * 512;
 			hddCreator.Start();
 		}
 
-		SaveConf();
-
-		ApplyConfigIfRunning(oldConfig);
+		AppSaveSettings();
 	}
 
 	paused_core.AllowResume();

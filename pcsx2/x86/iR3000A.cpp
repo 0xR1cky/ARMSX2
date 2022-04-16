@@ -21,10 +21,14 @@
 #include "PrecompiledHeader.h"
 
 #include "iR3000A.h"
+#include "R3000A.h"
 #include "BaseblockEx.h"
 #include "System/RecTypes.h"
 #include "System/SysThreads.h"
 #include "R5900OpcodeTables.h"
+#include "IopBios.h"
+#include "IopHw.h"
+#include "Common.h"
 
 #include <time.h>
 
@@ -32,7 +36,6 @@
 #include <sys/types.h>
 #endif
 
-#include "IopCommon.h"
 #include "iCore.h"
 
 #include "Config.h"
@@ -574,11 +577,7 @@ static void psxRecompileIrxImport()
 
 	if (SysTraceActive(IOP.Bios))
 	{
-		#ifdef __M_X86_64
-			xMOV64(arg3reg, (uptr)funcname);
-		#else
-			xPUSH((uptr)funcname);
-		#endif
+		xMOV64(arg3reg, (uptr)funcname);
 
 		xFastCall((void*)irxImportLog_rec, import_table, index);
 	}
@@ -818,12 +817,6 @@ static void iopClearRecLUT(BASEBLOCK* base, int count)
 {
 	for (int i = 0; i < count; i++)
 		base[i].SetFnptr((uptr)iopJITCompile);
-}
-
-static void recExecute()
-{
-	// note: this function is currently never used.
-	//for (;;) R3000AExecute();
 }
 
 static __noinline s32 recExecuteBlock(s32 eeCycles)
@@ -1098,11 +1091,11 @@ void rpsxBREAK()
 	//if (!psxbranch) psxbranch = 2;
 }
 
-void psxDynarecCheckBreakpoint()
+static bool psxDynarecCheckBreakpoint()
 {
 	u32 pc = psxRegs.pc;
 	if (CBreakPoints::CheckSkipFirst(BREAKPOINT_IOP, pc) == pc)
-		return;
+		return false;
 
 	int bpFlags = psxIsBreakpointNeeded(pc);
 	bool hit = false;
@@ -1124,25 +1117,35 @@ void psxDynarecCheckBreakpoint()
 	}
 
 	if (!hit)
-		return;
+		return false;
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
-	iopBreakpoint = true;
+#endif
+
+	// Exit the EE too.
+	Cpu->ExitExecution();
+	return true;
 }
 
-void psxDynarecMemcheck()
+static bool psxDynarecMemcheck()
 {
 	u32 pc = psxRegs.pc;
 	if (CBreakPoints::CheckSkipFirst(BREAKPOINT_IOP, pc) == pc)
-		return;
+		return false;
 
 	CBreakPoints::SetBreakpointTriggered(true);
+#ifndef PCSX2_CORE
 	GetCoreThread().PauseSelfDebug();
-	iopBreakpoint = true;
+#endif
+
+	// Exit the EE too.
+	Cpu->ExitExecution();
+	return true;
 }
 
-void __fastcall psxDynarecMemLogcheck(u32 start, bool store)
+static void psxDynarecMemLogcheck(u32 start, bool store)
 {
 	if (store)
 		DevCon.WriteLn("Hit store breakpoint @0x%x", start);
@@ -1150,7 +1153,7 @@ void __fastcall psxDynarecMemLogcheck(u32 start, bool store)
 		DevCon.WriteLn("Hit load breakpoint @0x%x", start);
 }
 
-void psxRecMemcheck(u32 op, u32 bits, bool store)
+static void psxRecMemcheck(u32 op, u32 bits, bool store)
 {
 	_psxFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 
@@ -1158,12 +1161,8 @@ void psxRecMemcheck(u32 op, u32 bits, bool store)
 	_psxMoveGPRtoR(ecx, (op >> 21) & 0x1F);
 	if ((s16)op != 0)
 		xADD(ecx, (s16)op);
-	if (bits == 128)
-		xAND(ecx, ~0x0F);
 
-	xFastCall((void*)standardizeBreakpointAddressIop, ecx);
-	xMOV(ecx, eax);
-	xMOV(edx, eax);
+	xMOV(edx, ecx);
 	xADD(edx, bits / 8);
 
 	// ecx = access address
@@ -1183,11 +1182,11 @@ void psxRecMemcheck(u32 op, u32 bits, bool store)
 
 		// logic: memAddress < bpEnd && bpStart < memAddress+memSize
 
-		xMOV(eax, standardizeBreakpointAddress(BREAKPOINT_IOP, checks[i].end));
+		xMOV(eax, checks[i].end);
 		xCMP(ecx, eax);     // address < end
 		xForwardJGE8 next1; // if address >= end then goto next1
 
-		xMOV(eax, standardizeBreakpointAddress(BREAKPOINT_IOP, checks[i].start));
+		xMOV(eax, checks[i].start);
 		xCMP(eax, edx);     // start < address+size
 		xForwardJGE8 next2; // if start >= address+size then goto next2
 
@@ -1200,29 +1199,27 @@ void psxRecMemcheck(u32 op, u32 bits, bool store)
 		if (checks[i].result & MEMCHECK_BREAK)
 		{
 			xFastCall((void*)psxDynarecMemcheck);
+			xTEST(al, al);
+			xJNZ(iopExitRecompiledCode);
 		}
 
 		next1.SetTarget();
 		next2.SetTarget();
 	}
-	// get out of here
-	xCMP(ptr8[&iopBreakpoint], 0);
-	xJNE(iopExitRecompiledCode);
 }
 
-void psxEncodeBreakpoint()
+static void psxEncodeBreakpoint()
 {
 	if (psxIsBreakpointNeeded(psxpc) != 0)
 	{
 		_psxFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 		xFastCall((void*)psxDynarecCheckBreakpoint);
-		// get out of here
-		xCMP(ptr8[&iopBreakpoint], 0);
-		xJNE(iopExitRecompiledCode);
+		xTEST(al, al);
+		xJNZ(iopExitRecompiledCode);
 	}
 }
 
-void psxEncodeMemcheck()
+static void psxEncodeMemcheck()
 {
 	int needed = psxIsMemcheckNeeded(psxpc);
 	if (needed == 0)
@@ -1238,7 +1235,6 @@ void psxEncodeMemcheck()
 		case MEMTYPE_HALF:  psxRecMemcheck(op,  16, store); break;
 		case MEMTYPE_WORD:  psxRecMemcheck(op,  32, store); break;
 		case MEMTYPE_DWORD: psxRecMemcheck(op,  64, store); break;
-		case MEMTYPE_QWORD: psxRecMemcheck(op, 128, store); break;
 	}
 }
 
@@ -1564,7 +1560,6 @@ static uint recGetCacheReserve()
 R3000Acpu psxRec = {
 	recReserve,
 	recResetIOP,
-	recExecute,
 	recExecuteBlock,
 	recClearIOP,
 	recShutdown,

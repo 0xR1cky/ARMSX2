@@ -19,6 +19,7 @@
 #include "IopBios.h"
 #include "R5900.h"
 
+#include "common/Timer.h"
 #include "common/WindowInfo.h"
 extern WindowInfo g_gs_window_info;
 
@@ -28,13 +29,14 @@ extern WindowInfo g_gs_window_info;
 #include "Patch.h"
 #include "SysThreads.h"
 #include "MTVU.h"
-#include "IPC.h"
+#include "PINE.h"
 #include "FW.h"
 #include "SPU2/spu2.h"
 #include "DEV9/DEV9.h"
 #include "USB/USB.h"
 #include "MemoryCardFile.h"
 #include "PAD/Gamepad.h"
+#include "PerformanceMetrics.h"
 
 #include "DebugTools/MIPSAnalyst.h"
 #include "DebugTools/SymbolMap.h"
@@ -51,9 +53,9 @@ extern WindowInfo g_gs_window_info;
 
 bool g_CDVDReset = false;
 
-namespace IPCSettings
+namespace PINESettings
 {
-	unsigned int slot = IPC_DEFAULT_SLOT;
+	unsigned int slot = PINE_DEFAULT_SLOT;
 };
 
 // --------------------------------------------------------------------------------------
@@ -102,8 +104,10 @@ void SysCoreThread::OnStart()
 
 void SysCoreThread::OnSuspendInThread()
 {
-	TearDownSystems(static_cast<SystemsMask>(-1)); // All systems
-	GetMTGS().Suspend();
+	// We deliberately don't tear down GS here, because the state isn't saved.
+	// Which means when it reopens, you'll lose everything in VRAM. Anything
+	// which needs GS to be torn down should manually save its state.
+	TearDownSystems(static_cast<SystemsMask>(-1 & ~System_GS)); // All systems
 }
 
 void SysCoreThread::Start()
@@ -181,7 +185,25 @@ void SysCoreThread::ApplySettings(const Pcsx2Config& src)
 	m_resetProfilers = (src.Profiler != EmuConfig.Profiler);
 	m_resetVsyncTimers = (src.GS != EmuConfig.GS);
 
+	const bool gs_settings_changed = !src.GS.OptionsAreEqual(EmuConfig.GS);
+
+	Pcsx2Config old_config;
+	old_config.CopyConfig(EmuConfig);
 	EmuConfig.CopyConfig(src);
+
+	// handle DEV9 setting changes
+	DEV9CheckChanges(old_config);
+
+	// handle GS setting changes
+	if (GetMTGS().IsOpen() && gs_settings_changed)
+	{
+		// if by change we reopen the GS, the window handles will invalidate.
+		// so, we should block here until GS has finished reinitializing, if needed.
+		Console.WriteLn("Applying GS settings...");
+		GetMTGS().ApplySettings();
+		GetMTGS().SetVSync(EmuConfig.GetEffectiveVsyncMode());
+		GetMTGS().WaitGS();
+	}
 }
 
 // --------------------------------------------------------------------------------------
@@ -223,6 +245,7 @@ void SysCoreThread::_reset_stuff_as_needed()
 
 	if (m_resetVsyncTimers)
 	{
+		GetMTGS().SetVSync(EmuConfig.GetEffectiveVsyncMode());
 		UpdateVSyncRate();
 		frameLimitReset();
 
@@ -265,13 +288,13 @@ void SysCoreThread::GameStartingInThread()
 #ifdef USE_SAVESLOT_UI_UPDATES
 	UI_UpdateSysControls();
 #endif
-	if (EmuConfig.EnableIPC && m_IpcState == OFF)
+	if (EmuConfig.EnablePINE && m_PineState == OFF)
 	{
-		m_IpcState = ON;
-		m_socketIpc = std::make_unique<SocketIPC>(this, IPCSettings::slot);
+		m_PineState = ON;
+		m_pineServer = std::make_unique<PINEServer>(this, PINESettings::slot);
 	}
-	if (m_IpcState == ON && m_socketIpc->m_end)
-		m_socketIpc->Start();
+	if (m_PineState == ON && m_pineServer->m_end)
+		m_pineServer->Start();
 }
 
 bool SysCoreThread::StateCheckInThread()
@@ -293,7 +316,7 @@ void SysCoreThread::DoCpuExecute()
 void SysCoreThread::ExecuteTaskInThread()
 {
 	Threading::EnableHiresScheduler(); // Note that *something* in SPU2 and GS also set the timer resolution to 1ms.
-	m_sem_event.WaitWithoutYield();
+	m_sem_event.WaitForWork();
 
 	m_mxcsr_saved.bitmask = _mm_getcsr();
 
@@ -317,10 +340,15 @@ void SysCoreThread::TearDownSystems(SystemsMask systemsToTearDown)
 	if (systemsToTearDown & System_PAD) PADclose();
 	if (systemsToTearDown & System_SPU2) SPU2close();
 	if (systemsToTearDown & System_MCD) FileMcd_EmuClose();
+
+	PerformanceMetrics::SetCPUThreadTimer(Common::ThreadCPUTimer());
 }
 
 void SysCoreThread::OnResumeInThread(SystemsMask systemsToReinstate)
 {
+	PerformanceMetrics::SetCPUThreadTimer(Common::ThreadCPUTimer::GetForCallingThread());
+	PerformanceMetrics::Reset();
+
 	GetMTGS().WaitForOpen();
 	if (systemsToReinstate & System_DEV9) DEV9open();
 	if (systemsToReinstate & System_USB) USBopen(g_gs_window_info);

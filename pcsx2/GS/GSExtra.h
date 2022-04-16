@@ -18,6 +18,7 @@
 #include "GSVector.h"
 
 #ifdef _WIN32
+#include "common/RedtapeWindows.h"
 inline std::string convert_utf16_to_utf8(const std::wstring& utf16_string)
 {
 	const int size = WideCharToMultiByte(CP_UTF8, 0, utf16_string.c_str(), utf16_string.size(), nullptr, 0, nullptr, nullptr);
@@ -35,6 +36,64 @@ inline std::wstring convert_utf8_to_utf16(const std::string& utf8_string)
 }
 #endif
 
+/// Like `memcmp(&a, &b, sizeof(T)) == 0` but faster
+template <typename T>
+__forceinline bool BitEqual(const T& a, const T& b)
+{
+#if _M_SSE >= 0x501
+	if (alignof(T) >= 32)
+	{
+		GSVector8i eq = GSVector8i::xffffffff();
+		for (size_t i = 0; i < sizeof(T) / 32; i++)
+			eq &= reinterpret_cast<const GSVector8i*>(&a)[i].eq8(reinterpret_cast<const GSVector8i*>(&b)[i]);
+		return eq.alltrue();
+	}
+#endif
+	GSVector4i eq = GSVector4i::xffffffff();
+	if (alignof(T) >= 16)
+	{
+		for (size_t i = 0; i < sizeof(T) / 16; i++)
+			eq &= reinterpret_cast<const GSVector4i*>(&a)[i].eq8(reinterpret_cast<const GSVector4i*>(&b)[i]);
+		return eq.alltrue();
+	}
+	const char* ac = reinterpret_cast<const char*>(&a);
+	const char* bc = reinterpret_cast<const char*>(&b);
+	size_t i = 0;
+	if (sizeof(T) >= 16)
+	{
+		for (; i < sizeof(T) - 15; i += 16)
+			eq &= GSVector4i::load<false>(ac + i).eq8(GSVector4i::load<false>(bc + i));
+	}
+	if (i + 8 <= sizeof(T))
+	{
+		eq &= GSVector4i::loadl(ac + i).eq8(GSVector4i::loadl(bc + i));
+		i += 8;
+	}
+	bool eqb = eq.alltrue();
+	if (i + 4 <= sizeof(T))
+	{
+		u32 ai, bi;
+		memcpy(&ai, ac + i, sizeof(ai));
+		memcpy(&bi, bc + i, sizeof(bi));
+		eqb = ai == bi && eqb;
+		i += 4;
+	}
+	if (i + 2 <= sizeof(T))
+	{
+		u16 as, bs;
+		memcpy(&as, ac + i, sizeof(as));
+		memcpy(&bs, bc + i, sizeof(bs));
+		eqb = as == bs && eqb;
+		i += 2;
+	}
+	if (i != sizeof(T))
+	{
+		ASSERT(i + 1 == sizeof(T));
+		eqb = ac[i] == bc[i] && eqb;
+	}
+	return eqb;
+}
+
 // _wfopen has to be used on Windows for pathnames containing non-ASCII characters.
 inline FILE* px_fopen(const std::string& filename, const std::string& mode)
 {
@@ -48,8 +107,42 @@ inline FILE* px_fopen(const std::string& filename, const std::string& mode)
 #ifdef ENABLE_ACCURATE_BUFFER_EMULATION
 static const GSVector2i default_rt_size(2048, 2048);
 #else
-static const GSVector2i default_rt_size(1280, 1024);
+static const GSVector2i default_rt_size(0, 0);
 #endif
+
+extern Pcsx2Config::GSOptions GSConfig;
+
+// Maximum texture size to skip preload/hash path.
+// This is the width/height from the registers, i.e. not the power of 2.
+__fi static bool CanCacheTextureSize(u32 tw, u32 th)
+{
+	static constexpr u32 MAXIMUM_CACHE_SIZE = 10; // 1024
+	return (GSConfig.TexturePreloading == TexturePreloadingLevel::Full && tw <= MAXIMUM_CACHE_SIZE && th <= MAXIMUM_CACHE_SIZE);
+}
+
+__fi static bool CanPreloadTextureSize(u32 tw, u32 th)
+{
+	static constexpr u32 MAXIMUM_SIZE_IN_ONE_DIRECTION = 10; // 1024
+	static constexpr u32 MAXIMUM_SIZE_IN_OTHER_DIRECTION = 8; // 256
+	static constexpr u32 MAXIMUM_SIZE_IN_BOTH_DIRECTIONS = 9; // 512
+
+	if (GSConfig.TexturePreloading < TexturePreloadingLevel::Partial)
+		return false;
+
+	// We use an area-based approach here. We want to hash long font maps,
+	// like 128x1024 (used in FFX), but skip 1024x512 textures (e.g. Xenosaga).
+	const u32 max_dimension = (tw > th) ? tw : th;
+	const u32 min_dimension = (tw > th) ? th : tw;
+	if (max_dimension <= MAXIMUM_SIZE_IN_BOTH_DIRECTIONS)
+		return true;
+
+	return (max_dimension <= MAXIMUM_SIZE_IN_ONE_DIRECTION &&
+			min_dimension <= MAXIMUM_SIZE_IN_OTHER_DIRECTION);
+}
+
+// Maximum number of mipmap levels for a texture.
+// PS2 has a max of 7 levels (1 base + 6 mips).
+static constexpr int MAXIMUM_TEXTURE_MIPMAP_LEVELS = 7;
 
 // Helper path to dump texture
 extern const std::string root_sw;

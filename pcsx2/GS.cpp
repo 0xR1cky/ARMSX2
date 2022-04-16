@@ -26,11 +26,13 @@ using namespace Threading;
 using namespace R5900;
 
 alignas(16) u8 g_RealGSMem[Ps2MemSize::GSregs];
+static bool s_GSRegistersWritten = false;
 
 void gsSetVideoMode(GS_VideoMode mode)
 {
 	gsVideoMode = mode;
 	UpdateVSyncRate();
+	CSRreg.FIELD = 1;
 }
 
 // Make sure framelimiter options are in sync with GS capabilities.
@@ -47,20 +49,31 @@ void gsReset()
 
 void gsUpdateFrequency(Pcsx2Config& config)
 {
-	switch (EmuConfig.LimiterMode)
+	if (config.GS.FrameLimitEnable)
 	{
-	case LimiterModeType::Nominal:
-		config.GS.LimitScalar = EmuConfig.Framerate.NominalScalar;
-		break;
-	case LimiterModeType::Slomo:
-		config.GS.LimitScalar = EmuConfig.Framerate.SlomoScalar;
-		break;
-	case LimiterModeType::Turbo:
-		config.GS.LimitScalar = EmuConfig.Framerate.TurboScalar;
-		break;
-	default:
-		pxAssert("Unknown framelimiter mode!");
+		switch (config.LimiterMode)
+		{
+		case LimiterModeType::Nominal:
+			config.GS.LimitScalar = config.Framerate.NominalScalar;
+			break;
+		case LimiterModeType::Slomo:
+			config.GS.LimitScalar = config.Framerate.SlomoScalar;
+			break;
+		case LimiterModeType::Turbo:
+			config.GS.LimitScalar = config.Framerate.TurboScalar;
+			break;
+		case LimiterModeType::Unlimited:
+			config.GS.LimitScalar = 0.0;
+			break;
+		default:
+			pxAssert("Unknown framelimiter mode!");
+		}
 	}
+	else
+	{
+		config.GS.LimitScalar = 0.0;
+	}
+
 	UpdateVSyncRate();
 }
 
@@ -72,9 +85,10 @@ static __fi void gsCSRwrite( const tGS_CSR& csr )
 		//gifUnit.Reset(true); // Don't think gif should be reset...
 		gifUnit.gsSIGNAL.queued = false;
 		GetMTGS().SendSimplePacket(GS_RINGTYPE_RESET, 0, 0, 0);
-
+		const u32 field = CSRreg.FIELD;
 		CSRreg.Reset();
 		GSIMR.reset();
+		CSRreg.FIELD = field;
 	}
 
 	if(csr.FLUSH)
@@ -211,6 +225,8 @@ void __fastcall gsWrite64_generic( u32 mem, const mem64_t* value )
 
 void __fastcall gsWrite64_page_00( u32 mem, const mem64_t* value )
 {
+	s_GSRegistersWritten |= (mem == GS_DISPFB1 || mem == GS_DISPFB2 || mem == GS_PMODE);
+
 	gsWrite64_generic( mem, value );
 }
 
@@ -312,19 +328,20 @@ __fi u16 gsRead16(u32 mem)
 		case GS_SIGLBLID:
 			return *(u16*)PS2GS_BASE(mem);
 		default: // Only SIGLBLID and CSR are readable, everything else mirrors CSR
-			return *(u16*)PS2GS_BASE(GS_CSR + (mem & 0xF));
+			return *(u16*)PS2GS_BASE(GS_CSR + (mem & 0x7));
 	}
 }
 
 __fi u32 gsRead32(u32 mem)
 {
 	GIF_LOG("GS read 32 from %8.8lx  value: %8.8lx", mem, *(u32*)PS2GS_BASE(mem));
+
 	switch (mem & ~0xF)
 	{
 		case GS_SIGLBLID:
 			return *(u32*)PS2GS_BASE(mem);
 		default: // Only SIGLBLID and CSR are readable, everything else mirrors CSR
-			return *(u32*)PS2GS_BASE(GS_CSR + (mem & 0xF));
+			return *(u32*)PS2GS_BASE(GS_CSR + (mem & 0xC));
 	}
 }
 
@@ -332,12 +349,13 @@ __fi u64 gsRead64(u32 mem)
 {
 	// fixme - PS2GS_BASE(mem+4) = (g_RealGSMem+(mem + 4 & 0x13ff))
 	GIF_LOG("GS read 64 from %8.8lx  value: %8.8lx_%8.8lx", mem, *(u32*)PS2GS_BASE(mem+4), *(u32*)PS2GS_BASE(mem) );
+
 	switch (mem & ~0xF)
 	{
 		case GS_SIGLBLID:
 			return *(u64*)PS2GS_BASE(mem);
 		default: // Only SIGLBLID and CSR are readable, everything else mirrors CSR
-			return *(u64*)PS2GS_BASE(GS_CSR + (mem & 0xF));
+			return *(u64*)PS2GS_BASE(GS_CSR + (mem & 0x8));
 	}
 }
 
@@ -369,34 +387,34 @@ void gsIrq() {
 //   This function does not regulate frame limiting, meaning it does no stalling. Stalling
 //   functions are performed by the EE, which itself uses thread sleep logic to avoid spin
 //   waiting as much as possible (maximizes CPU resource availability for the GS).
+static bool s_isSkippingCurrentFrame = false;
 
 __fi void gsFrameSkip()
 {
 	static int consec_skipped = 0;
 	static int consec_drawn = 0;
-	static bool isSkipping = false;
 
 	if( !EmuConfig.GS.FrameSkipEnable )
 	{
-		if( isSkipping )
+		if( s_isSkippingCurrentFrame )
 		{
 			// Frameskipping disabled on-the-fly .. make sure the GS is restored to non-skip
 			// behavior.
 			GSsetFrameSkip( false );
-			isSkipping = false;
+			s_isSkippingCurrentFrame = false;
 		}
 		return;
 	}
 
-	GSsetFrameSkip( isSkipping );
+	GSsetFrameSkip( s_isSkippingCurrentFrame );
 
-	if( isSkipping )
+	if( s_isSkippingCurrentFrame )
 	{
 		++consec_skipped;
 		if( consec_skipped >= EmuConfig.GS.FramesToSkip )
 		{
 			consec_skipped = 0;
-			isSkipping = false;
+			s_isSkippingCurrentFrame = false;
 		}
 	}
 	else
@@ -405,9 +423,14 @@ __fi void gsFrameSkip()
 		if( consec_drawn >= EmuConfig.GS.FramesToDraw )
 		{
 			consec_drawn = 0;
-			isSkipping = true;
+			s_isSkippingCurrentFrame = true;
 		}
 	}
+}
+
+extern bool gsIsSkippingCurrentFrame()
+{
+	return s_isSkippingCurrentFrame;
 }
 
 //These are done at VSync Start.  Drawing is done when VSync is off, then output the screen when Vsync is on
@@ -417,7 +440,9 @@ void gsPostVsyncStart()
 {
 	//gifUnit.FlushToMTGS();  // Needed for some (broken?) homebrew game loaders
 	
-	GetMTGS().PostVsyncStart();
+	const bool registers_written = s_GSRegistersWritten;
+	s_GSRegistersWritten = false;
+	GetMTGS().PostVsyncStart(registers_written);
 }
 
 void _gs_ResetFrameskip()
@@ -436,3 +461,4 @@ void SaveStateBase::gsFreeze()
 	FreezeMem(PS2MEM_GS, 0x2000);
 	Freeze(gsVideoMode);
 }
+

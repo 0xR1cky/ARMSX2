@@ -617,15 +617,15 @@ public:
 	static void Init();
 	static void Cleanup();
 	static void Write(const StereoOut32& Sample);
-	static s32 Test();
 	static void ClearContents();
+	static void SetPaused(bool paused);
 
 	// Note: When using with 32 bit output buffers, the user of this function is responsible
 	// for shifting the values to where they need to be manually.  The fixed point depth of
 	// the sample output is determined by the SndOutVolumeShift, which is the number of bits
 	// to shift right to get a 16 bit result.
 	template <typename T>
-	static void ReadSamples(T* bData);
+	static void ReadSamples(T* bData, int nSamples = SndOutPacketSize);
 };
 
 class SndOutModule
@@ -642,35 +642,24 @@ public:
 	// (for use in configuration screen)
 	virtual const wchar_t* GetLongName() const = 0;
 
-	virtual s32 Init() = 0;
+	virtual bool Init() = 0;
 	virtual void Close() = 0;
-	virtual s32 Test() const = 0;
 
-	// Gui function: Used to open the configuration box for this driver.
-	virtual void Configure(uptr parent) = 0;
-
-	// Loads settings from the INI file for this driver
-	virtual void ReadSettings() = 0;
-
-	// Set output API for this driver
-	virtual void SetApiSettings(wxString api) = 0;
-
-	// Saves settings to the INI file for this driver
-	virtual void WriteSettings() const = 0;
+	// Temporarily pauses the stream, preventing it from requesting data.
+	virtual void SetPaused(bool paused) = 0;
 
 	// Returns the number of empty samples in the output buffer.
 	// (which is effectively the amount of data played since the last update)
 	virtual int GetEmptySampleCount() = 0;
 };
 
-#ifdef _MSC_VER
-//internal
+extern SndOutModule* NullOut;
+#ifdef _WIN32
 extern SndOutModule* XAudio2Out;
 #endif
-#if defined(SPU2X_PORTAUDIO)
-extern SndOutModule* PortaudioOut;
+#if defined(SPU2X_CUBEB)
+extern SndOutModule* CubebOut;
 #endif
-extern SndOutModule* const SDLOut;
 extern SndOutModule* mods[];
 
 // =====================================================================================================

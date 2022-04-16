@@ -14,7 +14,6 @@
  */
 
 #pragma once
-
 extern void _vu0WaitMicro();
 extern void _vu0FinishMicro();
 
@@ -55,24 +54,38 @@ void setupMacroOp(int mode, const char* opName)
 	{
 		xMOVSSZX(xmmPQ, ptr32[&vu0Regs.VI[REG_Q].UL]);
 	}
-	if (mode & 0x08) // Clip Instruction
+	if (mode & 0x08 && (!CHECK_VU_FLAGHACK || g_pCurInstInfo->info & EEINST_COP2_CLIP_FLAG)) // Clip Instruction
 	{
 		microVU0.prog.IRinfo.info[0].cFlag.write     = 0xff;
 		microVU0.prog.IRinfo.info[0].cFlag.lastWrite = 0xff;
 	}
-	if (mode & 0x10) // Update Status/Mac Flags
+	if (mode & 0x10 && (!CHECK_VU_FLAGHACK || g_pCurInstInfo->info & EEINST_COP2_STATUS_FLAG)) // Update Status Flag
 	{
 		microVU0.prog.IRinfo.info[0].sFlag.doFlag      = true;
 		microVU0.prog.IRinfo.info[0].sFlag.doNonSticky = true;
 		microVU0.prog.IRinfo.info[0].sFlag.write       = 0;
 		microVU0.prog.IRinfo.info[0].sFlag.lastWrite   = 0;
+	}
+	if (mode & 0x10 && (!CHECK_VU_FLAGHACK || g_pCurInstInfo->info & EEINST_COP2_MAC_FLAG)) // Update Mac Flags
+	{
 		microVU0.prog.IRinfo.info[0].mFlag.doFlag      = true;
 		microVU0.prog.IRinfo.info[0].mFlag.write       = 0xff;
-		_freeX86reg(ebx);
-		//Denormalize
-		mVUallocSFLAGd(&vu0Regs.VI[REG_STATUS_FLAG].UL);
-		
-		xMOV(gprF0, eax);
+	}
+	if (mode & 0x10)
+	{
+		_freeX86reg(gprF0);
+
+		if (!CHECK_VU_FLAGHACK || (g_pCurInstInfo->info & EEINST_COP2_DENORMALIZE_STATUS_FLAG))
+		{
+			// flags are normalized, so denormalize before running the first instruction
+			mVUallocSFLAGd(&vu0Regs.VI[REG_STATUS_FLAG].UL, gprF0, eax, ecx);
+		}
+		else
+		{
+			// load denormalized status flag
+			// ideally we'd keep this in a register, but 32-bit...
+			xMOV(gprF0, ptr32[&vuRegs->VI[REG_STATUS_FLAG].UL]);
+		}
 	}
 }
 
@@ -82,29 +95,26 @@ void endMacroOp(int mode)
 	{
 		xMOVSS(ptr32[&vu0Regs.VI[REG_Q].UL], xmmPQ);
 	}
-	if (mode & 0x10) // Status/Mac Flags were Updated
-	{
-		// Normalize
-		mVUallocSFLAGc(eax, gprF0, 0);
-		xMOV(ptr32[&vu0Regs.VI[REG_STATUS_FLAG].UL], eax);
-	}
 
 	microVU0.regAlloc->flushAll();
 	_clearNeededCOP2Regs();
 
-	if (mode & 0x10) // Update VU0 Status/Mac instances after flush to avoid corrupting anything
+	if (mode & 0x10)
 	{
-		int t0reg = _allocTempXMMreg(XMMT_INT, -1);
-		mVUallocSFLAGd(&vu0Regs.VI[REG_STATUS_FLAG].UL);
-		xMOVDZX(xRegisterSSE(t0reg), eax);
-		xSHUF.PS(xRegisterSSE(t0reg), xRegisterSSE(t0reg), 0);
-		xMOVAPS(ptr128[&microVU0.regs().micro_statusflags], xRegisterSSE(t0reg));
-
-		xMOVDZX(xRegisterSSE(t0reg), ptr32[&vu0Regs.VI[REG_MAC_FLAG].UL]);
-		xSHUF.PS(xRegisterSSE(t0reg), xRegisterSSE(t0reg), 0);
-		xMOVAPS(ptr128[&microVU0.regs().micro_macflags], xRegisterSSE(t0reg));
-		_freeXMMreg(t0reg);
+		if (!CHECK_VU_FLAGHACK || g_pCurInstInfo->info & EEINST_COP2_NORMALIZE_STATUS_FLAG)
+		{
+			// Normalize
+			mVUallocSFLAGc(eax, gprF0, 0);
+			xMOV(ptr32[&vu0Regs.VI[REG_STATUS_FLAG].UL], eax);
+		}
+		else
+		{
+			// backup denormalized flags for the next instruction
+			// this is fine, because we'll normalize them again before this reg is accessed
+			xMOV(ptr32[&vuRegs->VI[REG_STATUS_FLAG].UL], gprF0);
+		}
 	}
+
 	microVU0.cop2 = 0;
 	microVU0.regAlloc->reset(false);
 }
@@ -316,6 +326,7 @@ void COP2_Interlock(bool mBitSync)
 
 	if (cpuRegs.code & 1)
 	{
+		s_nBlockInterlocked = true;
 		_freeX86reg(eax);
 		xMOV(eax, ptr32[&cpuRegs.cycle]);
 		xADD(eax, scaleblockcycles_clear());
@@ -328,10 +339,11 @@ void COP2_Interlock(bool mBitSync)
 		{
 			xSUB(eax, ptr32[&VU0.cycle]);
 			xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-			xCMP(eax, 0);
+			xCMP(eax, 4);
 			xForwardJL32 skip;
 			xLoadFarAddr(arg1reg, CpuVU0);
-			xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+			xMOV(arg2reg, s_nBlockInterlocked);
+			xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 			skip.SetTarget();
 
 			xFastCall((void*)_vu0WaitMicro);
@@ -372,11 +384,12 @@ static void recCFC2()
 		xForwardJZ32 skipvuidle;
 		xSUB(eax, ptr32[&VU0.cycle]);
 		xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-		xCMP(eax, EmuConfig.Gamefixes.VUKickstartHack ? 8 : 0);
+		xCMP(eax, 4);
 		xForwardJL32 skip;
 		_cop2BackupRegs();
 		xLoadFarAddr(arg1reg, CpuVU0);
-		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+		xMOV(arg2reg, s_nBlockInterlocked);
+		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 		_cop2RestoreRegs();
 		skip.SetTarget();
 		skipvuidle.SetTarget();
@@ -390,23 +403,10 @@ static void recCFC2()
 		xMOV(eax, ptr32[&vu0Regs.VI[_Rd_].UL]);
 
 	// FixMe: Should R-Reg have upper 9 bits 0?
-#ifdef __M_X86_64
 	if (_Rd_ >= 16)
 		xCDQE(); // Sign Extend
 
 	xMOV(ptr64[&cpuRegs.GPR.r[_Rt_].UD[0]], rax);
-#else
-	xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[0]], eax);
-
-	if (_Rd_ >= 16)
-	{
-		_freeX86reg(edx);
-		xCDQ(); // Sign Extend
-		xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[1]], edx);
-	}
-	else
-		xMOV(ptr32[&cpuRegs.GPR.r[_Rt_].UL[1]], 0);
-#endif
 
 	// FixMe: I think this is needed, but not sure how it works
 	// Update Refraction 20/09/2021: This is needed because Const Prop is broken
@@ -434,11 +434,12 @@ static void recCTC2()
 		xForwardJZ32 skipvuidle;
 		xSUB(eax, ptr32[&VU0.cycle]);
 		xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-		xCMP(eax, EmuConfig.Gamefixes.VUKickstartHack ? 8 : 0);
+		xCMP(eax, 4);
 		xForwardJL32 skip;
 		_cop2BackupRegs();
 		xLoadFarAddr(arg1reg, CpuVU0);
-		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+		xMOV(arg2reg, s_nBlockInterlocked);
+		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 		_cop2RestoreRegs();
 		skip.SetTarget();
 		skipvuidle.SetTarget();
@@ -536,11 +537,12 @@ static void recQMFC2()
 		xForwardJZ32 skipvuidle;
 		xSUB(eax, ptr32[&VU0.cycle]);
 		xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-		xCMP(eax, EmuConfig.Gamefixes.VUKickstartHack ? 8 : 0);
+		xCMP(eax, 4);
 		xForwardJL32 skip;
 		_cop2BackupRegs();
 		xLoadFarAddr(arg1reg, CpuVU0);
-		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+		xMOV(arg2reg, s_nBlockInterlocked);
+		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 		_cop2RestoreRegs();
 		skip.SetTarget();
 		skipvuidle.SetTarget();
@@ -576,11 +578,12 @@ static void recQMTC2()
 		xForwardJZ32 skipvuidle;
 		xSUB(eax, ptr32[&VU0.cycle]);
 		xSUB(eax, ptr32[&VU0.nextBlockCycles]);
-		xCMP(eax, EmuConfig.Gamefixes.VUKickstartHack ? 8 : 0);
+		xCMP(eax, 4);
 		xForwardJL32 skip;
 		_cop2BackupRegs();
 		xLoadFarAddr(arg1reg, CpuVU0);
-		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg);
+		xMOV(arg2reg, s_nBlockInterlocked);
+		xFastCall((void*)BaseVUmicroCPU::ExecuteBlockJIT, arg1reg, arg2reg);
 		_cop2RestoreRegs();
 		skip.SetTarget();
 		skipvuidle.SetTarget();
@@ -606,9 +609,6 @@ void rec_C2UNK()
 {
 	Console.Error("Cop2 bad opcode: %x", cpuRegs.code);
 }
-
-// This is called by EE Recs to setup sVU info, this isn't needed for mVU Macro (cottonvibes)
-void _vuRegsCOP22(VURegs* VU, _VURegsNum* VUregsn) {}
 
 // Recompilation
 void (*recCOP2t[32])() = {

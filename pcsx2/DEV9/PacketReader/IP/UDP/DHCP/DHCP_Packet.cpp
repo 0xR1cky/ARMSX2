@@ -151,10 +151,34 @@ namespace PacketReader::IP::UDP::DHCP
 			}
 		} while (opReadFin == false);
 	}
+	DHCP_Packet::DHCP_Packet(const DHCP_Packet& original)
+		: op{original.op}
+		, hardwareType(original.hardwareType)
+		, hardwareAddressLength{original.hardwareAddressLength}
+		, hops{original.hops}
+		, transactionID{original.transactionID}
+		, seconds{original.seconds}
+		, flags{original.flags}
+		, clientIP{original.clientIP}
+		, yourIP{original.yourIP}
+		, serverIP{original.serverIP}
+		, gatewayIP{original.gatewayIP}
+		, magicCookie(original.magicCookie)
+		, maxLength{original.maxLength}
+	{
+		memcpy(clientHardwareAddress, original.clientHardwareAddress, 16);
+		//Assume BOOTP unused
+
+		//Clone options
+		options.reserve(original.options.size());
+		for (size_t i = 0; i < options.size(); i++)
+			options.push_back(original.options[i]->Clone());
+	}
+
 
 	int DHCP_Packet::GetLength()
 	{
-		return maxLenth - (8 + 20);
+		return maxLength - (8 + 20);
 	}
 
 	void DHCP_Packet::WriteBytes(u8* buffer, int* offset)
@@ -185,7 +209,7 @@ namespace PacketReader::IP::UDP::DHCP
 		int len = 240;
 		for (size_t i = 0; i < options.size(); i++)
 		{
-			if (len + options[i]->GetLength() < maxLenth)
+			if (len + options[i]->GetLength() < maxLength)
 			{
 				len += options[i]->GetLength();
 				options[i]->WriteBytes(buffer, offset);
@@ -194,7 +218,7 @@ namespace PacketReader::IP::UDP::DHCP
 			{
 				Console.Error("DEV9: DHCP_Packet: Oversized DHCP packet not handled");
 				//We need space for DHCP End
-				if (len == maxLenth)
+				if (len == maxLength)
 				{
 					i -= 1;
 					int pastLength = options[i]->GetLength();
@@ -213,6 +237,11 @@ namespace PacketReader::IP::UDP::DHCP
 
 		memset(&buffer[*offset], 0, delta);
 		*offset = start + GetLength();
+	}
+
+	DHCP_Packet* DHCP_Packet::Clone() const
+	{
+		return new DHCP_Packet(*this);
 	}
 
 	DHCP_Packet::~DHCP_Packet()

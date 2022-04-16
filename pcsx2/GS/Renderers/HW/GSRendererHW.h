@@ -17,6 +17,7 @@
 
 #include "GSTextureCache.h"
 #include "GS/Renderers/Common/GSFunctionMap.h"
+#include "GS/Renderers/Common/GSRenderer.h"
 #include "GS/GSState.h"
 
 class GSRendererHW : public GSRenderer
@@ -24,18 +25,8 @@ class GSRendererHW : public GSRenderer
 private:
 	int m_width;
 	int m_height;
-	int m_custom_width;
-	int m_custom_height;
-	bool m_reset;
-	int m_upscale_multiplier;
-	int m_userhacks_ts_half_bottom;
 
-	bool m_conservative_framebuffer;
-	bool m_userhacks_align_sprite_X;
-	bool m_userhacks_enabled_gs_mem_clear;
-	bool m_userHacks_merge_sprite;
-
-	static const float SSR_UV_TOLERANCE;
+	static constexpr float SSR_UV_TOLERANCE = 1.0f;
 
 #pragma region hacks
 
@@ -59,10 +50,10 @@ private:
 	bool OI_SuperManReturns(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_ArTonelico2(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_JakGames(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
+	bool OI_BurnoutGames(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 
-	void OO_MajokkoALaMode2();
+	void OO_BurnoutGames();
 
-	bool CU_MajokkoALaMode2();
 	bool CU_TalesOfAbyss();
 
 	class Hacks
@@ -136,7 +127,7 @@ private:
 	float alpha0(int L, int X0, int X1);
 	float alpha1(int L, int X0, int X1);
 	void SwSpriteRender();
-	bool CanUseSwSpriteRender(bool allow_64x64_sprite);
+	bool CanUseSwSpriteRender();
 
 	template <bool linear>
 	void RoundSpriteOffset();
@@ -148,30 +139,28 @@ protected:
 
 	virtual void DrawPrims(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* tex) = 0;
 
-	int m_userhacks_round_sprite_offset;
-	int m_userHacks_HPO;
-	bool m_userHacks_enabled_unscale_ptln;
+	void SetTCOffset();
 
 	bool m_userhacks_tcoffset;
 	float m_userhacks_tcoffset_x;
 	float m_userhacks_tcoffset_y;
 
-	bool m_accurate_date;
-	int m_sw_blending;
-
 	bool m_channel_shuffle;
+	bool m_reset;
 
 	GSVector2i m_lod; // Min & Max level of detail
-	void CustomResolutionScaling();
 
 public:
 	GSRendererHW();
-	virtual ~GSRendererHW();
+	virtual ~GSRendererHW() override;
 
-	void SetGameCRC(u32 crc, int options);
-	bool CanUpscale();
-	int GetUpscaleMultiplier();
-	GSVector2i GetCustomResolution();
+	__fi GSTextureCache* GetTextureCache() const { return m_tc; }
+
+	void Destroy() override;
+
+	void SetGameCRC(u32 crc, int options) override;
+	bool CanUpscale() override;
+	int GetUpscaleMultiplier() override;
 	void SetScaling();
 	void Lines2Sprites();
 	void EmulateAtst(GSVector4& FogColor_AREF, u8& atst, const bool pass_2);
@@ -179,15 +168,21 @@ public:
 	GSVector4 RealignTargetTextureCoordinate(const GSTextureCache::Source* tex);
 	GSVector4i ComputeBoundingBox(const GSVector2& rtscale, const GSVector2i& rtsize);
 	void MergeSprite(GSTextureCache::Source* tex);
+	GSVector2 GetTextureScaleFactor(const bool force_upscaling);
+	GSVector2 GetTextureScaleFactor() override;
+	GSVector2i GetTargetSize();
 
-	void Reset();
-	void VSync(int field);
-	void ResetDevice();
-	GSTexture* GetOutput(int i, int& y_offset);
-	GSTexture* GetFeedbackOutput();
-	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r);
-	void InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool clut = false);
-	void Draw();
+	void Reset() override;
+	void UpdateSettings(const Pcsx2Config::GSOptions& old_config) override;
+	void VSync(u32 field, bool registers_written) override;
+
+	GSTexture* GetOutput(int i, int& y_offset) override;
+	GSTexture* GetFeedbackOutput() override;
+	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) override;
+	void InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool clut = false) override;
+	void Draw() override;
+
+	void PurgeTextureCache() override;
 
 	// Called by the texture cache to know if current texture is useful
 	virtual bool IsDummyTexture() const { return false; }

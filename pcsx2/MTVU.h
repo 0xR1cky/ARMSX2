@@ -31,13 +31,11 @@ class VU_Thread : public pxThread {
 
 	u32 buffer[buffer_size];
 	// Note: keep atomic on separate cache line to avoid CPU conflict
-	alignas(64) std::atomic<bool> isBusy;   // Is thread processing data?
 	alignas(64) std::atomic<int> m_ato_read_pos; // Only modified by VU thread
 	alignas(64) std::atomic<int> m_ato_write_pos;    // Only modified by EE thread
 	alignas(64) int  m_read_pos; // temporary read pos (local to the VU thread)
 	int  m_write_pos; // temporary write pos (local to the EE thread)
-	Mutex     mtxBusy;
-	Semaphore semaEvent;
+	WorkSema semaEvent;
 	BaseVUmicroCPU*& vuCPU;
 	VURegs&          vuRegs;
 
@@ -47,6 +45,7 @@ public:
 	Semaphore semaXGkick;
 	std::atomic<unsigned int> vuCycles[4]; // Used for VU cycle stealing hack
 	u32 vuCycleIdx;  // Used for VU cycle stealing hack
+	u32 vuFBRST;
 
 	enum InterruptFlag {
 		InterruptFlagFinish = 1 << 0,
@@ -66,7 +65,7 @@ public:
 	void Reset();
 
 	// Get MTVU to start processing its packets if it isn't already
-	void KickStart(bool forceKick = false);
+	void KickStart();
 
 	// Used for assertions...
 	bool IsDone();
@@ -76,7 +75,7 @@ public:
 
 	void Get_MTVUChanges();
 
-	void ExecuteVU(u32 vu_addr, u32 vif_top, u32 vif_itop);
+	void ExecuteVU(u32 vu_addr, u32 vif_top, u32 vif_itop, u32 fbrst);
 
 	void VifUnpack(vifStruct& _vif, VIFregisters& _vifRegs, u8* data, u32 size);
 

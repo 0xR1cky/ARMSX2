@@ -58,25 +58,31 @@ extern mtfifo<NetPacket*> rx_fifo;
 extern mtfifo<NetPacket*> tx_fifo;
 */
 
-enum struct NetApi : int
-{
-	Unset = 0,
-	PCAP_Bridged = 1,
-	PCAP_Switched = 2,
-	TAP = 3,
-};
-
 struct AdapterEntry
 {
-	NetApi type;
-#ifdef _WIN32
-	std::wstring name;
-	std::wstring guid;
-#else
+	Pcsx2Config::DEV9Options::NetApi type;
+	//UTF8
 	std::string name;
 	std::string guid;
-#endif
 };
+
+enum struct AdapterOptions : int
+{
+	None = 0,
+	DHCP_ForcedOn = 1 << 0,
+	DHCP_OverrideIP = 1 << 1,
+	DHCP_OverideSubnet = 1 << 2,
+	DHCP_OverideGateway = 1 << 3,
+};
+
+constexpr enum AdapterOptions operator|(const enum AdapterOptions selfValue, const enum AdapterOptions inValue)
+{
+	return (enum AdapterOptions)(int(selfValue) | int(inValue));
+}
+constexpr enum AdapterOptions operator&(const enum AdapterOptions selfValue, const enum AdapterOptions inValue)
+{
+	return (enum AdapterOptions)(int(selfValue) & int(inValue));
+}
 
 class NetAdapter
 {
@@ -98,6 +104,9 @@ private:
 	std::condition_variable internalRxCV;
 	bool internalRxHasData = false;
 
+	bool dhcpOn = false;
+
+protected:
 	InternalServers::DHCP_Server dhcpServer = InternalServers::DHCP_Server([&] { InternalSignalReceived(); });
 	InternalServers::DNS_Logger dnsLogger;
 	InternalServers::DNS_Server dnsServer = InternalServers::DNS_Server([&] { InternalSignalReceived(); });
@@ -108,6 +117,7 @@ public:
 	virtual bool isInitialised() = 0;
 	virtual bool recv(NetPacket* pkt); //gets a packet
 	virtual bool send(NetPacket* pkt); //sends the packet and deletes it when done
+	virtual void reset(){};
 	virtual void reloadSettings() = 0;
 	virtual void close(){};
 	virtual ~NetAdapter();
@@ -120,11 +130,11 @@ protected:
 	void InspectSend(NetPacket* pkt);
 
 #ifdef _WIN32
-	void InitInternalServer(PIP_ADAPTER_ADDRESSES adapter);
-	void ReloadInternalServer(PIP_ADAPTER_ADDRESSES adapter);
+	void InitInternalServer(PIP_ADAPTER_ADDRESSES adapter, bool dhcpForceEnable = false, PacketReader::IP::IP_Address ipOverride = {0}, PacketReader::IP::IP_Address subnetOverride = {0}, PacketReader::IP::IP_Address gatewayOveride = {0});
+	void ReloadInternalServer(PIP_ADAPTER_ADDRESSES adapter, bool dhcpForceEnable = false, PacketReader::IP::IP_Address ipOverride = {0}, PacketReader::IP::IP_Address subnetOverride = {0}, PacketReader::IP::IP_Address gatewayOveride = {0});
 #elif defined(__POSIX__)
-	void InitInternalServer(ifaddrs* adapter);
-	void ReloadInternalServer(ifaddrs* adapter);
+	void InitInternalServer(ifaddrs* adapter, bool dhcpForceEnable = false, PacketReader::IP::IP_Address ipOverride = {0}, PacketReader::IP::IP_Address subnetOverride = {0}, PacketReader::IP::IP_Address gatewayOveride = {0});
+	void ReloadInternalServer(ifaddrs* adapter, bool dhcpForceEnable = false, PacketReader::IP::IP_Address ipOverride = {0}, PacketReader::IP::IP_Address subnetOverride = {0}, PacketReader::IP::IP_Address gatewayOveride = {0});
 #endif
 
 private:
@@ -136,8 +146,8 @@ private:
 };
 
 void tx_put(NetPacket* ptr);
-void InitNet();
-void ReconfigureLiveNet(ConfigDEV9* oldConfig);
-void TermNet();
+void ad_reset();
 
-const wxChar* NetApiToWxString(NetApi api);
+void InitNet();
+void ReconfigureLiveNet(const Pcsx2Config& old_config);
+void TermNet();

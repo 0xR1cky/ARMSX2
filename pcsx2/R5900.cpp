@@ -17,6 +17,7 @@
 #include "PrecompiledHeader.h"
 #include "Common.h"
 
+#include "common/StringUtil.h"
 #include "ps2/BiosTools.h"
 #include "R5900.h"
 #include "R3000A.h"
@@ -25,7 +26,11 @@
 #include "COP0.h"
 #include "MTVU.h"
 
+#ifndef PCSX2_CORE
 #include "System/SysThreads.h"
+#else
+#include "VMManager.h"
+#endif
 #include "R5900Exceptions.h"
 
 #include "Hardware.h"
@@ -38,6 +43,8 @@
 #include "GameDatabase.h"
 
 #include "DebugTools/Breakpoints.h"
+#include "DebugTools/MIPSAnalyst.h"
+#include "DebugTools/SymbolMap.h"
 #include "R5900OpcodeTables.h"
 
 using namespace R5900;	// for R5900 disasm tools
@@ -107,7 +114,7 @@ void cpuReset()
 	AllowParams2 = !g_SkipBiosHack;
 
 	ElfCRC = 0;
-	DiscSerial = L"";
+	DiscSerial.clear();
 	ElfEntry = -1;
 
 	// Probably not the right place, but it has to be done when the ram is actually initialized
@@ -118,7 +125,7 @@ void cpuReset()
 	// the same (identical ELF names) but is actually different (devs actually could
 	// run into this while testing minor binary hacked changes to ISO images, which
 	// is why I found out about this) --air
-	LastELF = L"";
+	LastELF.clear();
 
 	g_eeloadMain = 0, g_eeloadExec = 0, g_osdsys_str = 0;
 }
@@ -547,11 +554,18 @@ void __fastcall eeGameStarting()
 		//Console.WriteLn( Color_Green, "(R5900) ELF Entry point! [addr=0x%08X]", ElfEntry );
 		g_GameStarted = true;
 		g_GameLoading = false;
-		GetCoreThread().GameStartingInThread();
 
 		// GameStartingInThread may issue a reset of the cpu and/or recompilers.  Check for and
 		// handle such things here:
-		Cpu->CheckExecutionState();
+#ifndef PCSX2_CORE
+		GetCoreThread().GameStartingInThread();
+		if (GetCoreThread().HasPendingStateChangeRequest())
+			Cpu->ExitExecution();
+#else
+		VMManager::Internal::GameStartingOnCPUThread();
+		if (VMManager::Internal::IsExecutionInterrupted())
+			Cpu->ExitExecution();
+#endif
 	}
 	else
 	{
@@ -605,14 +619,18 @@ int ParseArgumentString(u32 arg_block)
 // Called from recompilers; __fastcall define is mandatory.
 void __fastcall eeloadHook()
 {
-	const wxString &elf_override = GetCoreThread().GetElfOverride();
+#ifndef PCSX2_CORE
+	const std::string elf_override(StringUtil::wxStringToUTF8String(GetCoreThread().GetElfOverride()));
+#else
+	const std::string& elf_override(VMManager::Internal::GetElfOverride());
+#endif
 
-	if (!elf_override.IsEmpty())
-		cdvdReloadElfInfo(L"host:" + elf_override);
+	if (!elf_override.empty())
+		cdvdReloadElfInfo(StringUtil::StdStringFromFormat("host:%s", elf_override.c_str()));
 	else
 		cdvdReloadElfInfo();
 
-	wxString discelf;
+	std::string discelf;
 	int disctype = GetPS2ElfName(discelf);
 
 	std::string elfname;
@@ -684,15 +702,14 @@ void __fastcall eeloadHook()
 	if (g_SkipBiosHack && elfname.empty())
 	{
 		std::string elftoload;
-		if (!elf_override.IsEmpty())
+		if (!elf_override.empty())
 		{
-			elftoload = "host:";
-			elftoload += elf_override.ToUTF8();
+			elftoload = StringUtil::StdStringFromFormat("host:%s", elf_override.c_str());
 		}
 		else
 		{
 			if (disctype == 2)
-				elftoload = discelf.ToUTF8();
+				elftoload = discelf;
 			else
 				g_SkipBiosHack = false; // We're not fast booting, so disable it (Fixes some weirdness with the BIOS)
 		}
@@ -715,7 +732,7 @@ void __fastcall eeloadHook()
 		}
 	}
 
-	if (!g_GameStarted && ((disctype == 2 && elfname == discelf.ToStdString()) || disctype == 1))
+	if (!g_GameStarted && ((disctype == 2 && elfname == discelf) || disctype == 1))
 		g_GameLoading = true;
 }
 

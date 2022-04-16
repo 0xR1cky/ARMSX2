@@ -41,6 +41,7 @@ public:
 
 	static bool CheckSSE();
 	static CRCHackLevel GetRecommendedCRCHackLevel(GSRendererType type);
+	static GSRendererType GetPreferredRenderer();
 };
 
 #ifdef _WIN32

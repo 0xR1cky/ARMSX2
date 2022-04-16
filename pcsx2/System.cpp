@@ -15,7 +15,7 @@
 
 #include "PrecompiledHeader.h"
 #include "Common.h"
-#include "IopCommon.h"
+#include "R3000A.h"
 #include "VUmicro.h"
 #include "newVif.h"
 #include "MTVU.h"
@@ -26,7 +26,14 @@
 
 #include "common/MemsetFast.inl"
 #include "common/Perf.h"
+#include "common/StringUtil.h"
+#include "CDVD/CDVD.h"
 
+#ifdef PCSX2_CORE
+#include "GSDumpReplayer.h"
+
+extern R5900cpu GSDumpReplayerCpu;
+#endif
 
 // --------------------------------------------------------------------------------------
 //  RecompiledCodeReserve  (implementations)
@@ -234,14 +241,11 @@ void SysLogMachineCaps()
 	};
 
 	Console.WriteLn( Color_StrongBlack,	L"x86 Features Detected:" );
-    Console.Indent().WriteLn(result[0] + (result[1].IsEmpty() ? L"" : (L"\n" + result[1])));
-#ifdef __M_X86_64
-    Console.Indent().WriteLn("Pcsx2 was compiled as 64-bits.");
-#endif
+	Console.Indent().WriteLn(result[0] + (result[1].IsEmpty() ? L"" : (L"\n" + result[1])));
 
 	Console.Newline();
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(PCSX2_CORE)
 	CheckIsUserOnHighPerfPowerPlan();
 #endif
 }
@@ -331,7 +335,13 @@ static wxString GetMemoryErrorVM()
 
 namespace HostMemoryMap {
 	// For debuggers
-	uptr EEmem, IOPmem, VUmem, EErec, IOPrec, VIF0rec, VIF1rec, mVU0rec, mVU1rec, bumpAllocator;
+	extern "C" {
+#ifdef _WIN32
+	_declspec(dllexport) uptr EEmem, IOPmem, VUmem, EErec, IOPrec, VIF0rec, VIF1rec, mVU0rec, mVU1rec, bumpAllocator;
+#else
+	__attribute__((visibility("default"), used)) uptr EEmem, IOPmem, VUmem, EErec, IOPrec, VIF0rec, VIF1rec, mVU0rec, mVU1rec, bumpAllocator;
+#endif
+	}
 }
 
 /// Attempts to find a spot near static variables for the main memory
@@ -570,6 +580,11 @@ void SysCpuProviderPack::ApplyConfig() const
 
 	if( EmuConfig.Cpu.Recompiler.EnableVU1 )
 		CpuVU1 = (BaseVUmicroCPU*)CpuProviders->microVU1;
+
+#ifdef PCSX2_CORE
+	if (GSDumpReplayer::IsReplayingDump())
+		Cpu = &GSDumpReplayerCpu;
+#endif
 }
 
 // Resets all PS2 cpu execution caches, which does not affect that actual PS2 state/condition.
@@ -579,7 +594,10 @@ void SysCpuProviderPack::ApplyConfig() const
 // Use this method to reset the recs when important global pointers like the MTGS are re-assigned.
 void SysClearExecutionCache()
 {
+	// Done by VMManager in Qt.
+#ifndef PCSX2_CORE
 	GetCpuProviders().ApplyConfig();
+#endif
 
 	Cpu->Reset();
 	psxCpu->Reset();
@@ -629,21 +647,21 @@ u8* SysMmapEx(uptr base, u32 size, uptr bounds, const char *caller)
 	return Mem;
 }
 
-wxString SysGetBiosDiscID()
+std::string SysGetBiosDiscID()
 {
 	// FIXME: we should return a serial based on
 	// the BIOS being run (either a checksum of the BIOS roms, and/or a string based on BIOS
 	// region and revision).
 
-	return wxEmptyString;
+	return {};
 }
 
 // This function always returns a valid DiscID -- using the Sony serial when possible, and
 // falling back on the CRC checksum of the ELF binary if the PS2 software being run is
 // homebrew or some other serial-less item.
-wxString SysGetDiscID()
+std::string SysGetDiscID()
 {
-	if( !DiscSerial.IsEmpty() ) return DiscSerial;
+	if( !DiscSerial.empty() ) return DiscSerial;
 
 	if( !ElfCRC )
 	{
@@ -651,5 +669,5 @@ wxString SysGetDiscID()
 		return SysGetBiosDiscID();
 	}
 
-	return pxsFmt( L"%08x", ElfCRC );
+	return StringUtil::StdStringFromFormat("%08x", ElfCRC);
 }

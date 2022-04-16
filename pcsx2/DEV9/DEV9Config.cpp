@@ -19,8 +19,11 @@
 #include <wx/fileconf.h>
 
 #include "DEV9.h"
+
+#ifndef PCSX2_CORE
 #include "gui/AppConfig.h"
-#include "common/IniInterface.h"
+#include "gui/IniInterface.h"
+#endif
 
 #ifdef _WIN32
 #include "ws2tcpip.h"
@@ -34,7 +37,11 @@
 
 void SaveDnsHosts()
 {
+#ifndef PCSX2_CORE
 	std::unique_ptr<wxFileConfig> hini(OpenFileConfig(EmuFolders::Settings.Combine(wxString("DEV9Hosts.ini")).GetFullPath()));
+#else
+	std::unique_ptr<wxFileConfig> hini(new wxFileConfig(wxEmptyString, wxEmptyString, EmuFolders::Settings.Combine(wxString("DEV9Hosts.ini")).GetFullPath(), wxEmptyString, wxCONFIG_USE_RELATIVE_PATH));
+#endif
 	IniSaver ini((wxConfigBase*)hini.get());
 
 	for (size_t i = 0; i < config.EthHosts.size(); i++)
@@ -63,7 +70,7 @@ void LoadDnsHosts()
 {
 	wxFileName iniPath = EmuFolders::Settings.Combine(wxString("DEV9Hosts.ini"));
 	config.EthHosts.clear();
-	//If no file exists, create one to provice an example config
+	//If no file exists, create one to provide an example config
 	if (!iniPath.FileExists())
 	{
 		//Load Default settings
@@ -77,7 +84,11 @@ void LoadDnsHosts()
 		return;
 	}
 
+#ifndef PCSX2_CORE
 	std::unique_ptr<wxFileConfig> hini(OpenFileConfig(iniPath.GetFullPath()));
+#else
+	std::unique_ptr<wxFileConfig> hini(new wxFileConfig(wxEmptyString, wxEmptyString, iniPath.GetFullPath(), wxEmptyString, wxCONFIG_USE_RELATIVE_PATH));
+#endif
 	IniLoader ini((wxConfigBase*)hini.get());
 
 	int i = 0;
@@ -109,7 +120,7 @@ void LoadDnsHosts()
 		else
 			ini.Entry(L"Enabled", entry.Enabled, false);
 
-		if (config.EthLogDNS && entry.Enabled)
+		if (EmuConfig.DEV9.EthLogDNS && entry.Enabled)
 			Console.WriteLn("DEV9: Host entry %i: url %s mapped to %s", i, entry.Url.c_str(), tmp.ToStdString().c_str());
 
 		config.EthHosts.push_back(entry);

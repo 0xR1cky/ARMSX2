@@ -38,8 +38,13 @@ SERIAL-12345: # !required! Serial number for the game, this is how games are loo
     - GIFFIFOHack
     - GoemonTlbHack
     - IbitHack
-    - VUKickstartHack
+    - VUSyncHack
     - VUOverflowHack
+    - SoftwareRendererFMVHack
+  # The value of the GS Fixes is assumed to be an integer
+  gsHWFixes:
+    mipmap: 1
+    preloadFrameData: 1
   # The value of the speedhacks is assumed to be an integer,
   # but at the time of writing speedhacks are effectively booleans (0/1)
   speedHacks:
@@ -48,7 +53,7 @@ SERIAL-12345: # !required! Serial number for the game, this is how games are loo
   memcardFilters:
     - "SERIAL-123"
     - "SERIAL-456"
-  # You can define multple patches, but they are identified by the CRC.
+  # You can define multiple patches, but they are identified by the CRC.
   patches:
     default: # Default CRC!
       author: "Some Person"
@@ -124,6 +129,45 @@ The clamp modes are also numerically based.
 *   `2` = Clamp **Extra** (clamp results as well as operands)
 *   `3` = Clamp **Extra+Preserve Sign**
 
+## GS Hardware Fixes
+
+[ ] = GameDB values
+{ } = GUI options
+( ) = Default values
+
+### GS Hardware Mipmap Fixes
+
+*   mipmap                     [`0` or `1` or `2`]    {Off, Basic, Full}                    Default: Automatic (No value, looks up GameDB)
+*   trilinearFiltering         [`0` or `1` or `2`]    {None, Trilinear, Trilinear Ultra}    Default: None (`0`)
+
+### GS Hardware General Fixes
+
+*   conservativeFramebuffer   [`0` or `1`]                 {Off or On}                                                                 Default: On (`1`)
+*   texturePreloading         [`0` or `1` or `2`]          {None, Partial or Full Hash Cache}                                          Default: None (`0`)
+*   deinterlace               [Value between `0` to `7`]   {Off, WeaveTFF, WeaveBFF, BobTFF, BobBFF, BlendTFF, BlendBFF, Automatic}    Default: Automatic (No value, looks up GameDB)
+
+### GS Hardware Renderer Fixes
+
+*   autoFlush                   [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   disableDepthSupport         [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   disablePartialInvalidation  [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   cpuFramebufferConversion    [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   wrapGSMem                   [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   preloadFrameData            [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   textureInsideRT             [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+*   halfBottomOverride          [`0` or `1`]   {Force-Disabled or Force-Enabled}    Default: Automatic (No value, looks up GameDB)
+*   pointListPalette            [`0` or `1`]   {Off or On}                          Default: Off (`0`)
+
+### GS Hardware Upscaling Fixes
+
+*   alignSprite              [`0` or `1`]                      {Off or On}       Default: Off (`0`)
+*   mergeSprite              [`0` or `1`]                      {Off or On}       Default: Off (`0`)
+*   wildArmsHack             [`0` or `1`]                      {Off or On}       Default: Off (`0`)
+*   skipDrawStart            [Value between `0` to `100000`]   {0-100000}        Default: Off (`0`)
+*   skipDrawEnd              [Value between `0` to `100000`]   {0-100000}        Default: Off (`0`)
+*   halfPixelOffset          [`0` or `1` or `2` or `3`]   {Off, Normal Vertex, Special Texture or Special Texture Aggressive}    Default: Off (`0`)
+*   roundSprite              [`0` or `1` or `2`]          {Off, Half or Full}    Default: Off (`0`)
+
 ## Game Fixes
 
 These values are case-sensitive so take care.  If you incorrectly specify a GameFix, you will get a validation error on startup.  Any invalid game-fixes will be dropped from the game's list of fixes.
@@ -169,11 +213,14 @@ These values are case-sensitive so take care.  If you incorrectly specify a Game
 *   `IbitHack`
     *   VU I bit Hack avoid constant recompilation in some games (Scarface The World Is Yours, Crash Tag Team Racing).
 
-*   `VUKickstartHack`
-    *   Let the VU's both run ahead of the EE to fix some timing issues.
+*   `VUSyncHack`
+    *   Make the VU's run behind/in sync with the EE to fix some timing issues.
 
 *   `VUOverflowHack`
     *   VU Overflow hack to check for possible float overflows (Superman Returns).
+
+*   `SoftwareRendererFMVHack`
+    *   Forces rendering into software mode during FMVs.
 
 ## SpeedHacks
 
@@ -184,12 +231,12 @@ These values are in a key-value format, where the value is assumed to be an inte
 *   `mvuFlagSpeedHack`
 *   Accepted Values - `0` / `1`
 *   Katamari Damacy have weird speed bug when this speed hack is enabled (and it is by default)
-
-<!-- [list-item-spacing] Missing new line after list item->
-
--   `InstantVU1SpeedHack`
--   Accepted Values - `0` / `1`
--   Games such as Parappa the Rapper 2 need VU1 to sync, so you can force disable the speedhack here
+*   `MTVUSpeedHack`
+*   Accepted Values - `0` / `1`
+*   T-bit games dislike MTVU and some games are incompatible with MTVU.
+*   `InstantVU1SpeedHack`
+*   Accepted Values - `0` / `1`
+*   Games such as Parappa the Rapper 2 need VU1 to sync, so you can force sync with this parameter.
 
 ## Memory Card Filter Override
 

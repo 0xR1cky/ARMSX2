@@ -377,7 +377,7 @@ struct V_Core
 {
 	static const uint NumVoices = 24;
 
-	int Index; // Core index identifier.
+	u32 Index; // Core index identifier.
 
 	// Voice Gates -- These are SSE-related values, and must always be
 	// first to ensure 16 byte alignment
@@ -554,9 +554,9 @@ extern V_Core Cores[2];
 extern V_SPDIF Spdif;
 
 // Output Buffer Writing Position (the same for all data);
-extern s16 OutPos;
+extern u16 OutPos;
 // Input Buffer Reading Position (the same for all data);
-extern s16 InputPos;
+extern u16 InputPos;
 // SPU Mixing Cycles ("Ticks mixed" counter)
 extern u32 Cycles;
 

@@ -21,23 +21,21 @@
 // AND'ing this mask against an MXCSR prior to LDMXCSR.
 SSE_MXCSR MXCSR_Mask;
 
-const wxChar* EnumToString(SSE_RoundMode sse)
+const char* EnumToString(SSE_RoundMode sse)
 {
 	switch (sse)
 	{
 		case SSEround_Nearest:
-			return L"Nearest";
+			return "Nearest";
 		case SSEround_NegInf:
-			return L"NegativeInfinity";
+			return "NegativeInfinity";
 		case SSEround_PosInf:
-			return L"PositiveInfinity";
+			return "PositiveInfinity";
 		case SSEround_Chop:
-			return L"Chop";
+			return "Chop";
 		default:
-			return L"Invalid";
+			return "Invalid";
 	}
-
-	return L"Invalid";
 }
 
 SSE_RoundMode SSE_MXCSR::GetRoundMode() const
@@ -95,9 +93,8 @@ namespace x86Emitter
 	//
 	__emitinline void SimdPrefix(u8 prefix, u16 opcode)
 	{
-#ifdef __M_X86_64
 		pxAssertMsg(prefix == 0, "REX prefix must be just before the opcode");
-#endif
+
 		const bool is16BitOpcode = ((opcode & 0xff) == 0x38) || ((opcode & 0xff) == 0x3a);
 
 		// If the lower byte is not a valid prefix and the upper byte is non-zero it

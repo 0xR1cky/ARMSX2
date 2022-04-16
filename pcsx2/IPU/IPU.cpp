@@ -60,13 +60,6 @@ __fi void IPUProcessInterrupt()
 {
 	if (ipuRegs.ctrl.BUSY) // && (g_BP.FP || g_BP.IFC || (ipu1ch.chcr.STR && ipu1ch.qwc > 0)))
 		IPUWorker();
-	if (ipuRegs.ctrl.BUSY && ipuRegs.cmd.BUSY && ipuRegs.cmd.DATA == 0x000001B7) {
-		// 0x000001B7 is the MPEG2 sequence end code, signalling the end of a video.
-		// At the end of a video BUSY values should be automatically set to 0. 
-		// This does not happen for Enthusia - Professional Racing, causing it to get stuck in an endless loop.
-		ipuRegs.cmd.BUSY = 0;
-		ipuRegs.ctrl.BUSY = 0;
-	}
 }
 
 /////////////////////////////////////////////////////////
@@ -287,7 +280,18 @@ __fi RETURNS_R64 ipuRead64(u32 mem)
 
 void ipuSoftReset()
 {
+	if (ipu1ch.chcr.STR && g_BP.IFC < 8 && IPU1Status.DataRequested)
+	{
+		DevCon.Warning("Refill input fifo on reset");
+		ipu1Interrupt();
+	}
+
+	if (!ipu1ch.chcr.STR)
+		psHu32(DMAC_STAT) &= ~(1 << DMAC_TO_IPU);
+
+
 	ipu_fifo.clear();
+	memzero(g_BP);
 
 	coded_block_pattern = 0;
 
@@ -296,8 +300,7 @@ void ipuSoftReset()
 	ipu_cmd.clear();
 	ipuRegs.cmd.BUSY = 0;
 	ipuRegs.cmd.DATA = 0; // required for Enthusia - Professional Racing after fix, or will freeze at start of next video.
-
-	memzero(g_BP);
+	
 	hwIntcIrq(INTC_IPU); // required for FightBox
 }
 
@@ -363,20 +366,16 @@ __fi bool ipuWrite64(u32 mem, u64 value)
 
 static void ipuBCLR(u32 val)
 {
-	// The Input FIFO shouldn't be cleared when the DMA is running, however if it is the DMA should drain
-	// as it is constantly fighting it....
-	while(ipu1ch.chcr.STR)
-	{
-		ipu_fifo.in.clear();
+	if (ipu1ch.chcr.STR && g_BP.IFC < 8 && IPU1Status.DataRequested)
 		ipu1Interrupt();
-	}
-	
-	ipu_fifo.in.clear();
 
+	if(!ipu1ch.chcr.STR)
+		psHu32(DMAC_STAT) &= ~(1 << DMAC_TO_IPU);
+
+	ipu_fifo.in.clear();
 	memzero(g_BP);
 	g_BP.BP = val & 0x7F;
 
-	ipuRegs.ctrl.BUSY = 0;
 	ipuRegs.cmd.BUSY = 0;
 	IPU_LOG("Clear IPU input FIFO. Set Bit offset=0x%X", g_BP.BP);
 }
@@ -432,17 +431,16 @@ static __ri void ipuBDEC(tIPU_CMD_BDEC bdec)
 
 static __fi bool ipuVDEC(u32 val)
 {
-	if (EmuConfig.GS.FMVAspectRatioSwitch != FMVAspectRatioSwitchType::Off) {
-		static int count = 0;
-		if (count++ > 5) {
-			if (!FMVstarted) {
-				EnableFMV = true;
-				FMVstarted = true;
-			}
-			count = 0;
+	static int count = 0;
+	if (count++ > 5) {
+		if (!FMVstarted) {
+			EnableFMV = true;
+			FMVstarted = true;
 		}
-		eecount_on_last_vdec = cpuRegs.cycle;
+		count = 0;
 	}
+	eecount_on_last_vdec = cpuRegs.cycle;
+
 	switch (ipu_cmd.pos[0])
 	{
 		case 0:
@@ -886,8 +884,6 @@ __fi void IPUCMD_WRITE(u32 val)
 			ipuRegs.ctrl.BUSY = 0;
 			return;
 
-
-
 		case SCE_IPU_IDEC:
 			g_BP.Advance(val & 0x3F);
 			ipuIDEC(val);
@@ -908,7 +904,6 @@ __fi void IPUCMD_WRITE(u32 val)
 		case SCE_IPU_FDEC:
 			IPU_LOG("FDEC command. Skip 0x%X bits, FIFO 0x%X qwords, BP 0x%X, CHCR 0x%x",
 			        val & 0x3f, g_BP.IFC, g_BP.BP, ipu1ch.chcr._u32);
-
 			g_BP.Advance(val & 0x3F);
 			ipuRegs.SetDataBusy();
 			break;
@@ -1002,13 +997,8 @@ __noinline void IPUWorker()
 			}
 
 	// success
+	IPU_LOG("IPU Command finished");
 	ipuRegs.ctrl.BUSY = 0;
 	//ipu_cmd.current = 0xffffffff;
 	hwIntcIrq(INTC_IPU);
-
-	// Fill the FIFO ready for the next command
-	if (ipu1ch.chcr.STR && cpuRegs.eCycle[4] == 0x9999)
-	{
-		CPU_INT(DMAC_TO_IPU, 32);
-	}
 }

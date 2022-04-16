@@ -39,6 +39,7 @@ public:
 	u64 start;
 	int pixels;
 	int counter;
+	u8 scanmsk_value;
 
 	GSRasterizerData()
 		: scissor(GSVector4i::zero())
@@ -52,6 +53,7 @@ public:
 		, frame(0)
 		, start(0)
 		, pixels(0)
+		, scanmsk_value(0)
 	{
 		counter = s_counter++;
 	}
@@ -132,6 +134,7 @@ protected:
 	int m_threads;
 	int m_thread_height;
 	u8* m_scanline;
+	u8 m_scanmsk_value;
 	GSVector4i m_scissor;
 	GSVector4 m_fscissor_x;
 	GSVector4 m_fscissor_y;
@@ -194,6 +197,9 @@ protected:
 
 	GSRasterizerList(int threads, GSPerfMon* perfmon);
 
+	void OnWorkerStartup(int i);
+	void OnWorkerShutdown(int i);
+
 public:
 	virtual ~GSRasterizerList();
 
@@ -214,7 +220,9 @@ public:
 			rl->m_r.push_back(std::unique_ptr<GSRasterizer>(new GSRasterizer(new DS(), i, threads, perfmon)));
 			auto& r = *rl->m_r[i];
 			rl->m_workers.push_back(std::unique_ptr<GSWorker>(new GSWorker(
-				[&r](GSRingHeap::SharedPtr<GSRasterizerData>& item) { r.Draw(item.get()); })));
+				[rl, i]() { rl->OnWorkerStartup(i); },
+				[&r](GSRingHeap::SharedPtr<GSRasterizerData>& item) { r.Draw(item.get()); },
+				[rl, i]() { rl->OnWorkerShutdown(i); })));
 		}
 
 		return rl;

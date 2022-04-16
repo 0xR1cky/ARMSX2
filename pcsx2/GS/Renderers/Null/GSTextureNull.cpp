@@ -28,3 +28,14 @@ GSTextureNull::GSTextureNull(Type type, int w, int h, GSTexture::Format format)
 	m_desc.h = h;
 	m_desc.format = format;
 }
+
+void GSTextureNull::Swap(GSTexture* tex)
+{
+	GSTexture::Swap(tex);
+	std::swap(m_desc, static_cast<GSTextureNull*>(tex)->m_desc);
+}
+
+void* GSTextureNull::GetNativeHandle() const
+{
+	return nullptr;
+}

@@ -37,7 +37,7 @@ BIOS
 #include "PrecompiledHeader.h"
 #include <wx/file.h>
 
-#include "IopCommon.h"
+#include "IopHw.h"
 #include "GS.h"
 #include "VUmicro.h"
 #include "MTVU.h"
@@ -48,6 +48,10 @@ BIOS
 #include "SPU2/spu2.h"
 
 #include "common/PageFaultSource.h"
+
+#ifdef PCSX2_CORE
+#include "GSDumpReplayer.h"
+#endif
 
 #ifdef ENABLECACHE
 #include "Cache.h"
@@ -850,7 +854,14 @@ void eeMemoryReserve::Reset()
 	vtlb_VMap(0x00000000,0x00000000,0x20000000);
 	vtlb_VMapUnmap(0x20000000,0x60000000);
 
-	LoadBIOS();
+#ifdef PCSX2_CORE
+	const bool needs_bios = !GSDumpReplayer::IsReplayingDump();
+#else
+	constexpr bool needs_bios = true;
+#endif
+
+	if (needs_bios && !LoadBIOS())
+		pxFailRel("Failed to load BIOS");
 }
 
 void eeMemoryReserve::Decommit()

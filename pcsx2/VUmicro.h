@@ -72,7 +72,7 @@ public:
 	}
 
 	virtual const char* GetShortName() const=0;
-	virtual wxString GetLongName() const=0;
+	virtual const char* GetLongName() const=0;
 
 	// returns the number of bytes committed to the working caches for this CPU
 	// provider (typically this refers to recompiled code caches, but could also refer
@@ -147,7 +147,7 @@ public:
 	// Executes a Block based on EE delta time (see VUmicro.cpp)
 	virtual void ExecuteBlock(bool startUp=0);
 
-	static void __fastcall ExecuteBlockJIT(BaseVUmicroCPU* cpu);
+	static void __fastcall ExecuteBlockJIT(BaseVUmicroCPU* cpu, bool interlocked);
 
 	// VU1 sometimes needs to break execution on XGkick Path1 transfers if
 	// there is another gif path 2/3 transfer already taking place.
@@ -166,7 +166,7 @@ public:
 	virtual ~InterpVU0() { Shutdown(); }
 
 	const char* GetShortName() const	{ return "intVU0"; }
-	wxString GetLongName() const		{ return L"VU0 Interpreter"; }
+	const char* GetLongName() const		{ return "VU0 Interpreter"; }
 
 	void Reserve() { }
 	void Shutdown() noexcept { }
@@ -188,7 +188,7 @@ public:
 	virtual ~InterpVU1() { Shutdown(); }
 
 	const char* GetShortName() const	{ return "intVU1"; }
-	wxString GetLongName() const		{ return L"VU1 Interpreter"; }
+	const char* GetLongName() const		{ return "VU1 Interpreter"; }
 
 	void Reserve() { }
 	void Shutdown() noexcept;
@@ -214,7 +214,7 @@ public:
 	virtual ~recMicroVU0() { Shutdown(); }
 
 	const char* GetShortName() const	{ return "mVU0"; }
-	wxString GetLongName() const		{ return L"microVU0 Recompiler"; }
+	const char* GetLongName() const		{ return "microVU0 Recompiler"; }
 
 	void Reserve();
 	void Shutdown() noexcept;
@@ -236,7 +236,7 @@ public:
 	virtual ~recMicroVU1() { Shutdown(); }
 
 	const char* GetShortName() const	{ return "mVU1"; }
-	wxString GetLongName() const		{ return L"microVU1 Recompiler"; }
+	const char* GetLongName() const		{ return "microVU1 Recompiler"; }
 
 	void Reserve();
 	void Shutdown() noexcept;

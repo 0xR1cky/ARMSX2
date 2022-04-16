@@ -70,14 +70,14 @@ tDMA_TAG DMACh::dma_tag()
 	return chcr.tag();
 }
 
-wxString DMACh::cmq_to_str() const
+std::string DMACh::cmq_to_str() const
 {
-	return wxsFormat(L"chcr = %lx, madr = %lx, qwc  = %lx", chcr._u32, madr, qwc);
+	return StringUtil::StdStringFromFormat("chcr = %lx, madr = %lx, qwc  = %lx", chcr._u32, madr, qwc);
 }
 
-wxString DMACh::cmqt_to_str() const
+std::string DMACh::cmqt_to_str() const
 {
-	return wxsFormat(L"chcr = %lx, madr = %lx, qwc  = %lx, tadr = %1x", chcr._u32, madr, qwc, tadr);
+	return StringUtil::StdStringFromFormat("chcr = %lx, madr = %lx, qwc  = %lx, tadr = %1x", chcr._u32, madr, qwc, tadr);
 }
 
 __fi void throwBusError(const char *s)
@@ -327,19 +327,28 @@ __fi bool dmacWrite32( u32 mem, mem32_t& value )
 	{
 		if ((psHu32(mem & ~0xff) & 0x100) && dmacRegs.ctrl.DMAE && !psHu8(DMAC_ENABLER + 2))
 		{
-			DevCon.Warning("Gamefix: Write to DMA addr %x while STR is busy!", mem);
+			//DevCon.Warning("Gamefix: Write to DMA addr %x while STR is busy!", mem);
 			while (psHu32(mem & ~0xff) & 0x100)
 			{
 				switch ((mem >> 8) & 0xFF)
 				{
 					case 0x80: // VIF0
 						vif0Interrupt();
+						cpuRegs.interrupt &= ~(1 << DMAC_VIF0);
 						break;
 					case 0x90: // VIF1
-						vif1Interrupt();
+						if (vif1Regs.stat.VEW)
+						{
+							vu1Finish(false);
+							vif1VUFinish();
+						}
+						else
+							vif1Interrupt();
+						cpuRegs.interrupt &= ~(1 << DMAC_VIF1);
 						break;
 					case 0xA0: // GIF
 						gifInterrupt();
+						cpuRegs.interrupt &= ~(1 << DMAC_GIF);
 						break;
 					case 0xB0: // IPUFROM
 						[[fallthrough]];
@@ -351,9 +360,11 @@ __fi bool dmacWrite32( u32 mem, mem32_t& value )
 						break;
 					case 0xD0: // SPRFROM
 						SPRFROMinterrupt();
+						cpuRegs.interrupt &= ~(1 << DMAC_FROM_SPR);
 						break;
 					case 0xD4: // SPRTO
 						SPRTOinterrupt();
+						cpuRegs.interrupt &= ~(1 << DMAC_TO_SPR);
 						break;
 					default:
 						return false;

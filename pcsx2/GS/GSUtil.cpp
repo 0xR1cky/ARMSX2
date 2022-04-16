@@ -23,6 +23,7 @@
 #ifdef _WIN32
 #include <VersionHelpers.h>
 #include "svnrev.h"
+#include "Renderers/DX11/D3D.h"
 #include <wil/com.h>
 #else
 #define SVN_REV 0
@@ -184,7 +185,35 @@ bool GSUtil::CheckSSE()
 
 CRCHackLevel GSUtil::GetRecommendedCRCHackLevel(GSRendererType type)
 {
-	return type == GSRendererType::OGL_HW ? CRCHackLevel::Partial : CRCHackLevel::Full;
+	return type == GSRendererType::DX11 ? CRCHackLevel::Full : CRCHackLevel::Partial;
+}
+
+GSRendererType GSUtil::GetPreferredRenderer()
+{
+#if defined(__APPLE__)
+	// Mac: Prefer Metal hardware.
+	return GSRendererType::Metal;
+#elif defined(_WIN32)
+#if defined(ENABLE_OPENGL)
+	// Windows: Prefer GL if available.
+	if (D3D::ShouldPreferD3D())
+		return GSRendererType::DX11;
+	else
+		return GSRendererType::OGL;
+#else
+	// DX11 is always available, otherwise.
+	return GSRendererType::DX11;
+#endif
+#else
+	// Linux: Prefer GL/Vulkan, whatever is available.
+#if defined(ENABLE_OPENGL)
+	return GSRendererType::OGL;
+#elif defined(ENABLE_VULKAN)
+	return GSRendererType::Vulkan;
+#else
+	return GSRendererType::SW;
+#endif
+#endif
 }
 
 #ifdef _WIN32

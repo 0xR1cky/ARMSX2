@@ -1746,26 +1746,40 @@ void condEvilBranch(mV, int JMPcc)
 	if (mVUlow.badBranch)
 	{
 		xMOV(ptr32[&mVU.branch], gprT1);
-		xMOV(ptr32[&mVU.badBranch], branchAddrN(mVU));
+		xMOV(ptr32[&mVU.badBranch], branchAddr(mVU));
 
 		xCMP(gprT1b, 0);
 		xForwardJump8 cJMP((JccComparisonType)JMPcc);
-			incPC(6); // Branch Not Taken Addr + 8
+			incPC(4); // Branch Not Taken Addr
 			xMOV(ptr32[&mVU.badBranch], xPC);
-			incPC(-6);
+			incPC(-4);
 		cJMP.SetTarget();
 		return;
 	}
-	xMOV(ptr32[&mVU.evilBranch], branchAddr(mVU));
-	xCMP(gprT1b, 0);
-	xForwardJump8 cJMP((JccComparisonType)JMPcc);
+	if (isEvilBlock)
+	{
+		xMOV(ptr32[&mVU.evilevilBranch], branchAddr(mVU));
+		xCMP(gprT1b, 0);
+		xForwardJump8 cJMP((JccComparisonType)JMPcc);
+		xMOV(gprT1, ptr32[&mVU.evilBranch]); // Branch Not Taken
+		xADD(gprT1, 8); // We have already executed 1 instruction from the original branch
+		xMOV(ptr32[&mVU.evilevilBranch], gprT1);
+		cJMP.SetTarget();
+	}
+	else
+	{
+		xMOV(ptr32[&mVU.evilBranch], branchAddr(mVU));
+		xCMP(gprT1b, 0);
+		xForwardJump8 cJMP((JccComparisonType)JMPcc);
 		xMOV(gprT1, ptr32[&mVU.badBranch]); // Branch Not Taken
+		xADD(gprT1, 8); // We have already executed 1 instruction from the original branch
 		xMOV(ptr32[&mVU.evilBranch], gprT1);
-	cJMP.SetTarget();
-	incPC(-2);
-	if (mVUlow.branch >= 9)
-		DevCon.Warning("Conditional in JALR/JR delay slot - If game broken report to PCSX2 Team");
-	incPC(2);
+		cJMP.SetTarget();
+		incPC(-2);
+		if (mVUlow.branch >= 9)
+			DevCon.Warning("Conditional in JALR/JR delay slot - If game broken report to PCSX2 Team");
+		incPC(2);
+	}
 }
 
 mVUop(mVU_B)
@@ -1774,8 +1788,8 @@ mVUop(mVU_B)
 	pass1 { mVUanalyzeNormBranch(mVU, 0, false); }
 	pass2
 	{
-		if (mVUlow.badBranch)  { xMOV(ptr32[&mVU.badBranch],  branchAddrN(mVU)); }
-		if (mVUlow.evilBranch) { xMOV(ptr32[&mVU.evilBranch], branchAddr(mVU)); }
+		if (mVUlow.badBranch)  { xMOV(ptr32[&mVU.badBranch],  branchAddr(mVU)); }
+		if (mVUlow.evilBranch) { if(isEvilBlock) xMOV(ptr32[&mVU.evilevilBranch], branchAddr(mVU)); else xMOV(ptr32[&mVU.evilBranch], branchAddr(mVU)); }
 		mVU.profiler.EmitOp(opB);
 	}
 	pass3 { mVUlog("B [<a href=\"#addr%04x\">%04x</a>]", branchAddr(mVU), branchAddr(mVU)); }
@@ -1792,9 +1806,23 @@ mVUop(mVU_BAL)
 			xMOV(gprT1, bSaveAddr);
 			mVUallocVIb(mVU, gprT1, _It_);
 		}
+		else
+		{
+			incPC(-2);
+			DevCon.Warning("Linking BAL from %s branch taken/not taken target! - If game broken report to PCSX2 Team", branchSTR[mVUlow.branch & 0xf]);
+			incPC(2);
+			if (isEvilBlock)
+				xMOV(gprT1, ptr32[&mVU.evilBranch]);
+			else
+				xMOV(gprT1, ptr32[&mVU.badBranch]);
 
-		if (mVUlow.badBranch)  { xMOV(ptr32[&mVU.badBranch],  branchAddrN(mVU)); }
-		if (mVUlow.evilBranch) { xMOV(ptr32[&mVU.evilBranch], branchAddr(mVU));}
+			xADD(gprT1, 8);
+			xSHR(gprT1, 3);
+			mVUallocVIb(mVU, gprT1, _It_);
+		}
+
+		if (mVUlow.badBranch)  { xMOV(ptr32[&mVU.badBranch],  branchAddr(mVU)); }
+		if (mVUlow.evilBranch) { if (isEvilBlock) xMOV(ptr32[&mVU.evilevilBranch], branchAddr(mVU)); else xMOV(ptr32[&mVU.evilBranch], branchAddr(mVU)); }
 		mVU.profiler.EmitOp(opBAL);
 	}
 	pass3 { mVUlog("BAL vi%02d [<a href=\"#addr%04x\">%04x</a>]", _Ft_, branchAddr(mVU), branchAddr(mVU)); }
@@ -1946,12 +1974,14 @@ void normJumpPass2(mV)
 		}
 		else
 		{
-			xMOV(ptr32[&mVU.evilBranch], gprT1);
+			if(isEvilBlock)
+				xMOV(ptr32[&mVU.evilevilBranch], gprT1);
+			else
+				xMOV(ptr32[&mVU.evilBranch], gprT1);
 		}
 		//If delay slot is conditional, it uses badBranch to go to its target
 		if (mVUlow.badBranch)
 		{
-			xADD(gprT1, 8);
 			xMOV(ptr32[&mVU.badBranch], gprT1);
 		}
 	}
@@ -1983,18 +2013,24 @@ mVUop(mVU_JALR)
 		}
 		if (mVUlow.evilBranch)
 		{
-			incPC(-2);
-			if (mVUlow.branch >= 9) // Previous branch is a jump of some type so we need to take the branch address from the register it uses.
+			if (isEvilBlock)
 			{
-				DevCon.Warning("Linking JALR from JALR/JR branch target! - If game broken report to PCSX2 Team");
-				mVUallocVIa(mVU, gprT1, _Is_);
+				xMOV(gprT1, ptr32[&mVU.evilBranch]);
 				xADD(gprT1, 8);
 				xSHR(gprT1, 3);
-				incPC(2);
 				mVUallocVIb(mVU, gprT1, _It_);
 			}
 			else
+			{
+				incPC(-2);
+				DevCon.Warning("Linking JALR from %s branch taken/not taken target! - If game broken report to PCSX2 Team", branchSTR[mVUlow.branch & 0xf]);
 				incPC(2);
+
+				xMOV(gprT1, ptr32[&mVU.badBranch]);
+				xADD(gprT1, 8);
+				xSHR(gprT1, 3);
+				mVUallocVIb(mVU, gprT1, _It_);
+			}
 		}
 
 		mVU.profiler.EmitOp(opJALR);

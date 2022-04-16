@@ -16,9 +16,8 @@
 #include "PrecompiledHeader.h"
 
 #ifdef _WIN32
-//#include <winsock2.h>
+#include "common/RedtapeWindows.h"
 #include <Winioctl.h>
-#include <windows.h>
 #endif
 #include <stdlib.h>
 #include <string.h>
@@ -268,6 +267,7 @@ void emac3_write(u32 addr)
 			if (value == 0x380f0000)
 			{
 				Console.WriteLn("DEV9: Adapter Detection Hack - Resetting RX/TX");
+				ad_reset();
 				_DEV9irq(SMAP_INTR_RXEND | SMAP_INTR_TXEND | SMAP_INTR_TXDNV, 5);
 			}
 			break;

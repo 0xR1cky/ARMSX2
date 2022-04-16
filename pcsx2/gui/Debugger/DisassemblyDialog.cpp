@@ -115,10 +115,11 @@ CpuTabPage::CpuTabPage(wxWindow* parent, DebugInterface* _cpu)
 
 	wxBoxSizer *memorySizer = new wxBoxSizer(wxHORIZONTAL);
 	memorySizer->Add(memory, 1, wxEXPAND);
-
-	// Unfortuneately hacky, probably cause I'm bad at wxWidgets
-	// A max width of 360 ensures that the memory view will never be blocked by the memory search
-	memorySearch->SetMaxSize(wxSize(360, -1));
+#ifdef _WIN32
+	memorySearch->SetMaxSize(wxSize(310 * MSW_GetDPIScale(), -1));
+#else
+	memorySearch->SetMaxSize(wxSize(330, -1));
+#endif
 	memorySizer->Add(memorySearch, 1, wxEXPAND);
 	memoryPanel->SetSizer(memorySizer);
 	memoryPanel->SetBackgroundColour(wxTransparentColor);

@@ -14,24 +14,19 @@
  */
 
 #include "PrecompiledHeader.h"
+
+#include "common/FileSystem.h"
+#include "common/StringUtil.h"
+
+#include "GSDump.h"
 #include "GSLzma.h"
 
-GSDumpFile::GSDumpFile(char* filename, const char* repack_filename)
-{
-	m_fp = fopen(filename, "rb");
-	if (m_fp == nullptr)
-	{
-		fprintf(stderr, "failed to open %s\n", filename);
-		throw "BAD"; // Just exit the program
-	}
+using namespace GSDumpTypes;
 
-	m_repack_fp = nullptr;
-	if (repack_filename)
-	{
-		m_repack_fp = fopen(repack_filename, "wb");
-		if (m_repack_fp == nullptr)
-			fprintf(stderr, "failed to open %s for repack\n", repack_filename);
-	}
+GSDumpFile::GSDumpFile(FILE* file, FILE* repack_file)
+	: m_fp(file)
+	, m_repack_fp(repack_file)
+{
 }
 
 void GSDumpFile::Repack(void* ptr, size_t size)
@@ -52,11 +47,218 @@ GSDumpFile::~GSDumpFile()
 		fclose(m_repack_fp);
 }
 
-/******************************************************************/
-GSDumpLzma::GSDumpLzma(char* filename, const char* repack_filename)
-	: GSDumpFile(filename, repack_filename)
+std::unique_ptr<GSDumpFile> GSDumpFile::OpenGSDump(const char* filename, const char* repack_filename /*= nullptr*/)
 {
+	std::FILE* fp = FileSystem::OpenCFile(filename, "rb");
+	if (!fp)
+		return nullptr;
 
+	std::FILE* repack_fp = nullptr;
+	if (repack_filename && std::strlen(repack_filename) > 0)
+	{
+		repack_fp = FileSystem::OpenCFile(repack_filename, "wb");
+		if (!repack_fp)
+		{
+			std::fclose(fp);
+			return nullptr;
+		}
+	}
+
+	if (StringUtil::EndsWithNoCase(filename, ".xz"))
+		return std::make_unique<GSDumpLzma>(fp, nullptr);
+	else
+		return std::make_unique<GSDumpRaw>(fp, nullptr);
+}
+
+bool GSDumpFile::GetPreviewImageFromDump(const char* filename, u32* width, u32* height, std::vector<u32>* pixels)
+{
+	std::unique_ptr<GSDumpFile> dump = OpenGSDump(filename);
+	if (!dump)
+		return false;
+
+	u32 crc;
+	if (!dump->Read(&crc, sizeof(crc)) || crc != 0xFFFFFFFFu)
+	{
+		// not new header dump, so no preview
+		return false;
+	}
+
+	u32 header_size;
+	if (!dump->Read(&header_size, sizeof(header_size)) || header_size < sizeof(GSDumpHeader))
+	{
+		// doesn't have the screenshot fields
+		return false;
+	}
+
+	std::unique_ptr<u8[]> header_bits = std::make_unique<u8[]>(header_size);
+	if (!dump->Read(header_bits.get(), header_size))
+		return false;
+
+	GSDumpHeader header;
+	std::memcpy(&header, header_bits.get(), sizeof(header));
+	if (header.screenshot_size == 0 ||
+		header.screenshot_size < (header.screenshot_width * header.screenshot_height * sizeof(u32)) ||
+		(static_cast<u64>(header.screenshot_offset) + header.screenshot_size) > header_size)
+	{
+		// doesn't have a screenshot
+		return false;
+	}
+
+	*width = header.screenshot_width;
+	*height = header.screenshot_height;
+	pixels->resize(header.screenshot_width * header.screenshot_height);
+	std::memcpy(pixels->data(), header_bits.get() + header.screenshot_offset, header.screenshot_size);
+	return true;
+}
+
+bool GSDumpFile::ReadFile()
+{
+	u32 ss;
+	if (Read(&m_crc, sizeof(m_crc)) != sizeof(m_crc) || Read(&ss, sizeof(ss)) != sizeof(ss))
+		return false;
+
+	m_state_data.resize(ss);
+	if (Read(m_state_data.data(), ss) != ss)
+		return false;
+
+	// Pull serial out of new header, if present.
+	if (m_crc == 0xFFFFFFFFu)
+	{
+		GSDumpHeader header;
+		if (m_state_data.size() < sizeof(header))
+		{
+			Console.Error("GSDump header is corrupted.");
+			return false;
+		}
+
+		std::memcpy(&header, m_state_data.data(), sizeof(header));
+
+		m_crc = header.crc;
+
+		if (header.serial_size > 0)
+		{
+			if (header.serial_offset > ss || (static_cast<u64>(header.serial_offset) + header.serial_size) > ss)
+			{
+				Console.Error("GSDump header is corrupted.");
+				return false;
+			}
+
+			if (header.serial_size > 0)
+				m_serial.assign(reinterpret_cast<const char*>(m_state_data.data()) + header.serial_offset, header.serial_size);
+		}
+
+		// Read the real state data
+		m_state_data.resize(header.state_size);
+		if (Read(m_state_data.data(), header.state_size) != header.state_size)
+			return false;
+	}
+
+	m_regs_data.resize(8192);
+	if (Read(m_regs_data.data(), m_regs_data.size()) != m_regs_data.size())
+		return false;
+
+	// read all the packet data in
+	// TODO: make this suck less by getting the full/extracted size and preallocating
+	for (;;)
+	{
+		const size_t packet_data_size = m_packet_data.size();
+		m_packet_data.resize(std::max<size_t>(packet_data_size * 2, 8 * _1mb));
+
+		const size_t read_size = m_packet_data.size() - packet_data_size;
+		const size_t read = Read(m_packet_data.data() + packet_data_size, read_size);
+		if (read != read_size)
+		{
+			if (!IsEof())
+				return false;
+
+			m_packet_data.resize(packet_data_size + read);
+			m_packet_data.shrink_to_fit();
+			break;
+		}
+	}
+
+	u8* data = m_packet_data.data();
+	size_t remaining = m_packet_data.size();
+
+#define GET_BYTE(dst) \
+	do \
+	{ \
+		if (remaining < sizeof(u8)) \
+			return false; \
+		std::memcpy(dst, data, sizeof(u8)); \
+		data++; \
+		remaining--; \
+	} while (0)
+#define GET_WORD(dst) \
+	do \
+	{ \
+		if (remaining < sizeof(u32)) \
+			return false; \
+		std::memcpy(dst, data, sizeof(u32)); \
+		data += sizeof(u32); \
+		remaining -= sizeof(u32); \
+	} while (0)
+
+	while (remaining > 0)
+	{
+		GSData packet = {};
+		packet.path = GSTransferPath::Dummy;
+		GET_BYTE(&packet.id);
+
+		switch (packet.id)
+		{
+			case GSType::Transfer:
+				GET_BYTE(&packet.path);
+				GET_WORD(&packet.length);
+				break;
+			case GSType::VSync:
+				packet.length = 1;
+				break;
+			case GSType::ReadFIFO2:
+				packet.length = 4;
+				break;
+			case GSType::Registers:
+				packet.length = 8192;
+				break;
+			default:
+				return false;
+		}
+
+		if (packet.length > 0)
+		{
+			if (remaining < packet.length)
+			{
+				// There's apparently some "bad" dumps out there that are missing bytes on the end..
+				// The "safest" option here is to discard the last packet, since that has less risk
+				// of leaving the GS in the middle of a command.
+				Console.Error("(GSDump) Dropping last packet of %u bytes (we only have %u bytes)",
+					static_cast<u32>(packet.length), static_cast<u32>(remaining));
+				break;
+			}
+
+			packet.data = data;
+			data += packet.length;
+			remaining -= packet.length;
+		}
+
+		m_dump_packets.push_back(std::move(packet));
+	}
+
+#undef GET_WORD
+#undef GET_BYTE
+
+	return true;
+}
+
+/******************************************************************/
+GSDumpLzma::GSDumpLzma(FILE* file, FILE* repack_file)
+	: GSDumpFile(file, repack_file)
+{
+	Initialize();
+}
+
+void GSDumpLzma::Initialize()
+{
 	memset(&m_strm, 0, sizeof(lzma_stream));
 
 	lzma_ret ret = lzma_stream_decoder(&m_strm, UINT32_MAX, 0);
@@ -122,11 +324,10 @@ bool GSDumpLzma::IsEof()
 	return feof(m_fp) && m_avail == 0 && m_strm.avail_in == 0;
 }
 
-bool GSDumpLzma::Read(void* ptr, size_t size)
+size_t GSDumpLzma::Read(void* ptr, size_t size)
 {
 	size_t off = 0;
 	uint8_t* dst = (uint8_t*)ptr;
-	size_t full_size = size;
 	while (size && !IsEof())
 	{
 		if (m_avail == 0)
@@ -142,13 +343,10 @@ bool GSDumpLzma::Read(void* ptr, size_t size)
 		off     += l;
 	}
 
-	if (size == 0)
-	{
-		Repack(ptr, full_size);
-		return true;
-	}
+	if (off > 0)
+		Repack(ptr, off);
 
-	return false;
+	return off;
 }
 
 GSDumpLzma::~GSDumpLzma()
@@ -163,14 +361,9 @@ GSDumpLzma::~GSDumpLzma()
 
 /******************************************************************/
 
-GSDumpRaw::GSDumpRaw(char* filename, const char* repack_filename)
-	: GSDumpFile(filename, repack_filename)
+GSDumpRaw::GSDumpRaw(FILE* file, FILE* repack_file)
+	: GSDumpFile(file, repack_file)
 {
-	m_buff_size = 0;
-	m_area      = nullptr;
-	m_inbuf     = nullptr;
-	m_avail     = 0;
-	m_start     = 0;
 }
 
 bool GSDumpRaw::IsEof()
@@ -178,20 +371,17 @@ bool GSDumpRaw::IsEof()
 	return !!feof(m_fp);
 }
 
-bool GSDumpRaw::Read(void* ptr, size_t size)
+size_t GSDumpRaw::Read(void* ptr, size_t size)
 {
 	size_t ret = fread(ptr, 1, size, m_fp);
 	if (ret != size && ferror(m_fp))
 	{
 		fprintf(stderr, "GSDumpRaw:: Read error (%zu/%zu)\n", ret, size);
-		throw "BAD"; // Just exit the program
+		return ret;
 	}
 
-	if (ret == size)
-	{
-		Repack(ptr, size);
-		return true;
-	}
+	if (ret > 0)
+		Repack(ptr, ret);
 
-	return false;
+	return ret;
 }

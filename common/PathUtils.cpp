@@ -149,6 +149,21 @@ wxString Path::Combine(const wxString& srcPath, const wxDirName& srcFile)
 	return (wxDirName(srcPath) + srcFile).ToString();
 }
 
+std::string Path::CombineStdString(const wxDirName& srcPath, const std::string_view& srcFile)
+{
+	const wxString wxResult((srcPath + wxString::FromUTF8(srcFile.data(), srcFile.length())).GetFullPath());
+	const wxCharBuffer wxBuf(wxResult.ToUTF8());
+	return std::string(wxBuf.data(), wxBuf.length());
+}
+
+std::string Path::CombineStdString(const std::string_view& srcPath, const std::string_view& srcFile)
+{
+	const wxDirName srcPathDir(wxString::FromUTF8(srcPath.data(), srcPath.length()));
+	const wxString wxResult((srcPathDir + wxString::FromUTF8(srcFile.data(), srcFile.length())).GetFullPath());
+	const wxCharBuffer wxBuf(wxResult.ToUTF8());
+	return std::string(wxBuf.data(), wxBuf.length());
+}
+
 // Replaces the extension of the file with the one given.
 // This function works for path names as well as file names.
 wxString Path::ReplaceExtension(const wxString& src, const wxString& ext)
@@ -180,7 +195,6 @@ wxString Path::GetDirectory(const wxString& src)
 	return wxFileName(src).GetPath();
 }
 
-
 // returns the base/root directory of the given path.
 // Example /this/that/something.txt -> dest == "/"
 wxString Path::GetRootDirectory(const wxString& src)
@@ -190,4 +204,13 @@ wxString Path::GetRootDirectory(const wxString& src)
 		return wxString();
 	else
 		return wxString(src.begin(), src.begin() + pos);
+}
+
+fs::path Path::FromWxString(const wxString& path)
+{
+#ifdef _WIN32
+	return fs::path(path.ToStdWstring());
+#else
+	return fs::path(path.ToStdString());
+#endif
 }

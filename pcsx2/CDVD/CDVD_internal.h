@@ -38,6 +38,8 @@ without proper emulation of the cdvd status flag it also tends to break things.
 
 */
 
+/* Old IRQ structure
+
 enum CdvdIrqId
 {
 	Irq_None = 0,
@@ -48,6 +50,16 @@ enum CdvdIrqId
 	Irq_Error,
 	Irq_NotReady
 
+};
+*/
+
+enum CdvdIrqId
+{
+	Irq_None = 0,
+	Irq_CommandComplete = 0,
+	Irq_POffReady = 2,
+	Irq_Eject,
+	Irq_BSPower, //PS1 IRQ not used
 };
 
 /* Cdvd.Status bits and their meaning
@@ -70,11 +82,26 @@ enum cdvdStatus
 	CDVD_STATUS_EMERGENCY = 0x20,
 };
 
+/* from PS2Tek https://psi-rockin.github.io/ps2tek/#cdvdioports
+1F402005h N command status (R)
+  0     Error (1=error occurred)
+  1     Unknown/unused
+  2     DEV9 device connected (1=HDD/network adapter connected)
+  3     Unknown/unused
+  4     Test mode
+  5     Power off ready
+  6     Drive status (1=ready)
+  7     Busy executing NCMD
+
+*/
 enum cdvdready
 {
-	CDVD_DRIVE_DATARDY = 0x2,
+	CDVD_DRIVE_ERROR = 0x01,
+	CDVD_DRIVE_DEV9CON = 0x04,
+	CDVD_DRIVE_MECHA_INIT = 0x8,
 	CDVD_DRIVE_PWOFF = 0x20,
 	CDVD_DRIVE_READY = 0x40,
+	CDVD_DRIVE_BUSY = 0x80,
 };
 
 // Cdvd actions tell the emulator how and when to respond to certain requests.
@@ -85,7 +112,7 @@ enum cdvdActions
 	cdvdAction_Seek,
 	cdvdAction_Standby,
 	cdvdAction_Stop,
-	cdvdAction_Break,
+	cdvdAction_Error,
 	cdvdAction_Read // note: not used yet.
 };
 
@@ -170,8 +197,8 @@ static const char* nCmdName[0x100] = {
 
 enum nCmds
 {
-	N_CD_SYNC = 0x00,          // CdSync
-	N_CD_NOP = 0x01,           // CdNop
+	N_CD_NOP = 0x00,           // CdNop
+	N_CD_RESET = 0x01,         // CdReset
 	N_CD_STANDBY = 0x02,       // CdStandby
 	N_CD_STOP = 0x03,          // CdStop
 	N_CD_PAUSE = 0x04,         // CdPause

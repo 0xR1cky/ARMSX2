@@ -36,8 +36,6 @@
 #include "Recording/InputRecordingControls.h"
 #endif
 
-extern std::atomic_bool init_gspanel;
-
 // ------------------------------------------------------------------------
 wxMenu* MainEmuFrame::MakeStatesSubMenu(int baseid, int loadBackupId) const
 {
@@ -95,11 +93,7 @@ void MainEmuFrame::UpdateStatusBar()
 
 	m_statusbar.SetStatusText(CDVD_SourceLabels[enum_cast(g_Conf->CdvdSource)], 2);
 
-#ifdef __M_X86_64
 	m_statusbar.SetStatusText("x64", 3);
-#else
-	m_statusbar.SetStatusText("x32", 3);
-#endif
 }
 
 void MainEmuFrame::UpdateCdvdSrcSelection()
@@ -164,7 +158,7 @@ void MainEmuFrame::OnCloseWindow(wxCloseEvent& evt)
 {
 	// the main thread is busy suspending everything, so let's not try to call it 
 	// when closing the emulator
-	init_gspanel = false;
+	//init_gspanel = false;
 
 	if (IsBeingDeleted())
 		return;
@@ -262,8 +256,8 @@ void MainEmuFrame::ConnectMenus()
 
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_EnablePatches_Click, this, MenuId_EnablePatches);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_EnableCheats_Click, this, MenuId_EnableCheats);
-	Bind(wxEVT_MENU, &MainEmuFrame::Menu_IPC_Enable_Click, this, MenuId_IPC_Enable);
-	Bind(wxEVT_MENU, &MainEmuFrame::Menu_IPC_Settings_Click, this, MenuId_IPC_Settings);
+	Bind(wxEVT_MENU, &MainEmuFrame::Menu_PINE_Enable_Click, this, MenuId_PINE_Enable);
+	Bind(wxEVT_MENU, &MainEmuFrame::Menu_PINE_Settings_Click, this, MenuId_PINE_Settings);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_EnableWideScreenPatches_Click, this, MenuId_EnableWideScreenPatches);
 #ifndef DISABLE_RECORDING
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_EnableRecordingTools_Click, this, MenuId_EnableInputRecording);
@@ -275,6 +269,7 @@ void MainEmuFrame::ConnectMenus()
 	// CDVD
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_IsoBrowse_Click, this, MenuId_IsoBrowse);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_IsoClear_Click, this, MenuId_IsoClear);
+	Bind(wxEVT_MENU, &MainEmuFrame::Menu_IsoClearMissing_Click, this, MenuId_IsoClearMissing);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_CdvdSource_Click, this, MenuId_Src_Iso);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_CdvdSource_Click, this, MenuId_Src_Disc);
 	Bind(wxEVT_MENU, &MainEmuFrame::Menu_CdvdSource_Click, this, MenuId_Src_NoDisc);
@@ -395,12 +390,12 @@ void MainEmuFrame::CreatePcsx2Menu()
 	m_GameSettingsSubmenu.Append(MenuId_EnableCheats, _("Enable &Cheats"),
 		_("Use cheats otherwise known as pnachs from the cheats folder."), wxITEM_CHECK);
 
-	m_GameSettingsSubmenu.Append(MenuId_IPC, _("Configure &IPC"), &m_submenuIPC);
+	m_GameSettingsSubmenu.Append(MenuId_PINE, _("Configure &PINE"), &m_submenuPINE);
 
-	m_submenuIPC.Append(MenuId_IPC_Enable, _("&Enable IPC"),
+	m_submenuPINE.Append(MenuId_PINE_Enable, _("&Enable PINE"),
 		wxEmptyString, wxITEM_CHECK);
 
-	m_submenuIPC.Append(MenuId_IPC_Settings, _("IPC &Settings"));
+	m_submenuPINE.Append(MenuId_PINE_Settings, _("PINE &Settings"));
 
 	m_GameSettingsSubmenu.Append(MenuId_EnableWideScreenPatches, _("Enable &Widescreen Patches"),
 		_("Enabling Widescreen Patches may occasionally cause issues."), wxITEM_CHECK);
@@ -476,9 +471,11 @@ void MainEmuFrame::CreateWindowsMenu()
 {
 	m_menuWindow.Append(MenuId_Debug_CreateBlockdump, _("Create &Blockdump"), _("Creates a block dump for debugging purposes."), wxITEM_CHECK);
 	m_menuWindow.Append(MenuId_Debug_Open, _("&Show Debugger"), wxEmptyString, wxITEM_CHECK);
-#if defined(PCSX2_DEVBUILD) || defined(PCSX2_CI)
-	m_menuWindow.Append(MenuId_GSDump, _("Show &GS Debugger"));
+
+#ifndef PCSX2_CI
+	if (IsDevBuild || g_Conf->DevMode)
 #endif
+		m_menuWindow.Append(MenuId_GSDump, _("Show &GS Debugger"));
 
 	m_menuWindow.Append(&m_MenuItem_Console);
 #if defined(__POSIX__)
@@ -568,7 +565,7 @@ MainEmuFrame::MainEmuFrame(wxWindow* parent, const wxString& title)
 	, m_menuWindow(*new wxMenu())
 	, m_menuCapture(*new wxMenu())
 	, m_submenuVideoCapture(*new wxMenu())
-	, m_submenuIPC(*new wxMenu())
+	, m_submenuPINE(*new wxMenu())
 	, m_submenuScreenshot(*new wxMenu())
 #ifndef DISABLE_RECORDING
 	, m_menuRecording(*new wxMenu())
@@ -830,7 +827,7 @@ void MainEmuFrame::ApplyConfigToGui(AppConfig& configToApply, int flags)
 	{ //these should not be affected by presets
 		menubar.Check(MenuId_EnableBackupStates, configToApply.EmuOptions.BackupSavestate);
 		menubar.Check(MenuId_EnableCheats, configToApply.EmuOptions.EnableCheats);
-		menubar.Check(MenuId_IPC_Enable, configToApply.EmuOptions.EnableIPC);
+		menubar.Check(MenuId_PINE_Enable, configToApply.EmuOptions.EnablePINE);
 		menubar.Check(MenuId_EnableWideScreenPatches, configToApply.EmuOptions.EnableWideScreenPatches);
 		menubar.Check(MenuId_Capture_Video_IncludeAudio, configToApply.AudioCapture.EnableAudio);
 #ifndef DISABLE_RECORDING

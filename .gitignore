@@ -48,8 +48,7 @@ Thumbs.db
 Debug.txt
 install_log.txt
 padLog.txt
-GS_opengl_debug_hw.txt
-GS_opengl_debug_sw.txt
+GS_opengl_debug.txt
 
 Debug
 Release
@@ -73,13 +72,17 @@ oprofile_data/
 /bin/**/*.ilk
 /bin/**/*.lib
 /bin/**/*.pdb
-/bin/PCSX2
+/bin/pcsx2
 /bin/PCSX2-linux.sh
 /bin/*ReplayLoader
-/bin/PCSX2-linux.sh
 /bin/GS*.txt
+/bin/qt.conf
 /bin/bios
+/bin/cache
+/bin/cheats
+/bin/covers
 /bin/dumps
+/bin/gamesettings
 /bin/help
 /bin/inis
 /bin/logs
@@ -87,24 +90,12 @@ oprofile_data/
 /bin/plugins
 /bin/snaps
 /bin/sstates
+/bin/textures
+/bin/translations
 /deps
 /ipch
 
 !/3rdparty/libjpeg/change.log
-/3rdparty/portaudio/portaudio-2.0.pc
-/3rdparty/portaudio/bin
-/3rdparty/portaudio/bin-*
-/3rdparty/portaudio/autom4te.cache
-/3rdparty/portaudio/libtool
-/3rdparty/portaudio/config.*
-/3rdparty/portaudio/lib-stamp
-/3rdparty/portaudio/Makefile
-/3rdparty/portaudio/bindings
-/3rdparty/portaudio/test
-/3rdparty/portaudio/testcvs
-/3rdparty/portaudio/src/hostapi/asio/ASIOSDK/common
-/3rdparty/portaudio/src/hostapi/asio/ASIOSDK/host
-/3rdparty/portaudio/src/hostapi/wasapi/mingw-include
 /3rdparty/**/include/wx/setup.h
 /3rdparty/**/wx/msw/rcdefs.h
 /pcsx2/gui/Resources/*.h

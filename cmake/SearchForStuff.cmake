@@ -11,13 +11,12 @@ if (WIN32)
 	add_subdirectory(3rdparty/libjpeg EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/libsamplerate EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/baseclasses EXCLUDE_FROM_ALL)
-	add_subdirectory(3rdparty/freetype EXCLUDE_FROM_ALL)
-	add_subdirectory(3rdparty/portaudio EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/pthreads4w EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/soundtouch EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/wil EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/wxwidgets3.0 EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/xz EXCLUDE_FROM_ALL)
+	add_subdirectory(3rdparty/D3D12MemAlloc EXCLUDE_FROM_ALL)
 else()
 	## Use cmake package to find module
 	if (Linux)
@@ -25,17 +24,16 @@ else()
 		make_imported_target_if_missing(ALSA::ALSA ALSA)
 	endif()
 	find_package(PCAP REQUIRED)
-	find_package(LibXml2 REQUIRED)
-	make_imported_target_if_missing(LibXml2::LibXml2 LibXml2)
-	find_package(Freetype REQUIRED) # GS OSD
 	find_package(Gettext) # translation tool
 	find_package(LibLZMA REQUIRED)
 	make_imported_target_if_missing(LibLZMA::LibLZMA LIBLZMA)
 
 	# Using find_package OpenGL without either setting your opengl preference to GLVND or LEGACY
 	# is deprecated as of cmake 3.11.
-	set(OpenGL_GL_PREFERENCE GLVND)
-	find_package(OpenGL REQUIRED)
+	if(USE_OPENGL)
+		set(OpenGL_GL_PREFERENCE GLVND)
+		find_package(OpenGL REQUIRED)
+	endif()
 	find_package(PNG REQUIRED)
 	find_package(Vtune)
 
@@ -120,7 +118,9 @@ else()
 	include(CheckLib)
 
 	if(UNIX AND NOT APPLE)
-		check_lib(EGL EGL EGL/egl.h)
+		if(USE_OPENGL)
+			check_lib(EGL EGL EGL/egl.h)
+		endif()
 		if(X11_API)
 			check_lib(X11_XCB X11-xcb X11/Xlib-xcb.h)
 			check_lib(XCB xcb xcb/xcb.h)
@@ -144,29 +144,17 @@ else()
 		endif()
 	endif()
 
-	if(PORTAUDIO_API)
-		check_lib(PORTAUDIO portaudio portaudio.h pa_linux_alsa.h)
-	endif()
 	check_lib(SOUNDTOUCH SoundTouch SoundTouch.h PATH_SUFFIXES soundtouch)
 	check_lib(SAMPLERATE samplerate samplerate.h)
 
-	if(SDL2_API)
+	if(NOT QT_BUILD)
 		check_lib(SDL2 SDL2 SDL.h PATH_SUFFIXES SDL2)
-		alias_library(SDL::SDL PkgConfig::SDL2)
-	else()
-		# Tell cmake that we use SDL as a library and not as an application
-		set(SDL_BUILDING_LIBRARY TRUE)
-		find_package(SDL REQUIRED)
 	endif()
 
 	if(UNIX AND NOT APPLE)
 		find_package(X11 REQUIRED)
 		make_imported_target_if_missing(X11::X11 X11)
-	endif()
-	if(APPLE)
-		check_lib(GIO gio-2.0 gio/gio.h)
-	elseif(UNIX)
-		# Most plugins (if not all) and PCSX2 core need gtk2, so set the required flags
+
 		if (GTK2_API)
 			find_package(GTK2 REQUIRED gtk)
 			alias_library(GTK::gtk GTK2::gtk)
@@ -178,17 +166,13 @@ else()
 			check_lib(GTK3 gtk+-3.0 gtk/gtk.h)
 			alias_library(GTK::gtk PkgConfig::GTK3)
 		endif()
+		## Use pcsx2 package to find module
+		find_package(HarfBuzz)
 		endif()
 	endif()
 	if(WAYLAND_API)
 		find_package(Wayland REQUIRED)
 	endif()
-
-	#----------------------------------------
-	#           Use system include
-	#----------------------------------------
-	find_package(HarfBuzz)
-
 endif(WIN32)
 
 # Require threads on all OSes.
@@ -237,30 +221,42 @@ else()
 endif()
 
 if(USE_SYSTEM_YAML)
-	find_package(yaml-cpp "0.6.3" QUIET)
-	if(NOT yaml-cpp_FOUND)
-		message(STATUS "No system yaml-cpp was found")
+	find_package(ryml REQUIRED)
+	if(NOT ryml_FOUND)
+		message(STATUS "No system rapidyaml was found, using the submodule in the 3rdparty directory")
 		set(USE_SYSTEM_YAML OFF)
 	else()
-		message(STATUS "Found yaml-cpp: ${yaml-cpp_VERSION}")
-		message(STATUS "Note that the latest release of yaml-cpp is very outdated, and the bundled submodule in the repo has over a year of bug fixes and as such is preferred.")
+		message(STATUS "Found rapidyaml: ${rapidyaml_VERSION}")
 	endif()
 endif()
 
 if(NOT USE_SYSTEM_YAML)
-	if(EXISTS "${CMAKE_SOURCE_DIR}/3rdparty/yaml-cpp/yaml-cpp/CMakeLists.txt")
-		message(STATUS "Using bundled yaml-cpp")
-		add_subdirectory(3rdparty/yaml-cpp/yaml-cpp EXCLUDE_FROM_ALL)
-		if (NOT MSVC)
-			# Remove once https://github.com/jbeder/yaml-cpp/pull/815 is merged
-			target_compile_options(yaml-cpp PRIVATE -Wno-shadow)
-		endif()
+	if(EXISTS "${CMAKE_SOURCE_DIR}/3rdparty/rapidyaml/rapidyaml/CMakeLists.txt")
+		message(STATUS "Using bundled rapidyaml")
+		add_subdirectory(3rdparty/rapidyaml/rapidyaml EXCLUDE_FROM_ALL)
 	else()
-		message(FATAL_ERROR "No bundled yaml-cpp was found")
+		message(FATAL_ERROR "No bundled rapidyaml was found")
 	endif()
 endif()
 
+# We could use a system version of zstd, but is it going to be recent enough?
+add_subdirectory(3rdparty/zstd EXCLUDE_FROM_ALL)
+
+if(QT_BUILD)
+	# Default to bundled Qt6 for Windows.
+	if(WIN32 AND NOT DEFINED Qt6_DIR)
+		set(Qt6_DIR ${CMAKE_SOURCE_DIR}/3rdparty/qt/6.3.0/msvc2019_64/lib/cmake/Qt6)
+	endif()
+
+	# Find the Qt components that we need.
+	find_package(Qt6 COMPONENTS CoreTools Core GuiTools Gui WidgetsTools Widgets Network LinguistTools REQUIRED)
+
+	# We use the bundled (latest) SDL version for Qt.
+	add_subdirectory(3rdparty/sdl2 EXCLUDE_FROM_ALL)
+endif()
+
 add_subdirectory(3rdparty/libchdr/libchdr EXCLUDE_FROM_ALL)
+target_compile_options(chdr-static PRIVATE "-w")
 
 if(USE_NATIVE_TOOLS)
 	add_subdirectory(tools/bin2cpp EXCLUDE_FROM_ALL)
@@ -271,4 +267,22 @@ else()
 	set(BIN2CPPDEP ${CMAKE_SOURCE_DIR}/linux_various/hex2h.pl)
 endif()
 
-add_subdirectory(3rdparty/glad EXCLUDE_FROM_ALL)
+add_subdirectory(3rdparty/simpleini EXCLUDE_FROM_ALL)
+add_subdirectory(3rdparty/imgui EXCLUDE_FROM_ALL)
+add_subdirectory(3rdparty/libzip EXCLUDE_FROM_ALL)
+
+if(USE_OPENGL)
+	add_subdirectory(3rdparty/glad EXCLUDE_FROM_ALL)
+endif()
+
+if(USE_VULKAN)
+	add_subdirectory(3rdparty/glslang EXCLUDE_FROM_ALL)
+	add_subdirectory(3rdparty/vulkan-headers EXCLUDE_FROM_ALL)
+endif()
+
+if(CUBEB_API)
+	add_subdirectory(3rdparty/cubeb EXCLUDE_FROM_ALL)
+	target_compile_options(cubeb PRIVATE "-w")
+	target_compile_options(speex PRIVATE "-w")
+endif()
+

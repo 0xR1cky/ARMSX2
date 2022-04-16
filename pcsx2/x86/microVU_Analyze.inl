@@ -584,8 +584,29 @@ static void analyzeBranchVI(mV, int xReg, bool& infoVar)
 // Branch in Branch Delay-Slots
 __ri int mVUbranchCheck(mV)
 {
-	if (!mVUcount)
+	if (!mVUcount && !isEvilBlock)
 		return 0;
+
+	// This means we have jumped from an evil branch situation, so this is another branch in delay slot
+	if (isEvilBlock)
+	{
+		mVUlow.evilBranch = true;
+		mVUregs.blockType = 2;
+		mVUregs.needExactMatch |= 7; // This might not be necessary, but w/e...
+		mVUregs.flagInfo = 0;
+		
+		if (mVUlow.branch == 2 || mVUlow.branch == 10)
+		{
+			Console.Error("microVU%d: %s in branch, branch delay slot requires link [%04x] - If game broken report to PCSX2 Team", mVU.index,
+				branchSTR[mVUlow.branch & 0xf], xPC);
+		}
+		else
+		{
+			DevCon.Warning("microVU%d: %s in branch, branch delay slot! [%04x] - If game broken report to PCSX2 Team", mVU.index,
+				branchSTR[mVUlow.branch & 0xf], xPC);
+		}
+		return 1;
+	}
 
 	incPC(-2);
 
@@ -598,19 +619,7 @@ __ri int mVUbranchCheck(mV)
 			incPC(2);
 			mVUlow.evilBranch = true;
 
-			if (mVUlow.branch == 2 || mVUlow.branch == 10) // Needs linking, we can only guess this if the next is not conditional
-			{
-				// First branch is not conditional so we know what the link will be
-				// So we can let the existing evil block do its thing! We know where to get the addr :)
-				if (branchType <= 2 || branchType >= 9)
-				{
-					mVUregs.blockType = 2;
-				} // Else it is conditional, so we need to do some nasty processing later in microVU_Branch.inl
-			}
-			else
-			{
-				mVUregs.blockType = 2; // Second branch doesn't need linking, so can let it run its evil block course (MGS2 for testing)
-			}
+			mVUregs.blockType = 2; // Second branch doesn't need linking, so can let it run its evil block course (MGS2 for testing)
 
 			mVUregs.needExactMatch |= 7; // This might not be necessary, but w/e...
 			mVUregs.flagInfo = 0;
@@ -657,7 +666,8 @@ __fi void mVUanalyzeNormBranch(mV, int It, bool isBAL)
 	if (isBAL)
 	{
 		analyzeVIreg2(mVU, It, mVUlow.VI_write, 1);
-		setConstReg(It, bSaveAddr);
+		if(!mVUlow.evilBranch)
+			setConstReg(It, bSaveAddr);
 	}
 }
 
@@ -674,6 +684,7 @@ __ri void mVUanalyzeJump(mV, int Is, int It, bool isJALR)
 	if (isJALR)
 	{
 		analyzeVIreg2(mVU, It, mVUlow.VI_write, 1);
-		setConstReg(It, bSaveAddr);
+		if (!mVUlow.evilBranch)
+			setConstReg(It, bSaveAddr);
 	}
 }

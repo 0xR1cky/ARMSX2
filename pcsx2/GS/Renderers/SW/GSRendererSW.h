@@ -71,7 +71,7 @@ protected:
 	IRasterizer* m_rl;
 	GSRingHeap m_vertex_heap;
 	GSTextureCacheSW* m_tc;
-	GSTexture* m_texture[2];
+	GSTexture* m_texture[3];
 	u8* m_output;
 	GSPixelOffset4* m_fzb;
 	GSVector4i m_fzb_bbox;
@@ -79,17 +79,16 @@ protected:
 	std::atomic<u32> m_fzb_pages[512]; // u16 frame/zbuf pages interleaved
 	std::atomic<u16> m_tex_pages[512];
 
-	void Reset();
-	void VSync(int field);
-	void ResetDevice();
-	GSTexture* GetOutput(int i, int& y_offset);
-	GSTexture* GetFeedbackOutput();
+	void Reset() override;
+	void VSync(u32 field, bool registers_written) override;
+	GSTexture* GetOutput(int i, int& y_offset) override;
+	GSTexture* GetFeedbackOutput() override;
 
-	void Draw();
+	void Draw() override;
 	void Queue(GSRingHeap::SharedPtr<GSRasterizerData>& item);
 	void Sync(int reason);
-	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r);
-	void InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool clut = false);
+	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) override;
+	void InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool clut = false) override;
 
 	void UsePages(const GSOffset::PageLooper& pages, const int type);
 	void ReleasePages(const GSOffset::PageLooper& pages, const int type);
@@ -101,5 +100,5 @@ protected:
 
 public:
 	GSRendererSW(int threads);
-	virtual ~GSRendererSW();
+	~GSRendererSW() override;
 };

@@ -19,6 +19,7 @@
 #include <codecvt>
 #include <cstdio>
 #include <sstream>
+#include <algorithm>
 
 #ifdef _WIN32
 #include "RedtapeWindows.h"
@@ -206,7 +207,113 @@ namespace StringUtil
 		return ss.str();
 	}
 
-#ifdef _WIN32
+	std::string toLower(const std::string_view& input)
+	{
+		std::string newStr;
+		std::transform(input.begin(), input.end(), std::back_inserter(newStr),
+			[](unsigned char c) { return std::tolower(c); });
+		return newStr;
+	}
+
+	bool compareNoCase(const std::string_view& str1, const std::string_view& str2)
+	{
+		if (str1.length() != str2.length())
+		{
+			return false;
+		}
+		return Strncasecmp(str1.data(), str2.data(), str1.length()) == 0;
+	}
+
+	std::vector<std::string> splitOnNewLine(const std::string& str)
+	{
+		std::vector<std::string> lines;
+		std::istringstream stream(str);
+		std::string line;
+		while (std::getline(stream, line))
+		{
+			lines.push_back(line);
+		}
+		return lines;
+	}
+
+	std::string_view StripWhitespace(const std::string_view& str)
+	{
+		std::string_view::size_type start = 0;
+		while (start < str.size() && std::isspace(str[start]))
+			start++;
+		if (start == str.size())
+			return {};
+
+		std::string_view::size_type end = str.size() - 1;
+		while (end > start && std::isspace(str[end]))
+			end--;
+
+		return str.substr(start, end - start + 1);
+	}
+
+	void StripWhitespace(std::string* str)
+	{
+		{
+			const char* cstr = str->c_str();
+			std::string_view::size_type start = 0;
+			while (start < str->size() && std::isspace(cstr[start]))
+				start++;
+			if (start != 0)
+				str->erase(0, start);
+		}
+
+		{
+			const char* cstr = str->c_str();
+			std::string_view::size_type start = str->size();
+			while (start > 0 && std::isspace(cstr[start - 1]))
+				start--;
+			if (start != str->size())
+				str->erase(start);
+		}
+	}
+
+	std::vector<std::string_view> SplitString(const std::string_view& str, char delimiter, bool skip_empty /*= true*/)
+	{
+		std::vector<std::string_view> res;
+		std::string_view::size_type last_pos = 0;
+		std::string_view::size_type pos;
+		while (last_pos < str.size() && (pos = str.find(delimiter, last_pos)) != std::string_view::npos)
+		{
+			std::string_view part(StripWhitespace(str.substr(last_pos, pos - last_pos)));
+			if (!skip_empty || !part.empty())
+				res.push_back(std::move(part));
+
+			last_pos = pos + 1;
+		}
+
+		if (last_pos < str.size())
+		{
+			std::string_view part(StripWhitespace(str.substr(last_pos)));
+			if (!skip_empty || !part.empty())
+				res.push_back(std::move(part));
+		}
+
+		return res;
+	}
+
+	bool ParseAssignmentString(const std::string_view& str, std::string_view* key, std::string_view* value)
+	{
+		const std::string_view::size_type pos = str.find('=');
+		if (pos == std::string_view::npos)
+		{
+			*key = std::string_view();
+			*value = std::string_view();
+			return false;
+		}
+
+		*key = StripWhitespace(str.substr(0, pos));
+		if (pos != (str.size() - 1))
+			*value = StripWhitespace(str.substr(pos + 1));
+		else
+			*value = std::string_view();
+
+		return true;
+	}
 
 	std::wstring UTF8StringToWideString(const std::string_view& str)
 	{
@@ -219,6 +326,7 @@ namespace StringUtil
 
 	bool UTF8StringToWideString(std::wstring& dest, const std::string_view& str)
 	{
+#ifdef _WIN32
 		int wlen = MultiByteToWideChar(CP_UTF8, 0, str.data(), static_cast<int>(str.length()), nullptr, 0);
 		if (wlen < 0)
 			return false;
@@ -228,19 +336,36 @@ namespace StringUtil
 			return false;
 
 		return true;
+#else
+		// This depends on wxString, which isn't great. But hopefully we won't need any wide strings outside
+		// of windows once wx is gone anyway.
+		if (str.empty())
+		{
+			dest.clear();
+			return true;
+		}
+
+		const wxString wxstr(wxString::FromUTF8(str.data(), str.length()));
+		if (wxstr.IsEmpty())
+			return false;
+
+		dest = wxstr.ToStdWstring();
+		return true;
+#endif
 	}
 
 	std::string WideStringToUTF8String(const std::wstring_view& str)
 	{
 		std::string ret;
 		if (!WideStringToUTF8String(ret, str))
-			return {};
+			ret.clear();
 
 		return ret;
 	}
 
 	bool WideStringToUTF8String(std::string& dest, const std::wstring_view& str)
 	{
+#ifdef _WIN32
 		int mblen = WideCharToMultiByte(CP_UTF8, 0, str.data(), static_cast<int>(str.length()), nullptr, 0, nullptr, nullptr);
 		if (mblen < 0)
 			return false;
@@ -253,8 +378,22 @@ namespace StringUtil
 		}
 
 		return true;
-	}
+#else
+		// This depends on wxString, which isn't great. But hopefully we won't need any wide strings outside
+		// of windows once wx is gone anyway.
+		if (str.empty())
+		{
+			dest.clear();
+			return true;
+		}
 
+		const wxString wxstr(str.data(), str.data() + str.length());
+		if (wxstr.IsEmpty())
+			return false;
+
+		const auto buf = wxstr.ToUTF8();
+		dest.assign(buf.data(), buf.length());
+		return true;
 #endif
-
+	}
 } // namespace StringUtil

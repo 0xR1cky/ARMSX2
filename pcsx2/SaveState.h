@@ -31,7 +31,7 @@ enum class FreezeAction
 //  the lower 16 bit value.  IF the change is breaking of all compatibility with old
 //  states, increment the upper 16 bit value, and clear the lower 16 bits to 0.
 
-static const u32 g_SaveVersion = (0x9A29 << 16) | 0x0000;
+static const u32 g_SaveVersion = (0x9A2C << 16) | 0x0000;
 
 // the freezing data between submodules and core
 // an interesting thing to note is that this dates back from before plugin
@@ -45,13 +45,21 @@ struct freezeData
     u8 *data;
 };
 
+struct SaveStateScreenshotData
+{
+	u32 width;
+	u32 height;
+	std::vector<u32> pixels;
+};
+
 class ArchiveEntryList;
 
 // Wrappers to generate a save state compatible across all frontends.
 // These functions assume that the caller has paused the core thread.
-extern void SaveState_DownloadState(ArchiveEntryList* destlist);
-extern void SaveState_ZipToDisk(ArchiveEntryList* srclist, const wxString& filename);
-extern void SaveState_UnzipFromDisk(const wxString& filename);
+extern std::unique_ptr<ArchiveEntryList> SaveState_DownloadState();
+extern std::unique_ptr<SaveStateScreenshotData> SaveState_SaveScreenshot();
+extern void SaveState_ZipToDisk(std::unique_ptr<ArchiveEntryList> srclist, std::unique_ptr<SaveStateScreenshotData> screenshot, std::string filename, s32 slot_for_message);
+extern void SaveState_UnzipFromDisk(const std::string& filename);
 
 // --------------------------------------------------------------------------------------
 //  SaveStateBase class
@@ -74,7 +82,9 @@ public:
 	SaveStateBase( VmStateBuffer* memblock );
 	virtual ~SaveStateBase() { }
 
-	static wxString GetSavestateFolder( int slot, bool isSavingOrLoading = false );
+#ifndef PCSX2_CORE
+	static std::string GetSavestateFolder(int slot, bool isSavingOrLoading = false);
+#endif
 
 	// Gets the version of savestate that this object is acting on.
 	// The version refers to the low 16 bits only (high 16 bits classifies Pcsx2 build types)
@@ -83,7 +93,6 @@ public:
 		return (m_version & 0xffff);
 	}
 
-	virtual SaveStateBase& FreezeMainMemory();
 	virtual SaveStateBase& FreezeBios();
 	virtual SaveStateBase& FreezeInternals();
 
@@ -186,13 +195,13 @@ protected:
 class ArchiveEntry
 {
 protected:
-	wxString	m_filename;
+	std::string	m_filename;
 	uptr		m_dataidx;
 	size_t		m_datasize;
 
 public:
-	ArchiveEntry(const wxString& filename = wxEmptyString)
-		: m_filename(filename)
+	ArchiveEntry(std::string filename)
+		: m_filename(std::move(filename))
 	{
 		m_dataidx = 0;
 		m_datasize = 0;
@@ -212,7 +221,7 @@ public:
 		return *this;
 	}
 
-	wxString GetFilename() const
+	const std::string& GetFilename() const
 	{
 		return m_filename;
 	}

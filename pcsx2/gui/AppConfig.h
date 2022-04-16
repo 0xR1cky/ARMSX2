@@ -127,7 +127,9 @@ public:
 				UseDefaultLogs:1,
 				UseDefaultLangs:1,
 				UseDefaultCheats:1,
-				UseDefaultCheatsWS:1;
+				UseDefaultCheatsWS:1,
+				UseDefaultCache:1,
+				UseDefaultTextures:1;
 		BITFIELD_END
 
 		wxDirName
@@ -138,7 +140,10 @@ public:
 			Langs,
 			Logs,
 			Cheats,
-			CheatsWS;
+			CheatsWS,
+			Resources,
+			Cache,
+			Textures;
 
 		wxDirName RunIso; // last used location for Iso loading.
 		wxDirName RunELF; // last used location for ELF loading.
@@ -294,7 +299,7 @@ public:
 
 public:
 	AppConfig();
-	wxString FullpathToSaveState(wxString serialName, wxString CRCvalue) const;
+	std::string FullpathToSaveState(const std::string& serialName, const std::string& CRCvalue) const;
 	void LoadSave(IniInterface& ini, SettingsWrapper& wrap);
 	void LoadSaveRootItems(IniInterface& ini);
 

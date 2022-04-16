@@ -38,18 +38,19 @@ option(USE_VTUNE "Plug VTUNE to profile GS JIT.")
 # Graphical option
 #-------------------------------------------------------------------------------
 option(BUILD_REPLAY_LOADERS "Build GS replayer to ease testing (developer option)")
+option(USE_OPENGL "Enable OpenGL GS renderer" ON)
+option(USE_VULKAN "Enable Vulkan GS renderer" ON)
 
 #-------------------------------------------------------------------------------
 # Path and lib option
 #-------------------------------------------------------------------------------
 option(PACKAGE_MODE "Use this option to ease packaging of PCSX2 (developer/distribution option)")
-option(DISABLE_CHEATS_ZIP "Disable including the cheats_ws.zip file")
 option(DISABLE_PCSX2_WRAPPER "Disable including the PCSX2-linux.sh file")
 option(DISABLE_SETCAP "Do not set files capabilities")
 option(XDG_STD "Use XDG standard path instead of the standard PCSX2 path")
-option(PORTAUDIO_API "Build portaudio support on SPU2" ON)
-option(SDL2_API "Use SDL2 on SPU2 and PAD Linux (wxWidget mustn't be built with SDL1.2 support" ON)
+option(CUBEB_API "Build Cubeb support on SPU2" ON)
 option(GTK2_API "Use GTK2 api (legacy)")
+option(QT_BUILD "Build Qt frontend instead of wx" OFF)
 
 if(UNIX AND NOT APPLE)
 	option(X11_API "Enable X11 support" ON)
@@ -57,10 +58,12 @@ if(UNIX AND NOT APPLE)
 endif()
 
 if(PACKAGE_MODE)
+	file(RELATIVE_PATH relative_datadir ${CMAKE_INSTALL_FULL_BINDIR} ${CMAKE_INSTALL_FULL_DATADIR}/PCSX2)
+	file(RELATIVE_PATH relative_docdir ${CMAKE_INSTALL_FULL_BINDIR} ${CMAKE_INSTALL_FULL_DOCDIR})
 	# Compile all source codes with those defines
 	list(APPEND PCSX2_DEFS
-		GAMEINDEX_DIR_COMPILATION=${CMAKE_INSTALL_FULL_DATADIR}/PCSX2
-		DOC_DIR_COMPILATION=${CMAKE_INSTALL_FULL_DOCDIR})
+		PCSX2_APP_DATADIR="${relative_datadir}"
+		PCSX2_APP_DOCDIR="${relative_docdir}")
 endif()
 
 if(APPLE)
@@ -73,7 +76,7 @@ endif()
 #-------------------------------------------------------------------------------
 option(USE_ASAN "Enable address sanitizer")
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" OR CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
 	set(USE_CLANG TRUE)
 	message(STATUS "Building with Clang/LLVM.")
 elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
@@ -138,44 +141,13 @@ endif()
 # Architecture bitness detection
 include(TargetArch)
 target_architecture(PCSX2_TARGET_ARCHITECTURES)
-if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "x86_64" OR ${PCSX2_TARGET_ARCHITECTURES} MATCHES "i386")
+if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "x86_64")
 	message(STATUS "Compiling a ${PCSX2_TARGET_ARCHITECTURES} build on a ${CMAKE_HOST_SYSTEM_PROCESSOR} host.")
 else()
 	message(FATAL_ERROR "Unsupported architecture: ${PCSX2_TARGET_ARCHITECTURES}")
 endif()
 
-if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "i386")
-	# * -fPIC option was removed for multiple reasons.
-	#     - Code only supports the x86 architecture.
-	#     - code uses the ebx register so it's not compliant with PIC.
-	#     - Impacts the performance too much.
-	#     - Only plugins. No package will link to them.
-	set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
-
-	if(NOT DEFINED ARCH_FLAG)
-		if (MSVC)
-			set(ARCH_FLAG /arch:SSE2)
-		else()
-			if (DISABLE_ADVANCE_SIMD)
-				if (USE_ICC)
-					set(ARCH_FLAG "-msse2 -msse4.1")
-				else()
-					set(ARCH_FLAG "-msse -msse2 -msse4.1 -mfxsr -march=i686")
-				endif()
-			else()
-				# AVX requires some fix of the ABI (mangling) (default 2)
-				# Note: V6 requires GCC 4.7
-				#set(ARCH_FLAG "-march=native -fabi-version=6")
-				set(ARCH_FLAG "-mfxsr -march=native")
-			endif()
-		endif()
-	endif()
-
-	list(APPEND PCSX2_DEFS _ARCH_32=1 _M_X86=1 _M_X86_32=1)
-	set(_ARCH_32 1)
-	set(_M_X86 1)
-	set(_M_X86_32 1)
-elseif(${PCSX2_TARGET_ARCHITECTURES} MATCHES "x86_64")
+if(${PCSX2_TARGET_ARCHITECTURES} MATCHES "x86_64")
 	# x86_64 requires -fPIC
 	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
@@ -191,10 +163,9 @@ elseif(${PCSX2_TARGET_ARCHITECTURES} MATCHES "x86_64")
 			set(ARCH_FLAG "-march=native")
 		endif()
 	endif()
-	list(APPEND PCSX2_DEFS _ARCH_64=1 _M_X86=1 _M_X86_64=1 __M_X86_64=1)
+	list(APPEND PCSX2_DEFS _ARCH_64=1 _M_X86=1)
 	set(_ARCH_64 1)
 	set(_M_X86 1)
-	set(_M_X86_64 1)
 else()
 	# All but i386 requires -fPIC
 	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -234,6 +205,14 @@ endif()
 
 if(USE_VTUNE)
 	list(APPEND PCSX2_DEFS ENABLE_VTUNE)
+endif()
+
+if(USE_OPENGL)
+	list(APPEND PCSX2_DEFS ENABLE_OPENGL)
+endif()
+
+if(USE_VULKAN)
+	list(APPEND PCSX2_DEFS ENABLE_VULKAN)
 endif()
 
 if(X11_API)
@@ -303,6 +282,7 @@ list(APPEND PCSX2_DEFS
 
 if (USE_ASAN)
 	add_compile_options(-fsanitize=address)
+	add_link_options(-fsanitize=address)
 	list(APPEND PCSX2_DEFS ASAN_WORKAROUND)
 endif()
 
@@ -316,6 +296,11 @@ if(CMAKE_BUILD_STRIP)
 	add_link_options(-s)
 endif()
 
+if(QT_BUILD)
+	# We want the core PCSX2 library.
+	set(PCSX2_CORE TRUE)
+endif()
+
 # Enable special stuff for CI builds
 if("$ENV{CI}" STREQUAL "true")
 	list(APPEND PCSX2_DEFS PCSX2_CI)
@@ -325,9 +310,14 @@ endif()
 # MacOS-specific things
 #-------------------------------------------------------------------------------
 
-set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13)
+if(NOT CMAKE_GENERATOR MATCHES "Xcode")
+	# Assume Xcode builds aren't being used for distribution
+	# Helpful because Xcode builds don't build multiple metallibs for different macOS versions
+	# Also helpful because Xcode's interactive shader debugger requires apps be built for the latest macOS
+	set(CMAKE_OSX_DEPLOYMENT_TARGET 10.13)
+endif()
 
-if (APPLE AND ${CMAKE_OSX_DEPLOYMENT_TARGET} VERSION_LESS 10.14 AND NOT ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 9)
+if (APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND "${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS 10.14 AND NOT ${CMAKE_CXX_COMPILER_VERSION} VERSION_LESS 9)
 	# Older versions of the macOS stdlib don't have operator new(size_t, align_val_t)
 	# Disable use of them with this flag
 	# Not great, but also no worse that what we were getting before we turned on C++17

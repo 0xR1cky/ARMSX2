@@ -1,13 +1,13 @@
-# Project Name
-project(Pcsx2)
-
-# Debian-based distributions require at least 2.8.5 due to multiarch.
-# Bumping up to 3.0 seems reasonable at this point, and will let us modernize
-# things a bit.
-#
 # Setting it to a range tells it that it supports the features on the newer
 # versions as well, avoiding setting policies.
-cmake_minimum_required(VERSION 3.10...3.17)
+cmake_minimum_required(VERSION 3.11...3.22)
+
+if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
+	message(FATAL_ERROR "PCSX2 does not support in-tree builds.  Please make a build directory that is not the PCSX2 source directory and generate your CMake project there using either `cmake -B build_directory` or by running cmake from the build directory.")
+endif()
+
+# Project Name
+project(Pcsx2)
 
 # Variable to check that people use the good file
 set(TOP_CMAKE_WAS_SOURCED TRUE)
@@ -34,18 +34,15 @@ include(SearchForStuff)
 get_git_version_info()
 write_svnrev_h()
 
-if(NOT NO_TRANSLATION)
-	# make the translation
-	if(EXISTS "${CMAKE_SOURCE_DIR}/locales")
-		add_subdirectory(locales)
-	endif()
-endif()
-
 # make common
 add_subdirectory(common)
 
 # make pcsx2
 add_subdirectory(pcsx2)
+
+if (QT_BUILD)
+	add_subdirectory(pcsx2-qt)
+endif()
 
 # tests
 if(ACTUALLY_ENABLE_TESTS)
@@ -58,11 +55,6 @@ endif()
 
 # Install some files to ease package creation
 if(PACKAGE_MODE)
-	if(NOT DISABLE_CHEATS_ZIP)
-		INSTALL(FILES     "${CMAKE_SOURCE_DIR}/bin/cheats_ws.zip" DESTINATION "${CMAKE_INSTALL_DATADIR}/PCSX2")
-	endif()
-	INSTALL(FILES     "${CMAKE_SOURCE_DIR}/bin/GameIndex.yaml" DESTINATION "${CMAKE_INSTALL_DATADIR}/PCSX2")
-
 	# set categories depending on system/distribution in pcsx2.desktop
 	if(openSUSE)
 		set(PCSX2_MENU_CATEGORIES "System;Emulator;")

@@ -150,12 +150,7 @@ static const char branchSTR[16][8] = {
 #define xmmT5  xmm4 // Used for regAlloc
 #define xmmT6  xmm5 // Used for regAlloc
 #define xmmT7  xmm6 // Used for regAlloc
-#ifdef __M_X86_64
 #define xmmPQ  xmm15 // Holds the Value and Backup Values of P and Q regs
-#else
-#define xmmPQ  xmm7 // Holds the Value and Backup Values of P and Q regs
-#endif
-
 
 #define gprT1  eax // eax - Temp Reg
 #define gprT2  ecx // ecx - Temp Reg
@@ -167,17 +162,10 @@ static const char branchSTR[16][8] = {
 #define gprT2b cx  // Low 16-bit of gprT2 (ecx)
 #define gprT3b dx  // Low 16-bit of gprT3 (edx)
 
-#ifdef __M_X86_64
 #define gprF0  ebx // Status Flag 0
 #define gprF1 r12d // Status Flag 1
 #define gprF2 r13d // Status Flag 2
 #define gprF3 r14d // Status Flag 3
-#else
-#define gprF0  ebx // Status Flag 0
-#define gprF1  ebp // Status Flag 1
-#define gprF2  esi // Status Flag 2
-#define gprF3  edi // Status Flag 3
-#endif
 
 // Function Params
 #define mP microVU& mVU, int recPass
@@ -242,6 +230,7 @@ typedef u32(__fastcall* mVUCall)(void*, void*);
 #define mVUrange     (mVUcurProg.ranges[0])[0]
 #define isEvilBlock  (mVUpBlock->pState.blockType == 2)
 #define isBadOrEvil  (mVUlow.badBranch || mVUlow.evilBranch)
+#define isConditional (mVUlow.branch > 2 && mVUlow.branch < 9)
 #define xPC          ((iPC / 2) * 8)
 #define curI         ((u32*)mVU.regs().Micro)[iPC] //mVUcurProg.data[iPC]
 #define setCode()    { mVU.code = curI; }

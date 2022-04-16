@@ -28,7 +28,6 @@
 #include "common/Pcsx2Defs.h"
 #include "bitwise.h"
 
-#include "common/pxStreams.h"
 #include "common/Console.h"
 #include "common/mt_queue.h"
 #include "DebugTools/Debug.h"
@@ -107,13 +106,12 @@ enum PadOptions
 	PADOPTION_MOUSE_R = 0x40,
 };
 
-static bool IsAnalogKey(int index)
+static inline bool IsAnalogKey(int index)
 {
 	return ((index >= PAD_L_UP) && (index <= PAD_R_LEFT));
 }
 
 #include "KeyStatus.h"
 
-void __LogToConsole(const char* fmt, ...);
 void PADLoadConfig();
 void PADSaveConfig();

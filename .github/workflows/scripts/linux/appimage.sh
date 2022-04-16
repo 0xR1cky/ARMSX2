@@ -12,8 +12,6 @@ else
   ARCH="x86_64"
   LIBARCH="x86_64-linux-gnu"
 fi
-BUILDPATH="$GITHUB_WORKSPACE"/build
-BUILDBIN="$BUILDPATH"/pcsx2
 cd /tmp
 curl -sSfLO "https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-$ARCH.AppImage"
 chmod a+x linuxdeploy*.AppImage
@@ -23,10 +21,7 @@ chmod a+x /tmp/squashfs-root/usr/bin/linuxdeploy-plugin-gtk.sh
 mv /tmp/squashfs-root/usr/bin/patchelf /tmp/squashfs-root/usr/bin/patchelf.orig
 sudo cp /usr/local/bin/patchelf /tmp/squashfs-root/usr/bin/patchelf
 cd "$GITHUB_WORKSPACE"
-mkdir -p squashfs-root/usr/bin
-ls -al "$BUILDBIN"
-cp -P "$BUILDBIN"/PCSX2 "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/
-patchelf --set-rpath /tmp/PCSX2 "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/PCSX2
+ninja -C build install
 cp ./pcsx2/gui/Resources/AppIcon64.png ./squashfs-root/PCSX2.png
 cp ./linux_various/PCSX2.desktop.in ./squashfs-root/PCSX2.desktop 
 sed -i -e 's|Categories=@PCSX2_MENU_CATEGORIES@|Categories=Game;Emulator;|g' ./squashfs-root/PCSX2.desktop
@@ -47,14 +42,12 @@ chmod a+x ./squashfs-root/runtime
 chmod a+x ./squashfs-root/AppRun-patched
 chmod a+x ./squashfs-root/usr/optional/exec.so
 echo "$name" > "$GITHUB_WORKSPACE"/squashfs-root/version.txt
-mkdir -p "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/app
-cp -r "$GITHUB_WORKSPACE"/bin/Langs "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/
-cp "$GITHUB_WORKSPACE"/bin/docs/{Configuration_Guide.pdf,PCSX2_FAQ.pdf} "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/app
-cp "$GITHUB_WORKSPACE"/bin/cheats_ws.zip "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/app
-cp ./bin/GameIndex.yaml "$GITHUB_WORKSPACE"/squashfs-root/usr/bin/app/GameIndex.yaml
+mkdir -p "$GITHUB_WORKSPACE"/squashfs-root/apprun-hooks
 cp /usr/lib/$LIBARCH/libthai.so.0 "$GITHUB_WORKSPACE"/squashfs-root/usr/lib/
 cp --dereference /usr/lib/"$LIBARCH"/libstdc++.so.6 "$GITHUB_WORKSPACE"/squashfs-root/usr/optional/libstdc++/libstdc++.so.6
 cp --dereference /lib/"$LIBARCH"/libgcc_s.so.1 "$GITHUB_WORKSPACE"/squashfs-root/usr/optional/libgcc_s/libgcc_s.so.1
+chmod +x .github/workflows/scripts/linux/app-variables.sh
+cp .github/workflows/scripts/linux/app-variables.sh "$GITHUB_WORKSPACE"/squashfs-root/apprun-hooks
 export UPD_INFO="gh-releases-zsync|PCSX2|pcsx2|latest|$name.AppImage.zsync"
 export OUTPUT="$name.AppImage"
 /tmp/squashfs-root/AppRun --appdir="$GITHUB_WORKSPACE"/squashfs-root/ --plugin gtk -d "$GITHUB_WORKSPACE"/squashfs-root/PCSX2.desktop -i "$GITHUB_WORKSPACE"/squashfs-root/PCSX2.png --output appimage

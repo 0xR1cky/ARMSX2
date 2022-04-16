@@ -15,12 +15,20 @@
 
 
 #include "PrecompiledHeader.h"
-#include "IopCommon.h"
+#include "R3000A.h"
+#include "Common.h"
 
 #include "Sio.h"
 #include "Sif.h"
 #include "DebugTools/Breakpoints.h"
 #include "R5900OpcodeTables.h"
+#include "IopSio2.h"
+#include "IopCounters.h"
+#include "IopBios.h"
+#include "IopHw.h"
+#include "IopDma.h"
+#include "CDVD/CdRom.h"
+#include "CDVD/CDVD.h"
 
 using namespace R3000A;
 
@@ -42,8 +50,6 @@ s32 iopBreak = 0;
 // tracks the IOP's current sync status with the EE.  When it dips below zero,
 // control is returned to the EE.
 s32 iopCycleEE = -1;
-
-bool iopBreakpoint = 0;
 
 // Used to signal to the EE when important actions that need IOP-attention have
 // happened (hsyncs, vsyncs, IOP exceptions, etc).  IOP runs code whenever this

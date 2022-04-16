@@ -19,8 +19,8 @@
 #include "ConsoleLogger.h"
 #include "MSWstuff.h"
 #include "MTVU.h" // for thread cancellation on shutdown
+#include "IniInterface.h"
 
-#include "common/IniInterface.h"
 #include "common/StringUtil.h"
 #include "DebugTools/Debug.h"
 #include "Dialogs/ModalPopups.h"
@@ -42,6 +42,10 @@
 #include <X11/Xlib.h>
 #endif
 #endif	// __WXGTK__
+
+#ifdef SDL_BUILD
+#include <SDL.h>
+#endif
 
 using namespace pxSizerFlags;
 
@@ -65,6 +69,14 @@ void Pcsx2App::DetectCpuAndUserMode()
 #endif
 
 	EstablishAppUserMode();
+
+	// Check that the resources directory exists and contains our data files.
+	if (!EmuFolders::Resources.Exists())
+	{
+		throw Exception::RuntimeError()
+			.SetDiagMsg(L"Resources directory does not exist.")
+			.SetUserMsg(_("Resources directory does not exist. Your installation is incomplete."));
+	}
 }
 
 void Pcsx2App::OpenMainFrame()
@@ -352,47 +364,6 @@ bool Pcsx2App::OnCmdLineParsed(wxCmdLineParser& parser)
 typedef void (wxEvtHandler::*pxInvokeAppMethodEventFunction)(Pcsx2AppMethodEvent&);
 typedef void (wxEvtHandler::*pxStuckThreadEventHandler)(pxMessageBoxEvent&);
 
-// --------------------------------------------------------------------------------------
-//   GameDatabaseLoaderThread
-// --------------------------------------------------------------------------------------
-class GameDatabaseLoaderThread : public pxThread, EventListener_AppStatus
-{
-	typedef pxThread _parent;
-
-public:
-	GameDatabaseLoaderThread()
-		: pxThread(L"GameDatabaseLoader")
-	{
-	}
-
-	virtual ~GameDatabaseLoaderThread()
-	{
-		try
-		{
-			_parent::Cancel();
-		}
-		DESTRUCTOR_CATCHALL
-	}
-
-protected:
-	void ExecuteTaskInThread()
-	{
-		Sleep(2);
-		wxGetApp().GetGameDatabase();
-	}
-
-	void OnCleanupInThread()
-	{
-		_parent::OnCleanupInThread();
-		wxGetApp().DeleteThread(this);
-	}
-
-	void AppStatusEvent_OnExit()
-	{
-		Block();
-	}
-};
-
 bool Pcsx2App::OnInit()
 {
 	EnableAllLogging();
@@ -464,8 +435,6 @@ bool Pcsx2App::OnInit()
 			OpenMainFrame();
 
 
-		(new GameDatabaseLoaderThread())->Start();
-
 		// By default no IRX injection
 		EmuConfig.CurrentIRX.clear();
 
@@ -498,6 +467,8 @@ bool Pcsx2App::OnInit()
 			{
 				g_Conf->Folders.RunELF = elfFile.GetPath();
 				sApp.SysExecute(Startup.CdvdSource, Startup.ElfFile);
+				if (Startup.ElfFile.Find(' ') == -1)
+					EmuConfig.CurrentGameArgs = StringUtil::wxStringToUTF8String(Startup.GameLaunchArgs);
 			}
 		}
 		else if (Startup.SysAutoRunIrx)
@@ -508,6 +479,8 @@ bool Pcsx2App::OnInit()
 
 			// FIXME: ElfFile is an irx it will crash
 			sApp.SysExecute(Startup.CdvdSource, Startup.ElfFile);
+			if (Startup.ElfFile.Find(' ') == -1)
+				EmuConfig.CurrentGameArgs = StringUtil::wxStringToUTF8String(Startup.GameLaunchArgs);
 		}
 	}
 	// ----------------------------------------------------------------------------
@@ -536,6 +509,12 @@ bool Pcsx2App::OnInit()
 		CleanupOnExit();
 		return false;
 	}
+
+#ifdef SDL_BUILD
+	// MacOS Game Controller framework requires a few runs of the main event loop after interest in game controllers is first indicated to connect controllers
+	// Since OnePad doesn't currently handle connection/disconnection events and requires controllers to be connected on start, we need to initialize SDL before OnePad looks at the controller list
+	SDL_Init(SDL_INIT_GAMECONTROLLER);
+#endif
 	return true;
 }
 
