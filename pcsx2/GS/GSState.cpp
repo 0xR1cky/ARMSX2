@@ -377,10 +377,10 @@ GSVector4i GSState::GetFrameMagnifiedRect(int i)
 {
 	GSVector4i rectangle = { 0, 0, 0, 0 };
 
-	if (!IsEnabled(0) && !IsEnabled(1))
+	if (!IsEnabled(i))
 		return rectangle;
 
-	const GSVideoMode videomode = GetVideoMode();
+	const int videomode = static_cast<int>(GetVideoMode()) - 1;
 	const auto& DISP = m_regs->DISP[i].DISPLAY;
 	const bool ignore_offset = !GSConfig.PCRTCOffsets;
 
@@ -400,8 +400,8 @@ GSVector4i GSState::GetFrameMagnifiedRect(int i)
 	}
 	else
 	{
-		width = (DW / (VideoModeDividers[(int)videomode - 1].x + 1));
-		height = (DH / (VideoModeDividers[(int)videomode - 1].y + 1));
+		width = (DW / (VideoModeDividers[videomode].x + 1));
+		height = (DH / (VideoModeDividers[videomode].y + 1));
 	}
 
 	int res_multi = 1;
@@ -426,8 +426,8 @@ int GSState::GetDisplayHMagnification()
 	}
 
 	// If neither DISPLAY is enabled, fallback to resolution offset (should never happen)
-	const GSVideoMode videomode = GetVideoMode();
-	return VideoModeDividers[(int)videomode - 1].x + 1;
+	const int videomode = static_cast<int>(GetVideoMode()) - 1;
+	return VideoModeDividers[videomode].x + 1;
 }
 
 GSVector4i GSState::GetDisplayRect(int i)
@@ -454,7 +454,7 @@ GSVector4i GSState::GetDisplayRect(int i)
 	const int width = DW / magnification.x;
 	const int height = DH / magnification.y;
 
-	const GSVector2i offsets = GetResolutionOffset(i);
+	GSVector2i offsets = GetResolutionOffset(i);
 
 	// Set up the display rectangle based on the values obtained from DISPLAY registers
 	rectangle.left = offsets.x;
@@ -468,25 +468,29 @@ GSVector4i GSState::GetDisplayRect(int i)
 
 GSVector2i GSState::GetResolutionOffset(int i)
 {
-	const GSVideoMode videomode = GetVideoMode();
+	GSVector2i offset = { 0, 0 };
+
+	if (!IsEnabled(i))
+		return offset;
+
+	const int videomode = static_cast<int>(GetVideoMode()) - 1;
 	const auto& DISP = m_regs->DISP[i].DISPLAY;
 
 	const auto& SMODE2 = m_regs->SMODE2;
 	const int res_multi = (SMODE2.INT + 1);
-	GSVector2i offset;
 
-	offset.x = (((int)DISP.DX - VideoModeOffsets[(int)videomode - 1].z) / (VideoModeDividers[(int)videomode - 1].x + 1));
-	offset.y = ((int)DISP.DY - (VideoModeOffsets[(int)videomode - 1].w * ((IsAnalogue() && res_multi) ? res_multi : 1))) / (VideoModeDividers[(int)videomode - 1].y + 1);
+	offset.x = (static_cast<int>(DISP.DX) - VideoModeOffsets[videomode].z) / (VideoModeDividers[videomode].x + 1);
+	offset.y = (static_cast<int>(DISP.DY) - (VideoModeOffsets[videomode].w * ((IsAnalogue() && res_multi) ? res_multi : 1))) / (VideoModeDividers[videomode].y + 1);
 
 	return offset;
 }
 
 GSVector2i GSState::GetResolution()
 {
-	const GSVideoMode videomode = GetVideoMode();
+	const int videomode = static_cast<int>(GetVideoMode()) - 1;
 	const bool ignore_offset = !GSConfig.PCRTCOffsets;
 
-	GSVector2i resolution(VideoModeOffsets[(int)videomode - 1].x, VideoModeOffsets[(int)videomode - 1].y);
+	GSVector2i resolution(VideoModeOffsets[videomode].x, VideoModeOffsets[videomode].y);
 
 	if (isinterlaced() && !m_regs->SMODE2.FFMD)
 		resolution.y *= 2;
@@ -497,7 +501,7 @@ GSVector2i GSState::GetResolution()
 		// Some games (Mortal Kombat Armageddon) render the image at 834 pixels then shrink it to 624 pixels
 		// which does fit, but when we ignore offsets we go on framebuffer size and some other games
 		// such as Johnny Mosleys Mad Trix and Transformers render too much but design it to go off the screen.
-		int magnified_width = VideoModeDividers[(int)videomode - 1].z / GetDisplayHMagnification();
+		int magnified_width = (VideoModeDividers[videomode].z + 1) / GetDisplayHMagnification();
 
 		GSVector4i total_rect = GetDisplayRect(0).runion(GetDisplayRect(1));
 		total_rect.z = total_rect.z - total_rect.x;
@@ -506,6 +510,16 @@ GSVector2i GSState::GetResolution()
 		total_rect.w = std::min(total_rect.w, resolution.y);
 		resolution.x = total_rect.z;
 		resolution.y = total_rect.w;
+
+		// When we're ignoring offsets we need to account for pictures which are usually offset up off the screen
+		// where more of the bottom would normally be visible, stops some games looking so cut off.
+		const int display_offset = std::min(GetResolutionOffset(0).y, GetResolutionOffset(1).y);
+
+		// If there is a negative vertical offset on the picture, we need to read more.
+		if (display_offset < 0)
+		{
+			resolution.y += -display_offset;
+		}
 	}
 
 	return resolution;
@@ -517,10 +531,13 @@ GSVector4i GSState::GetFrameRect(int i)
 	if (i == -1)
 		return GetFrameRect(0).runion(GetFrameRect(1));
 
-	GSVector4i rectangle;
+	GSVector4i rectangle = { 0, 0, 0, 0 };
+
+	if (!IsEnabled(i))
+		return rectangle;
 
 	const auto& DISP = m_regs->DISP[i].DISPLAY;
-
+	
 	const u32 DW = DISP.DW + 1;
 	const u32 DH = DISP.DH + 1;
 	const GSVector2i magnification(DISP.MAGH+1, DISP.MAGV + 1);
@@ -3179,9 +3196,67 @@ GSState::TextureMinMaxResult GSState::GetTextureMinMax(const GIFRegTEX0& TEX0, c
 	{
 		// Optimisation aims to reduce the amount of texture loaded to only the bit which will be read
 		GSVector4 st = m_vt.m_min.t.xyxy(m_vt.m_max.t);
-
 		if (linear)
 			st += GSVector4(-0.5f, 0.5f).xxyy();
+
+		// Adjust texture range when sprites get scissor clipped. Since we linearly interpolate, this
+		// optimization doesn't work when perspective correction is enabled.
+		if (m_vt.m_primclass == GS_SPRITE_CLASS && PRIM->FST == 1 && m_index.tail < 3)
+		{
+			// When coordinates are fractional, GS appears to draw to the right/bottom (effectively
+			// taking the ceiling), not to the top/left (taking the floor). 
+			const GSVector4i int_rc(m_vt.m_min.p.ceil().xyxy(m_vt.m_max.p.floor()));
+			const GSVector4i scissored_rc(int_rc.rintersect(GSVector4i(m_context->scissor.in)));
+			if (!int_rc.eq(scissored_rc))
+			{
+				// draw will get scissored, adjust UVs to suit
+				const GSVector2 pos_range(m_vt.m_max.p.x - m_vt.m_min.p.x, m_vt.m_max.p.y - m_vt.m_min.p.y);
+				const GSVector2 uv_range(m_vt.m_max.t.x - m_vt.m_min.t.x, m_vt.m_max.t.y - m_vt.m_min.t.y);
+				const GSVector2 grad(uv_range / pos_range);
+
+				const GSVertex* vert_first = &m_vertex.buff[m_index.buff[0]];
+				const GSVertex* vert_second = &m_vertex.buff[m_index.buff[1]];
+
+				const bool swap_x = vert_first->U > vert_second->U;
+				const bool swap_y = vert_first->V > vert_second->V;
+
+				// we need to check that it's not going to repeat over the non-clipped part
+				if (wms != CLAMP_REGION_REPEAT && (wms != CLAMP_REPEAT || (static_cast<int>(st.x) & ~tw_mask) == (static_cast<int>(st.z) & ~tw_mask)))
+				{
+					if (int_rc.left < scissored_rc.left)
+					{
+						if(!swap_x)
+							st.x += floor(static_cast<float>(scissored_rc.left - int_rc.left) * grad.x);
+						else
+							st.z -= floor(static_cast<float>(scissored_rc.left - int_rc.left) * grad.x);
+					}
+					if (int_rc.right > scissored_rc.right)
+					{
+						if (!swap_x)
+							st.z -= floor(static_cast<float>(int_rc.right - scissored_rc.right) * grad.x);
+						else
+							st.x += floor(static_cast<float>(int_rc.right - scissored_rc.right) * grad.x);
+					}
+				}
+				if (wmt != CLAMP_REGION_REPEAT && (wmt != CLAMP_REPEAT || (static_cast<int>(st.y) & ~th_mask) == (static_cast<int>(st.w) & ~th_mask)))
+				{
+					if (int_rc.top < scissored_rc.top)
+					{
+						if (!swap_y)
+							st.y += floor(static_cast<float>(scissored_rc.top - int_rc.top) * grad.y);
+						else
+							st.w -= floor(static_cast<float>(scissored_rc.top - int_rc.top) * grad.y);
+					}
+					if (int_rc.bottom > scissored_rc.bottom)
+					{
+						if (!swap_y)
+							st.w -= floor(static_cast<float>(int_rc.bottom - scissored_rc.bottom) * grad.y);
+						else
+							st.y += floor(static_cast<float>(int_rc.bottom - scissored_rc.bottom) * grad.y);
+					}
+				}
+			}
+		}
 
 		GSVector4i uv = GSVector4i(st.floor());
 		uses_border = GSVector4::cast((uv < vr).blend32<0xc>(uv >= vr)).mask();
@@ -3200,9 +3275,9 @@ GSState::TextureMinMaxResult GSState::GetTextureMinMax(const GIFRegTEX0& TEX0, c
 			case CLAMP_CLAMP:
 			case CLAMP_REGION_CLAMP:
 				if (vr.x < uv.x)
-					vr.x = uv.x;
+					vr.x = std::min(uv.x, vr.z - 1);
 				if (vr.z > (uv.z + 1))
-					vr.z = uv.z + 1;
+					vr.z = std::max(uv.z, vr.x) + 1;
 				break;
 			case CLAMP_REGION_REPEAT:
 				if (UsesRegionRepeat(maxu, minu, uv.x, uv.z, &vr.x, &vr.z) || maxu >= tw)
@@ -3222,9 +3297,9 @@ GSState::TextureMinMaxResult GSState::GetTextureMinMax(const GIFRegTEX0& TEX0, c
 			case CLAMP_CLAMP:
 			case CLAMP_REGION_CLAMP:
 				if (vr.y < uv.y)
-					vr.y = uv.y;
+					vr.y = std::min(uv.y, vr.w - 1);
 				if (vr.w > (uv.w + 1))
-					vr.w = uv.w + 1;
+					vr.w = std::max(uv.w, vr.y) + 1;
 				break;
 			case CLAMP_REGION_REPEAT:
 				if (UsesRegionRepeat(maxv, minv, uv.y, uv.w, &vr.y, &vr.w) || maxv >= th)

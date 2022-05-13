@@ -162,7 +162,6 @@ extern void SysClearExecutionCache();	// clears recompiled execution caches!
 extern void SysOutOfMemory_EmergencyResponse(uptr blocksize);
 
 extern u8 *SysMmapEx(uptr base, u32 size, uptr bounds, const char *caller="Unnamed");
-extern void vSyncDebugStuff( uint frame );
 
 extern std::string SysGetBiosDiscID();
 extern std::string SysGetDiscID();
@@ -202,3 +201,6 @@ namespace Msgbox
 #ifdef _WIN32
 extern void CheckIsUserOnHighPerfPowerPlan();
 #endif
+
+extern void SetCPUState(SSE_MXCSR sseMXCSR, SSE_MXCSR sseVUMXCSR);
+extern SSE_MXCSR g_sseVUMXCSR, g_sseMXCSR;

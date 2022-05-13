@@ -25,7 +25,7 @@
 #include "Renderers/SW/GSRendererSW.h"
 #include "Renderers/Null/GSRendererNull.h"
 #include "Renderers/Null/GSDeviceNull.h"
-#include "Renderers/HW/GSRendererNew.h"
+#include "Renderers/HW/GSRendererHW.h"
 #include "Renderers/HW/GSTextureReplacements.h"
 #include "GSLzma.h"
 
@@ -73,7 +73,6 @@ static HRESULT s_hr = E_FAIL;
 
 Pcsx2Config::GSOptions GSConfig;
 
-static std::unique_ptr<GSRenderer> s_gs;
 static HostDisplay::RenderAPI s_render_api;
 
 int GSinit()
@@ -118,10 +117,11 @@ void GSinitConfig()
 
 void GSshutdown()
 {
-	if (s_gs)
+#ifndef PCSX2_CORE
+	if (g_gs_renderer)
 	{
-		s_gs->Destroy();
-		s_gs.reset();
+		g_gs_renderer->Destroy();
+		g_gs_renderer.reset();
 	}
 	if (g_gs_device)
 	{
@@ -130,6 +130,7 @@ void GSshutdown()
 	}
 
 	Host::ReleaseHostDisplay();
+#endif
 
 #ifdef _WIN32
 	if (SUCCEEDED(s_hr))
@@ -143,10 +144,10 @@ void GSshutdown()
 
 void GSclose()
 {
-	if (s_gs)
+	if (g_gs_renderer)
 	{
-		s_gs->Destroy();
-		s_gs.reset();
+		g_gs_renderer->Destroy();
+		g_gs_renderer.reset();
 	}
 	if (g_gs_device)
 	{
@@ -257,28 +258,28 @@ static bool DoGSOpen(GSRendererType renderer, u8* basemem)
 
 		if (renderer == GSRendererType::Null)
 		{
-			s_gs = std::make_unique<GSRendererNull>();
+			g_gs_renderer = std::make_unique<GSRendererNull>();
 		}
 		else if (renderer != GSRendererType::SW)
 		{
-			s_gs = std::make_unique<GSRendererNew>();
+			g_gs_renderer = std::make_unique<GSRendererHW>();
 		}
 		else
 		{
 			const int threads = theApp.GetConfigI("extrathreads");
-			s_gs = std::make_unique<GSRendererSW>(threads);
+			g_gs_renderer = std::make_unique<GSRendererSW>(threads);
 		}
 	}
 	catch (std::exception& ex)
 	{
 		Host::ReportFormattedErrorAsync("GS", "GS error: Exception caught in GSopen: %s", ex.what());
-		s_gs.reset();
+		g_gs_renderer.reset();
 		g_gs_device->Destroy();
 		g_gs_device.reset();
 		return false;
 	}
 
-	s_gs->SetRegsMem(basemem);
+	g_gs_renderer->SetRegsMem(basemem);
 
 	display->SetVSync(EmuConfig.GetEffectiveVsyncMode());
 	display->SetGPUTimingEnabled(GSConfig.OsdShowGPU);
@@ -289,10 +290,10 @@ bool GSreopen(bool recreate_display)
 {
 	Console.WriteLn("Reopening GS with %s display", recreate_display ? "new" : "existing");
 
-	s_gs->Flush();
+	g_gs_renderer->Flush();
 
 	freezeData fd = {};
-	if (s_gs->Freeze(&fd, true) != 0)
+	if (g_gs_renderer->Freeze(&fd, true) != 0)
 	{
 		Console.Error("(GSreopen) Failed to get GS freeze size");
 		return false;
@@ -300,7 +301,7 @@ bool GSreopen(bool recreate_display)
 
 	std::unique_ptr<u8[]> fd_data = std::make_unique<u8[]>(fd.size);
 	fd.data = fd_data.get();
-	if (s_gs->Freeze(&fd, false) != 0)
+	if (g_gs_renderer->Freeze(&fd, false) != 0)
 	{
 		Console.Error("(GSreopen) Failed to freeze GS");
 		return false;
@@ -313,11 +314,11 @@ bool GSreopen(bool recreate_display)
 			Host::EndPresentFrame();
 	}
 
-	u8* basemem = s_gs->GetRegsMem();
-	const u32 gamecrc = s_gs->GetGameCRC();
-	const int gamecrc_options = s_gs->GetGameCRCOptions();
-	s_gs->Destroy();
-	s_gs.reset();
+	u8* basemem = g_gs_renderer->GetRegsMem();
+	const u32 gamecrc = g_gs_renderer->GetGameCRC();
+	const int gamecrc_options = g_gs_renderer->GetGameCRCOptions();
+	g_gs_renderer->Destroy();
+	g_gs_renderer.reset();
 	g_gs_device->Destroy();
 	g_gs_device.reset();
 
@@ -337,13 +338,13 @@ bool GSreopen(bool recreate_display)
 		return false;
 	}
 
-	if (s_gs->Defrost(&fd) != 0)
+	if (g_gs_renderer->Defrost(&fd) != 0)
 	{
 		pxFailRel("(GSreopen) Failed to defrost");
 		return false;
 	}
 
-	s_gs->SetGameCRC(gamecrc, gamecrc_options);
+	g_gs_renderer->SetGameCRC(gamecrc, gamecrc_options);
 	return true;
 }
 
@@ -374,7 +375,7 @@ void GSreset()
 {
 	try
 	{
-		s_gs->Reset();
+		g_gs_renderer->Reset();
 	}
 	catch (GSRecoverableError)
 	{
@@ -385,7 +386,7 @@ void GSgifSoftReset(u32 mask)
 {
 	try
 	{
-		s_gs->SoftReset(mask);
+		g_gs_renderer->SoftReset(mask);
 	}
 	catch (GSRecoverableError)
 	{
@@ -396,65 +397,20 @@ void GSwriteCSR(u32 csr)
 {
 	try
 	{
-		s_gs->WriteCSR(csr);
+		g_gs_renderer->WriteCSR(csr);
 	}
 	catch (GSRecoverableError)
 	{
 	}
 }
 
-void GSinitReadFIFO(u8* mem)
+void GSInitAndReadFIFO(u8* mem, u32 size)
 {
-	GL_PERF("Init Read FIFO1");
+	GL_PERF("Init and read FIFO %u qwc", size);
 	try
 	{
-		s_gs->InitReadFIFO(mem, 1);
-	}
-	catch (GSRecoverableError)
-	{
-	}
-	catch (const std::bad_alloc&)
-	{
-		fprintf(stderr, "GS: Memory allocation error\n");
-	}
-}
-
-void GSreadFIFO(u8* mem)
-{
-	try
-	{
-		s_gs->ReadFIFO(mem, 1);
-	}
-	catch (GSRecoverableError)
-	{
-	}
-	catch (const std::bad_alloc&)
-	{
-		fprintf(stderr, "GS: Memory allocation error\n");
-	}
-}
-
-void GSinitReadFIFO2(u8* mem, u32 size)
-{
-	GL_PERF("Init Read FIFO2");
-	try
-	{
-		s_gs->InitReadFIFO(mem, size);
-	}
-	catch (GSRecoverableError)
-	{
-	}
-	catch (const std::bad_alloc&)
-	{
-		fprintf(stderr, "GS: Memory allocation error\n");
-	}
-}
-
-void GSreadFIFO2(u8* mem, u32 size)
-{
-	try
-	{
-		s_gs->ReadFIFO(mem, size);
+		g_gs_renderer->InitReadFIFO(mem, size);
+		g_gs_renderer->ReadFIFO(mem, size);
 	}
 	catch (GSRecoverableError)
 	{
@@ -469,7 +425,7 @@ void GSgifTransfer(const u8* mem, u32 size)
 {
 	try
 	{
-		s_gs->Transfer<3>(mem, size);
+		g_gs_renderer->Transfer<3>(mem, size);
 	}
 	catch (GSRecoverableError)
 	{
@@ -480,7 +436,7 @@ void GSgifTransfer1(u8* mem, u32 addr)
 {
 	try
 	{
-		s_gs->Transfer<0>(const_cast<u8*>(mem) + addr, (0x4000 - addr) / 16);
+		g_gs_renderer->Transfer<0>(const_cast<u8*>(mem) + addr, (0x4000 - addr) / 16);
 	}
 	catch (GSRecoverableError)
 	{
@@ -491,7 +447,7 @@ void GSgifTransfer2(u8* mem, u32 size)
 {
 	try
 	{
-		s_gs->Transfer<1>(const_cast<u8*>(mem), size);
+		g_gs_renderer->Transfer<1>(const_cast<u8*>(mem), size);
 	}
 	catch (GSRecoverableError)
 	{
@@ -502,7 +458,7 @@ void GSgifTransfer3(u8* mem, u32 size)
 {
 	try
 	{
-		s_gs->Transfer<2>(const_cast<u8*>(mem), size);
+		g_gs_renderer->Transfer<2>(const_cast<u8*>(mem), size);
 	}
 	catch (GSRecoverableError)
 	{
@@ -513,7 +469,7 @@ void GSvsync(u32 field, bool registers_written)
 {
 	try
 	{
-		s_gs->VSync(field, registers_written);
+		g_gs_renderer->VSync(field, registers_written);
 	}
 	catch (GSRecoverableError)
 	{
@@ -540,12 +496,12 @@ u32 GSmakeSnapshot(char* path)
 			std::transform(extension.begin(), extension.end(), extension.begin(), tolower);
 #endif
 			if (extension == ".png")
-				return s_gs->MakeSnapshot(s);
+				return g_gs_renderer->MakeSnapshot(s);
 			else if (s[s.length() - 1] != DIRECTORY_SEPARATOR)
 				s = s + DIRECTORY_SEPARATOR;
 		}
 
-		return s_gs->MakeSnapshot(s + "gs");
+		return g_gs_renderer->MakeSnapshot(s + "gs");
 	}
 	catch (GSRecoverableError)
 	{
@@ -559,15 +515,15 @@ int GSfreeze(FreezeAction mode, freezeData* data)
 	{
 		if (mode == FreezeAction::Save)
 		{
-			return s_gs->Freeze(data, false);
+			return g_gs_renderer->Freeze(data, false);
 		}
 		else if (mode == FreezeAction::Size)
 		{
-			return s_gs->Freeze(data, true);
+			return g_gs_renderer->Freeze(data, true);
 		}
 		else if (mode == FreezeAction::Load)
 		{
-			return s_gs->Defrost(data);
+			return g_gs_renderer->Defrost(data);
 		}
 	}
 	catch (GSRecoverableError)
@@ -583,8 +539,8 @@ void GSkeyEvent(const HostKeyEvent& e)
 {
 	try
 	{
-		if (s_gs)
-			s_gs->KeyEvent(e);
+		if (g_gs_renderer)
+			g_gs_renderer->KeyEvent(e);
 	}
 	catch (GSRecoverableError)
 	{
@@ -636,7 +592,7 @@ void pt(const char* str)
 
 bool GSsetupRecording(std::string& filename)
 {
-	if (s_gs == NULL)
+	if (g_gs_renderer == NULL)
 	{
 		printf("GS: no s_gs for recording\n");
 		return false;
@@ -649,7 +605,7 @@ bool GSsetupRecording(std::string& filename)
 	}
 #endif
 	printf("GS: Recording start command\n");
-	if (s_gs->BeginCapture(filename))
+	if (g_gs_renderer->BeginCapture(filename))
 	{
 		pt(" - Capture started\n");
 		return true;
@@ -664,30 +620,30 @@ bool GSsetupRecording(std::string& filename)
 void GSendRecording()
 {
 	printf("GS: Recording end command\n");
-	s_gs->EndCapture();
+	g_gs_renderer->EndCapture();
 	pt(" - Capture ended\n");
 }
 
 void GSsetGameCRC(u32 crc, int options)
 {
-	s_gs->SetGameCRC(crc, options);
+	g_gs_renderer->SetGameCRC(crc, options);
 }
 
 void GSsetFrameSkip(int frameskip)
 {
-	s_gs->SetFrameSkip(frameskip);
+	g_gs_renderer->SetFrameSkip(frameskip);
 }
 
 GSVideoMode GSgetDisplayMode()
 {
-	GSRenderer* gs = s_gs.get();
+	GSRenderer* gs = g_gs_renderer.get();
 
 	return gs->GetVideoMode();
 }
 
 void GSgetInternalResolution(int* width, int* height)
 {
-	GSRenderer* gs = s_gs.get();
+	GSRenderer* gs = g_gs_renderer.get();
 	if (!gs)
 	{
 		*width = 0;
@@ -729,7 +685,7 @@ void GSgetStats(std::string& info)
 		{
 			info = format("%s HW | HC: %d MB | %d P | %d D | %d DC | %d B | %d RB | %d TC | %d TU",
 				api_name,
-				(int)std::ceil(static_cast<GSRendererHW*>(s_gs.get())->GetTextureCache()->GetHashCacheMemoryUsage() / 1048576.0f),
+				(int)std::ceil(GSRendererHW::GetInstance()->GetTextureCache()->GetHashCacheMemoryUsage() / 1048576.0f),
 				(int)pm.Get(GSPerfMon::Prim),
 				(int)pm.Get(GSPerfMon::Draw),
 				(int)std::ceil(pm.Get(GSPerfMon::DrawCalls)),
@@ -776,7 +732,7 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 	Pcsx2Config::GSOptions old_config(std::move(GSConfig));
 	GSConfig = new_config;
 	GSConfig.Renderer = (GSConfig.Renderer == GSRendererType::Auto) ? GSUtil::GetPreferredRenderer() : GSConfig.Renderer;
-	if (!s_gs)
+	if (!g_gs_renderer)
 		return;
 
 	HostDisplay* display = Host::GetHostDisplay();
@@ -838,11 +794,11 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 		GSConfig.PointListPalette != old_config.PointListPalette)
 	{
 		// for automatic mipmaps, we need to reload the crc
-		s_gs->SetGameCRC(s_gs->GetGameCRC(), s_gs->GetGameCRCOptions());
+		g_gs_renderer->SetGameCRC(g_gs_renderer->GetGameCRC(), g_gs_renderer->GetGameCRCOptions());
 	}
 
 	// renderer-specific options (e.g. auto flush, TC offset)
-	s_gs->UpdateSettings(old_config);
+	g_gs_renderer->UpdateSettings(old_config);
 
 	// reload texture cache when trilinear filtering or TC options change
 	if (
@@ -858,8 +814,8 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 		GSConfig.UserHacks_DisablePartialInvalidation != old_config.UserHacks_DisablePartialInvalidation ||
 		GSConfig.UserHacks_TextureInsideRt != old_config.UserHacks_TextureInsideRt)
 	{
-		s_gs->PurgeTextureCache();
-		s_gs->PurgePool();
+		g_gs_renderer->PurgeTextureCache();
+		g_gs_renderer->PurgePool();
 	}
 
 	// clear out the sampler cache when AF options change, since the anisotropy gets baked into them
@@ -874,7 +830,7 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 	if (GSConfig.LoadTextureReplacements != old_config.LoadTextureReplacements ||
 		GSConfig.DumpReplaceableTextures != old_config.DumpReplaceableTextures)
 	{
-		s_gs->PurgeTextureCache();
+		g_gs_renderer->PurgeTextureCache();
 	}
 
 	if (GSConfig.OsdShowGPU != old_config.OsdShowGPU)
@@ -889,7 +845,7 @@ void GSSwitchRenderer(GSRendererType new_renderer)
 	if (new_renderer == GSRendererType::Auto)
 		new_renderer = GSUtil::GetPreferredRenderer();
 
-	if (!s_gs || GSConfig.Renderer == new_renderer)
+	if (!g_gs_renderer || GSConfig.Renderer == new_renderer)
 		return;
 
 	HostDisplay::RenderAPI existing_api = Host::GetHostDisplay()->GetRenderAPI();
@@ -919,10 +875,10 @@ void GSRestoreAPIState()
 
 bool GSSaveSnapshotToMemory(u32 width, u32 height, std::vector<u32>* pixels)
 {
-	if (!s_gs)
+	if (!g_gs_renderer)
 		return false;
 
-	return s_gs->SaveSnapshotToMemory(width, height, pixels);
+	return g_gs_renderer->SaveSnapshotToMemory(width, height, pixels);
 }
 
 std::string format(const char* fmt, ...)
@@ -1324,12 +1280,12 @@ void GSApp::Init()
 		GSSetting(CRCHackLevel::Aggressive, "Aggressive", ""),
 	};
 
-	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Minimum), "Minimum", "Fastest"));
+	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Minimum), "Minimum", ""));
 	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Basic), "Basic", "Recommended"));
 	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Medium), "Medium", ""));
 	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::High), "High", ""));
-	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Full), "Full", "Very Slow"));
-	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Ultra), "Ultra", "Ultra Slow"));
+	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Full), "Full", "Slow"));
+	m_gs_acc_blend_level.push_back(GSSetting(static_cast<u32>(AccBlendLevel::Maximum), "Maximum", "Very Slow"));
 
 	m_gs_tv_shaders.push_back(GSSetting(0, "None", ""));
 	m_gs_tv_shaders.push_back(GSSetting(1, "Scanline filter", ""));
@@ -1370,6 +1326,8 @@ void GSApp::Init()
 	m_default_configuration["DumpReplaceableTextures"]                    = "0";
 	m_default_configuration["DumpReplaceableMipmaps"]                     = "0";
 	m_default_configuration["DumpTexturesWithFMVActive"]                  = "0";
+	m_default_configuration["DumpDirectTextures"]                         = "1";
+	m_default_configuration["DumpPaletteTextures"]                        = "1";
 	m_default_configuration["extrathreads"]                               = "2";
 	m_default_configuration["extrathreads_height"]                        = "4";
 	m_default_configuration["filter"]                                     = std::to_string(static_cast<s8>(BiFiltering::PS2));
@@ -1658,8 +1616,8 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys){
 
 		 GetMTGS().RunOnGSThread([new_level]() {
 			 GSConfig.HWMipmap = new_level;
-			 s_gs->PurgeTextureCache();
-			 s_gs->PurgePool();
+			 g_gs_renderer->PurgeTextureCache();
+			 g_gs_renderer->PurgePool();
 		 });
 	 }},
 	{"CycleInterlaceMode", "Graphics", "Cycle Deinterlace Mode", [](bool pressed) {
@@ -1690,6 +1648,38 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys){
 	{"ZoomOut", "Graphics", "Zoom Out", [](bool pressed) {
 		 if (!pressed)
 			 HotkeyAdjustZoom(-1.0);
+	 }},
+	{"ToggleTextureDumping", "Graphics", "Toggle Texture Dumping", [](bool pressed) {
+		 if (!pressed)
+		 {
+			 EmuConfig.GS.DumpReplaceableTextures = !EmuConfig.GS.DumpReplaceableTextures;
+			 Host::AddKeyedOSDMessage("ToggleTextureReplacements", EmuConfig.GS.DumpReplaceableTextures ? "Texture dumping is now enabled." : "Texture dumping is now disabled.", 10.0f);
+			 GetMTGS().ApplySettings();
+		 }
+	 }},
+	{"ToggleTextureReplacements", "Graphics", "Toggle Texture Replacements", [](bool pressed) {
+		 if (!pressed)
+		 {
+			 EmuConfig.GS.LoadTextureReplacements = !EmuConfig.GS.LoadTextureReplacements;
+			 Host::AddKeyedOSDMessage("ToggleTextureReplacements", EmuConfig.GS.LoadTextureReplacements ? "Texture replacements are now enabled." : "Texture replacements are now disabled.", 10.0f);
+			 GetMTGS().ApplySettings();
+		 }
+	 }},
+	{"ReloadTextureReplacements", "Graphics", "Reload Texture Replacements", [](bool pressed) {
+		 if (!pressed)
+		 {
+			 if (!EmuConfig.GS.LoadTextureReplacements)
+			 {
+				 Host::AddKeyedOSDMessage("ReloadTextureReplacements", "Texture replacements are not enabled.", 10.0f);
+			 }
+			 else
+			 {
+				 Host::AddKeyedOSDMessage("ReloadTextureReplacements", "Reloading texture replacements...", 10.0f);
+				 GetMTGS().RunOnGSThread([]() {
+					 GSTextureReplacements::ReloadReplacementMap();
+				 });
+			 }
+		 }
 	 }},
 END_HOTKEY_LIST()
 

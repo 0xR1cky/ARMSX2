@@ -342,7 +342,7 @@ bool GSDevice12::DownloadTexture(GSTexture* src, const GSVector4i& rect, GSTextu
 	const u32 height = rect.height();
 	const u32 pitch = Common::AlignUpPow2(width * D3D12::GetTexelSize(static_cast<GSTexture12*>(src)->GetNativeFormat()), D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
 	const u32 size = pitch * height;
-	const u32 level = 0;
+	constexpr u32 level = 0;
 	if (!CheckStagingBufferSize(size))
 	{
 		Console.Error("Can't read back %ux%u", width, height);
@@ -401,19 +401,7 @@ void GSDevice12::DownloadTextureComplete()
 	UnmapStagingBuffer();
 }
 
-void GSDevice12::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r)
-{
-	if (!sTex || !dTex)
-	{
-		ASSERT(0);
-		return;
-	}
-
-	const GSVector4i dst_rc(r - r.xyxy());
-	DoCopyRect(sTex, dTex, r, dst_rc);
-}
-
-void GSDevice12::DoCopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, const GSVector4i& dst_rc)
+void GSDevice12::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, u32 destX, u32 destY)
 {
 	g_perfmon.Put(GSPerfMon::TextureCopies, 1);
 
@@ -426,7 +414,7 @@ void GSDevice12::DoCopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& 
 		// source is cleared. if destination is a render target, we can carry the clear forward
 		if (dTexVK->IsRenderTargetOrDepthStencil())
 		{
-			if (dtex_rc.eq(dst_rc))
+			if (dtex_rc.eq(r))
 			{
 				// pass it forward if we're clearing the whole thing
 				if (sTexVK->IsDepthStencil())
@@ -464,7 +452,7 @@ void GSDevice12::DoCopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& 
 
 	// if the destination has been cleared, and we're not overwriting the whole thing, commit the clear first
 	// (the area outside of where we're copying to)
-	if (dTexVK->GetState() == GSTexture::State::Cleared && !dtex_rc.eq(dst_rc))
+	if (dTexVK->GetState() == GSTexture::State::Cleared && !dtex_rc.eq(r))
 		dTexVK->CommitClear();
 
 	EndRenderPass();
@@ -485,7 +473,7 @@ void GSDevice12::DoCopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& 
 	const D3D12_BOX srcbox{static_cast<UINT>(r.left), static_cast<UINT>(r.top), 0u,
 		static_cast<UINT>(r.right), static_cast<UINT>(r.bottom), 1u};
 	g_d3d12_context->GetCommandList()->CopyTextureRegion(
-		&dstloc, dst_rc.left, dst_rc.top, 0,
+		&dstloc, destX, destY, 0,
 		&srcloc, &srcbox);
 
 	dTexVK->SetState(GSTexture::State::Dirty);
@@ -609,7 +597,6 @@ void GSDevice12::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, 
 	GL_PUSH("DoMerge");
 
 	const GSVector4 full_r(0.0f, 0.0f, 1.0f, 1.0f);
-	const u32 yuv_constants[4] = {EXTBUF.EMODA, EXTBUF.EMODC};
 	const bool feedback_write_2 = PMODE.EN2 && sTex[2] != nullptr && EXTBUF.FBIN == 1;
 	const bool feedback_write_1 = PMODE.EN1 && sTex[2] != nullptr && EXTBUF.FBIN == 0;
 	const bool feedback_write_2_but_blend_bg = feedback_write_2 && PMODE.SLBG == 1;
@@ -623,6 +610,14 @@ void GSDevice12::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, 
 	static_cast<GSTexture12*>(dTex)->TransitionToState(D3D12_RESOURCE_STATE_RENDER_TARGET);
 	if (sTex[0])
 		static_cast<GSTexture12*>(sTex[0])->TransitionToState(D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	// Upload constant to select YUV algo, but skip constant buffer update if we don't need it
+	if (feedback_write_2 || feedback_write_1 || sTex[0])
+	{
+		SetUtilityRootSignature();
+		const MergeConstantBuffer uniforms = {c, EXTBUF.EMODA, EXTBUF.EMODC};
+		SetUtilityPushConstants(&uniforms, sizeof(uniforms));
+	}
 
 	const GSVector2i dsize(dTex->GetSize());
 	const GSVector4i darea(0, 0, dsize.x, dsize.y);
@@ -663,7 +658,6 @@ void GSDevice12::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, 
 		{
 			SetUtilityRootSignature();
 			SetPipeline(m_convert[static_cast<int>(ShaderConvert::YUV)].get());
-			SetUtilityPushConstants(yuv_constants, sizeof(yuv_constants));
 			DrawStretchRect(full_r, dRect[2], fbsize);
 		}
 		EndRenderPass();
@@ -696,7 +690,6 @@ void GSDevice12::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, 
 		SetUtilityRootSignature();
 		SetUtilityTexture(sTex[0], m_linear_sampler_cpu);
 		SetPipeline(m_merge[PMODE.MMOD].get());
-		SetUtilityPushConstants(&c, sizeof(c));
 		DrawStretchRect(sRect[0], dRect[0], dTex->GetSize());
 	}
 
@@ -706,7 +699,6 @@ void GSDevice12::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, 
 		SetUtilityRootSignature();
 		SetPipeline(m_convert[static_cast<int>(ShaderConvert::YUV)].get());
 		SetUtilityTexture(dTex, m_linear_sampler_cpu);
-		SetUtilityPushConstants(yuv_constants, sizeof(yuv_constants));
 		OMSetRenderTargets(sTex[2], nullptr, fbarea);
 		BeginRenderPass(D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_PRESERVE, D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE);
 		DrawStretchRect(full_r, dRect[2], dsize);
@@ -2471,7 +2463,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 		EndRenderPass();
 
 		GL_PUSH_("HDR Render Target Setup");
-		hdr_rt = static_cast<GSTexture12*>(CreateRenderTarget(rtsize.x, rtsize.y, GSTexture::Format::FloatColor));
+		hdr_rt = static_cast<GSTexture12*>(CreateRenderTarget(rtsize.x, rtsize.y, GSTexture::Format::FloatColor, false));
 		if (!hdr_rt)
 		{
 			Console.WriteLn("Failed to allocate HDR render target, aborting draw.");
@@ -2500,7 +2492,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 	else if (config.require_one_barrier)
 	{
 		// requires a copy of the RT
-		draw_rt_clone = static_cast<GSTexture12*>(CreateTexture(rtsize.x, rtsize.y, false, GSTexture::Format::Color, true));
+		draw_rt_clone = static_cast<GSTexture12*>(CreateTexture(rtsize.x, rtsize.y, false, GSTexture::Format::Color, false));
 		if (draw_rt_clone)
 		{
 			EndRenderPass();
@@ -2510,7 +2502,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 				config.drawarea.width(), config.drawarea.height());
 
 			draw_rt_clone->SetState(GSTexture::State::Invalidated);
-			DoCopyRect(draw_rt, draw_rt_clone, config.drawarea, config.drawarea);
+			CopyRect(draw_rt, draw_rt_clone, config.drawarea, config.drawarea.left, config.drawarea.top);
 			PSSetShaderResource(2, draw_rt_clone, true);
 		}
 	}
@@ -2518,7 +2510,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 	if (config.tex && config.tex == config.ds)
 	{
 		// requires a copy of the depth buffer. this is mainly for ico.
-		copy_ds = static_cast<GSTexture12*>(CreateDepthStencil(rtsize.x, rtsize.y, GSTexture::Format::DepthStencil, true));
+		copy_ds = static_cast<GSTexture12*>(CreateDepthStencil(rtsize.x, rtsize.y, GSTexture::Format::DepthStencil, false));
 		if (copy_ds)
 		{
 			EndRenderPass();
@@ -2528,7 +2520,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 				config.drawarea.width(), config.drawarea.height());
 
 			copy_ds->SetState(GSTexture::State::Invalidated);
-			DoCopyRect(config.ds, copy_ds, config.drawarea, config.drawarea);
+			CopyRect(config.ds, copy_ds, config.drawarea, config.drawarea.left, config.drawarea.top);
 			PSSetShaderResource(0, copy_ds, true);
 		}
 	}

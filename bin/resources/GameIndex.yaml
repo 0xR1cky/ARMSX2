@@ -75,6 +75,14 @@ ALCH-00028:
 ALCH-0004:
   name: "Duel Savior Destiny [Messiah Box]"
   region: "NTSC-J"
+CPCS-01005:
+  name: "Gun Survivor 4 - Biohazard - Heroes Never Die [with GunCon2]"
+  region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes character offset with flashlight and blurriness.
+    alignSprite: 1 # Fixes vertical lines.
+    roundSprite: 2 # Fixes font artifacts.
+    mergeSprite: 1 # Fixes flame-like bleeding.
 GUST-00009:
   name: "Mana Khemia - Alchemists of Al-Revis [Premium Box]"
   region: "NTSC-J"
@@ -91,6 +99,11 @@ PAPX-90202:
 PAPX-90203:
   name: "Gran Turismo 2000 [Trial]"
   region: "NTSC-J"
+PAPX-90215:
+  name: "Ka (Mosquito) [Trial]"
+  region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 PAPX-90222:
   name: "Jak x Daxter - Kyuu Sekai no Isan [Demo, Taikenban]"
   region: "NTSC-J"
@@ -122,6 +135,8 @@ PAPX-90512:
   region: "NTSC-J"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
 PAPX-90516:
@@ -137,6 +152,12 @@ PAPX-90517:
   gsHWFixes:
     autoFlush: 1 # Reduces post-processing misalignment.
     roundSprite: 2 # Reduces post-processing misalignment.
+PBGP-0061:
+  name: "Suika A.S+ Eternal Name [First Press Limited Edition]"
+  region: "NTSC-J"
+PBGP-0063:
+  name: "Saishuu Shiken Kujira - Alive [First Press Limited Edition]"
+  region: "NTSC-J"
 PBGP-0065:
   name: "D.C. Da Capo The Origin [First Limited Edition]"
   region: "NTSC-J"
@@ -206,6 +227,8 @@ PBPX-95524:
   name: "Gran Turismo 4 - Prologue"
   region: "NTSC-Unk"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
   # vuClampMode = 2  Text in GT mode works.
@@ -215,6 +238,8 @@ PBPX-95601:
   compat: 5
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -231,6 +256,11 @@ PBPX-95601:
 PCPX-96311:
   name: "Gran Turismo 3 Trial Disk Volume 1"
   region: "NTSC-J"
+PCPX-96317:
+  name: "Ka (Mosquito) [Trial]"
+  region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 PCPX-96321:
   name: "SkyGunner [Trial]"
   region: "NTSC-J"
@@ -257,6 +287,8 @@ PCPX-96649:
   compat: 5
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
 PCPX-96660:
@@ -545,6 +577,8 @@ SCAJ-20066:
   name: "Gran Turismo 4 - Prologue"
   region: "NTSC-Unk"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters: #vuClampMode = 2  Text in GT mode works.
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -577,7 +611,8 @@ SCAJ-20070:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
 SCAJ-20072:
   name: "Ghost in the Shell - Stand Alone Complex"
   region: "NTSC-Unk"
@@ -1013,6 +1048,8 @@ SCAJ-20157:
 SCAJ-20158:
   name: "Ikusa Gami"
   region: "NTSC-Unk"
+  gameFixes:
+    - VIF1StallHack # Fixes black screen on boot.
 SCAJ-20159:
   name: "Soul Calibur III"
   region: "NTSC-Ch-E-J"
@@ -1274,6 +1311,8 @@ SCAJ-30006:
   region: "NTSC-Unk"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -1293,6 +1332,8 @@ SCAJ-30007:
   compat: 5
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
 SCAJ-30008:
@@ -1300,6 +1341,8 @@ SCAJ-30008:
   region: "NTSC-Unk"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -1396,6 +1439,8 @@ SCCS-40022:
 SCCS-60002:
   name: "Gran Turismo 4 [Review Copy]"
   region: "NTSC-C"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
 SCED-50041:
   name: "Tekken Tag Tournament [Demo]"
   region: "PAL-E"
@@ -1783,7 +1828,8 @@ SCED-52049:
   clampModes:
     vuClampMode: 3 # Fixes minor SPS on characters.
   gsHWFixes:
-    preloadFrameData: 1
+    preloadFrameData: 1 # Fixes bad textures on Jake.
+    halfPixelOffset: 1 # Fixes double image.
 SCED-52051:
   name: "Official PlayStation 2 Magazine Demo 43"
   region: "PAL-M5"
@@ -1932,12 +1978,16 @@ SCED-52549:
 SCED-52578:
   name: "Gran Turismo 4 BMW 1 Series Virtual Drive Dealership [Demo]"
   region: "PAL-M5"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
 SCED-52619:
   name: "Official PlayStation 2 Magazine Demo 48"
   region: "PAL-M5"
 SCED-52681:
   name: "Gran Turismo 4 BMW 1 Series Virtual Drive [Demo]"
   region: "PAL-M11"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
 SCED-52687:
   name: "Formula One 04 [Demo]"
   region: "PAL-M11"
@@ -2678,6 +2728,8 @@ SCES-50889:
   name: "Ninja Assault"
   region: "PAL-M5"
   compat: 5
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes intro captions not displaying.
 SCES-50916:
   name: "Ratchet & Clank"
   region: "PAL-M5"
@@ -2844,7 +2896,8 @@ SCES-51248:
   clampModes:
     vuClampMode: 3 # Fixes minor SPS on characters.
   gsHWFixes:
-    preloadFrameData: 1
+    preloadFrameData: 1 # Fixes bad textures on Jake.
+    halfPixelOffset: 1 # Fixes double image.
 SCES-51426:
   name: "The Getaway"
   region: "PAL-M5"
@@ -2972,6 +3025,8 @@ SCES-51719:
   compat: 5
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCES-51719"
     - "SCES-52438"
@@ -3159,6 +3214,8 @@ SCES-52438:
   name: "Gran Turismo 4 - Prologue"
   region: "PAL-M5"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters: #vuClampMode = 2  Text in GT mode works.
     - "SCES-51719"
     - "SCES-52438"
@@ -3362,7 +3419,7 @@ SCES-53300:
   name: "SOCOM 3 - U.S. Navy SEALs"
   region: "PAL-M5"
   clampModes:
-    vuClampMode: 0 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
 SCES-53304:
   name: "Buzz! The Music Quiz"
   region: "PAL-E"
@@ -3743,10 +3800,8 @@ SCES-54477:
   name: "SOCOM - US Navy Seals - Combined Assault"
   region: "PAL-M5"
   compat: 5
-  roundModes:
-    vuRoundMode: 0 # Fixes disappearing characters.
   clampModes:
-    vuClampMode: 2 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
 SCES-54496:
   name: "Buzz! The Mega Quiz"
   region: "PAL-E"
@@ -4296,6 +4351,8 @@ SCKA-20020:
 SCKA-20022:
   name: "Gran Turismo 4 Prologue"
   region: "NTSC-K"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
   # vuClampMode = 2  Text in GT mode works.
@@ -4503,7 +4560,7 @@ SCKA-20064:
   name: "SOCOM 3 - U.S. Navy SEALs"
   region: "NTSC-K"
   clampModes:
-    vuClampMode: 0 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
 SCKA-20069:
   name: "Siren 2"
   region: "NTSC-K"
@@ -4633,6 +4690,8 @@ SCKA-30001:
   region: "NTSC-K"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
 SCKA-30002:
@@ -4706,6 +4765,8 @@ SCPS-11009:
   name: "Ka (Mosquito)"
   region: "NTSC-J"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SCPS-11010:
   name: "Yoake no Mariko [with Microphone]"
   region: "NTSC-J"
@@ -5012,6 +5073,8 @@ SCPS-15054:
 SCPS-15055:
   name: "Gran Turismo 4 - Prologue"
   region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters: #vuClampMode = 2  Text in GT mode works.
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -5374,6 +5437,8 @@ SCPS-17001:
   compat: 5
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -5421,6 +5486,8 @@ SCPS-17013:
 SCPS-19101:
   name: "Mosquito [PlayStation 2 The Best]"
   region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SCPS-19102:
   name: "Boku to Maou [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -5535,6 +5602,8 @@ SCPS-19252:
   region: "NTSC-J"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -5569,6 +5638,8 @@ SCPS-19303:
 SCPS-19304:
   name: "Gran Turismo 4 - Prologue [PlayStation 2 The Best]"
   region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters: 
     - "SCAJ-20066"
     - "SCAJ-30006"
@@ -5787,6 +5858,8 @@ SCPS-51013:
 SCPS-51014:
   name: "Ninja Assault"
   region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes intro captions not displaying.
 SCPS-51015:
   name: "Super Puzzle Bobble 2"
   region: "NTSC-J"
@@ -5810,6 +5883,9 @@ SCPS-55001:
 SCPS-55002:
   name: "Zero"
   region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SCPS-55003:
   name: "Vampire Night"
   region: "NTSC-J"
@@ -5876,7 +5952,8 @@ SCPS-55019:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
 SCPS-55020:
   name: "Kengo 2"
   region: "NTSC-J"
@@ -5974,6 +6051,7 @@ SCPS-55043:
   region: "NTSC-J"
   gsHWFixes:
     halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SCPS-55044:
   name: "Energy Airforce"
   region: "NTSC-J"
@@ -6068,18 +6146,9 @@ SCPS-56008:
   name: "Fatal Frame"
   region: "NTSC-K"
   compat: 5
-  patches:
-    default:
-      content: |-
-        // BCF04BF3
-        comment=- At least when using GSdx in D3D11 Hardware mode, and due to missing
-        comment=-  rendering-fixes, black stripes can show up on ghosts,
-        comment=-  spirits and photos, when Upscaling and\or using WideScreen-patching.
-        comment=- This can be fixed by having 'Enable HW Hacks' set
-        comment=-  in the GSdx configuration dialog, and having 'Align Sprite' set
-        comment=-  and 'Sprite' set to Half in 'Advanced Settings and Hacks'.
   gsHWFixes:
     halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SCPS-56011:
   name: "U - Underwater Unit"
   region: "NTSC-J"
@@ -6093,6 +6162,8 @@ SCPS-56014:
 SCPS-56015:
   name: "Ninja Assault"
   region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes intro captions not displaying.
 SCUS-21295:
   name: "Tony Hawk's American Wasteland Collector's Edition"
   region: "NTSC-U"
@@ -6857,6 +6928,8 @@ SCUS-97328:
   compat: 5
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters: # Allows car imports from GT3 or something.
     - "SCUS-97328"
     - "SCUS-97436"
@@ -7204,6 +7277,8 @@ SCUS-97436:
   region: "NTSC-U"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   memcardFilters:
     - "SCUS-97328"
     - "SCUS-97436"
@@ -7350,7 +7425,7 @@ SCUS-97474:
   region: "NTSC-U"
   compat: 5
   clampModes:
-    vuClampMode: 0 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
   patches:
     75ED4282:
       content: |-
@@ -7363,7 +7438,7 @@ SCUS-97475:
   name: "SOCOM 3 - U.S. Navy SEALs [Regular Demo]"
   region: "NTSC-U"
   clampModes:
-    vuClampMode: 0 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
   patches:
     314F0905:
       content: |-
@@ -7399,6 +7474,8 @@ SCUS-97483:
   region: "NTSC-U"
   clampModes:
     vuClampMode: 2 # Text in GT mode works.
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes weird edge shadows and depth bleed which happens on the edge as well.
   # Comments from old GameIndex.dbf for this Game.
   # eeClampMode = 3  Text in races works.
 SCUS-97484:
@@ -7443,7 +7520,7 @@ SCUS-97489:
   name: "SOCOM 3 - U.S. Navy SEALs [Public Beta v.1]"
   region: "NTSC-U"
   clampModes:
-    vuClampMode: 0 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
 SCUS-97490:
   name: "Rogue Galaxy"
   region: "NTSC-U"
@@ -7641,10 +7718,14 @@ SCUS-97545:
   name: "SOCOM - U.S. Navy SEALs - Combined Assault"
   region: "NTSC-U"
   compat: 5
-  roundModes:
-    vuRoundMode: 0 # Fixes disappearing characters.
   clampModes:
-    vuClampMode: 2 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
+  patches:
+    D7CFDCCF:
+      content: |-
+        author=Prafull
+        //Fix Slowdown when looking at sun (all Patches)
+        patch=1,EE,0019f480,word,00000000
 SCUS-97548:
   name: "Ape Escape 3 [Demo]"
   region: "NTSC-U"
@@ -7672,10 +7753,8 @@ SCUS-97558:
 SCUS-97560:
   name: "SOCOM - U.S. Navy SEALs - Combined Assault [Demo]"
   region: "NTSC-U"
-  roundModes:
-    vuRoundMode: 0 # Fixes disappearing characters.
   clampModes:
-    vuClampMode: 2 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
 SCUS-97564:
   name: "Jampack Demo Disc Vol.15 [T-Rated]"
   region: "NTSC-U"
@@ -8119,6 +8198,8 @@ SLED-50359:
   region: "PAL-E"
   clampModes:
     vuClampMode: 3 # Fixes out of place polys (COP2).
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLED-50478:
   name: "WWF Smackdown! - Just Bring It [Demo]"
   region: "PAL-E"
@@ -8220,6 +8301,8 @@ SLED-52929:
 SLED-53083:
   name: "Monster Hunter [Demo]"
   region: "PAL-M5"
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLED-53109:
   name: "Juiced [Demo]"
   region: "PAL-M5"
@@ -9094,6 +9177,8 @@ SLES-50358:
   name: "Devil May Cry"
   region: "PAL-M5"
   compat: 5
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLES-50362:
   name: "Jonny Moseley Mad Trix"
   region: "PAL-E"
@@ -9155,6 +9240,9 @@ SLES-50386:
   name: "Crash Bandicoot - Wrath of Cortex"
   region: "PAL-M6"
   compat: 5
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.
 SLES-50390:
   name: "Driven"
   region: "PAL-M5"
@@ -9320,6 +9408,8 @@ SLES-50479:
   name: "Turok Evolution"
   region: "PAL-M4"
   compat: 5
+  gsHWFixes:
+    textureInsideRT: 1 # Fixes underwater levels.
 SLES-50480:
   name: "Aggressive Inline Skating"
   region: "PAL-M4"
@@ -9809,6 +9899,8 @@ SLES-50768:
 SLES-50769:
   name: "Mr. Moskeeto"
   region: "PAL-M4"
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SLES-50770:
   name: "Mad Maestro!"
   region: "PAL-M4"
@@ -9947,18 +10039,9 @@ SLES-50821:
   name: "Project Zero"
   region: "PAL-M5"
   compat: 5
-  patches:
-    default:
-      content: |-
-        // 22E91837
-        comment=- At least when using GSdx in D3D11 Hardware mode, and due to missing
-        comment=-  rendering-fixes, black stripes can show up on ghosts,
-        comment=-  spirits and photos, when Upscaling and\or using WideScreen-patching.
-        comment=- This can be fixed by having 'Enable HW Hacks' set
-        comment=-  in the GSdx configuration dialog, and having 'Align Sprite' set
-        comment=-  and 'Sprite' set to Half in 'Advanced Settings and Hacks'.
   gsHWFixes:
     halfPixelOffset: 2 # Fixes blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SLES-50822:
   name: "Shadow Hearts"
   region: "PAL-M3"
@@ -10596,6 +10679,8 @@ SLES-51124:
   name: "Turok Evolution"
   region: "PAL-G"
   compat: 5
+  gsHWFixes:
+    textureInsideRT: 1 # Fixes underwater levels.
 SLES-51125:
   name: "Sega Soccer Slam"
   region: "PAL-E"
@@ -10723,30 +10808,40 @@ SLES-51192:
   name: "Harry Potter and the Chamber of Secrets"
   region: "PAL-E"
   compat: 3
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51193:
   name: "Harry Potter et la Chambre des Secrets"
   region: "PAL-F"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51194:
   name: "Harry Potter und die Kammer des Schreckens"
   region: "PAL-G"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51195:
   name: "Harry Potter y La Camara Secreta"
   region: "PAL-S"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51196:
   name: "Harry Potter e La Camera dei Secreti"
   region: "PAL-I"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -10795,36 +10890,48 @@ SLES-51209:
 SLES-51214:
   name: "Harry Potter og Hemmelighedernes Kammer"
   region: "PAL-D"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51215:
   name: "Harry Potter og Mysteriekammeret"
   region: "PAL-N"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51216:
   name: "Harry Potter ja Salaisuuksien Kammio"
   region: "PAL-FI"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51217:
   name: "Harry Potter och Hemligheternas Kammare"
   region: "PAL-SW"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51218:
   name: "Harry Potter en de Geheime Kamer"
   region: "PAL-DU"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLES-51219:
   name: "Harry Potter ea Camara dos Segredos"
   region: "PAL-P"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -11317,6 +11424,11 @@ SLES-51448:
   name: "Resident Evil - Dead Aim"
   region: "PAL-M5"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes character offset with flashlight and blurriness.
+    alignSprite: 1 # Fixes vertical lines.
+    roundSprite: 2 # Fixes font artifacts.
+    mergeSprite: 1 # Fixes flame-like bleeding.
 SLES-51449:
   name: "Return to Castle Wolfenstein - Operation Resurrection"
   region: "PAL-E"
@@ -11939,8 +12051,11 @@ SLES-51819:
 SLES-51820:
   name: "Sniper Elite"
   region: "PAL-M5"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
   gsHWFixes:
-    autoFlush: 1
+    autoFlush: 1 # Fixes bloom misalignment.
+    halfPixelOffset: 2 # Fixes bloom misalignment.
 SLES-51821:
   name: "Alias"
   region: "PAL-M5"
@@ -13809,6 +13924,8 @@ SLES-52707:
   name: "Monster Hunter"
   region: "PAL-M5"
   compat: 5
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLES-52709:
   name: "Ty the Tazmanian Tiger 2 - Bush Rescue"
   region: "PAL-M7"
@@ -15048,7 +15165,7 @@ SLES-53300:
   name: "SOCOM 3 - U.S. Navy SEALs"
   region: "PAL-Unk"
   clampModes:
-    vuClampMode: 0 # Fixes SPS ingame.
+    vuClampMode: 3 # Fixes SPS ingame and prevents flickering or invisible characters.
 SLES-53301:
   name: "Bomberman Hardball"
   region: "PAL-E"
@@ -15228,9 +15345,35 @@ SLES-53380:
 SLES-53381:
   name: "King of Fighters 2002"
   region: "PAL-E"
+  patches:
+    CF1D71EE:
+      content: |-
+        author=kozarovv (adapted by Immersion95)
+        // Fix for Depth precision.
+        // Game fills upper 16bits of depth with 0xFFFF.
+        // This results in a really high 32 bit value which is then converted to float
+        // because both hw and sw renderers lack double precision the lower 16 bits of the initial 32 bit value lose precision.
+        patch=1,EE,000ffc00,word,f88a0000
+        patch=1,EE,000ffc04,word,a080000b
+        patch=1,EE,000ffc08,word,08056677
+        patch=1,EE,001599D4,word,0803ff00
+        patch=1,EE,001599D8,word,4bea497d
 SLES-53382:
   name: "King of Fighters 2003"
   region: "PAL-E"
+  patches:
+    B967F21F:
+      content: |-
+        author=kozarovv (adapted by Immersion95)
+        // Fix for Depth precision.
+        // Game fills upper 16bits of depth with 0xFFFF.
+        // This results in a really high 32 bit value which is then converted to float
+        // because both hw and sw renderers lack double precision the lower 16 bits of the initial 32 bit value lose precision.
+        patch=1,EE,000ffc00,word,f88a0000
+        patch=1,EE,000ffc04,word,a080000b
+        patch=1,EE,000ffc08,word,08053967
+        patch=1,EE,0014E594,word,0803ff00
+        patch=1,EE,0014E598,word,4bea497d
 SLES-53383:
   name: "Metal Slug 5"
   region: "PAL-E"
@@ -16284,8 +16427,11 @@ SLES-53756:
 SLES-53758:
   name: "Sniper Elite [Pre-Production]"
   region: "PAL-E"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
   gsHWFixes:
-    autoFlush: 1
+    autoFlush: 1 # Fixes bloom misalignment.
+    halfPixelOffset: 2 # Fixes bloom misalignment.
 SLES-53759:
   name: "Matrix, The - Path of Neo"
   region: "PAL-M5"
@@ -16757,6 +16903,10 @@ SLES-53982:
 SLES-53984:
   name: "Ice Age 2 - The Meltdown"
   region: "PAL-M6"
+  clampModes:
+    eeClampMode: 2 # Fixes occasional SPS on moving around, jumping and falling.
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
   patches:
     2EC49E65:
       content: |-
@@ -17072,6 +17222,17 @@ SLES-54146:
 SLES-54147:
   name: "Ice Age 2 - The Meltdown"
   region: "PAL-R"
+  clampModes:
+    eeClampMode: 2 # Fixes occasional SPS on moving around, jumping and falling.
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
+  patches:
+    D9920B66:
+      content: |-
+        comment=Patch by kozarovv
+        // Intro screen freeze fix.
+        patch=1,EE,002FFAD8,word,27BDFEE0
+        patch=1,EE,002FFB14,word,27BD0120
 SLES-54150:
   name: "Bionicle Heroes"
   region: "PAL-M6"
@@ -19309,9 +19470,21 @@ SLES-55049:
 SLES-55050:
   name: "MX vs. ATV - Untamed"
   region: "PAL-E"
+  patches:
+    74912B29:
+      content: |-
+        comment=Rearranging COP2 ops to avoid clip flag response. Fixes SPS.
+        patch=1,EE,001a9c08,word,484E9000
+        patch=1,EE,001a9c0c,word,4BDBD9FF
 SLES-55051:
   name: "MX vs. ATV Extrême Limite"
   region: "PAL-F"
+  patches:
+    590C682E:
+      content: |-
+        comment=Rearranging COP2 ops to avoid clip flag response. Fixes SPS.
+        patch=1,EE,001a9c08,word,484E9000
+        patch=1,EE,001a9c0c,word,4BDBD9FF
 SLES-55052:
   name: "Alvin and the Chipmunks"
   region: "PAL-M5"
@@ -19357,6 +19530,8 @@ SLES-55088:
 SLES-55090:
   name: "Naruto - Uzumaki Chronicles 2"
   region: "PAL-M5"
+  gameFixes:
+    - OPHFlagHack # Fixes game freezing.
 SLES-55091:
   name: "Hoppie"
   region: "PAL-E"
@@ -19659,6 +19834,8 @@ SLES-55237:
   compat: 5
   clampModes:
     vuClampMode: 2 # Fixes invisible QTE button prompts and overbright in some scenes.
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLES-55238:
   name: "Madden NFL 09"
   region: "PAL-E"
@@ -20153,9 +20330,13 @@ SLES-55480:
 SLES-55481:
   name: "Naruto Shippuden - Ultimate Ninja 4"
   region: "PAL-E-F"
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLES-55482:
   name: "Naruto Shippuden - Ultimate Ninja 4"
   region: "PAL-G-I-S"
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLES-55483:
   name: "Guilty Gear XX Accent Core Plus"
   region: "PAL-E"
@@ -20165,6 +20346,8 @@ SLES-55486:
 SLES-55487:
   name: "Ice Age 3 - Dawn of the Dinosaurs"
   region: "PAL-M6"
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SLES-55492:
   name: "SBK 09 - Superbike World Championship"
   region: "PAL-M5"
@@ -20206,6 +20389,8 @@ SLES-55512:
 SLES-55516:
   name: "L'Era Glaciale 3 - L'Alba dei Dinosauri"
   region: "PAL-I"
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SLES-55517:
   name: "Trivial Pursuit"
   region: "PAL-M4"
@@ -20352,6 +20537,8 @@ SLES-55605:
   name: "Naruto Shippuuden - Ultimate Ninja 5"
   region: "PAL-M5"
   compat: 5
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLES-55609:
   name: "Scooby-Doo! and the Spooky Swamp"
   region: "PAL-M5"
@@ -20541,7 +20728,8 @@ SLES-82028:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
 SLES-82029:
   name: "Star Ocean 3 - Till the End of Time [Disc2of2]"
   region: "PAL-E"
@@ -20549,7 +20737,8 @@ SLES-82029:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
   memcardFilters:
     - "SLES-82028"
 SLES-82030:
@@ -20813,6 +21002,11 @@ SLKA-25035:
 SLKA-25038:
   name: "Gun Survivor 4 - Biohazard - Heroes Never Die"
   region: "NTSC-K"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes character offset with flashlight and blurriness.
+    alignSprite: 1 # Fixes vertical lines.
+    roundSprite: 2 # Fixes font artifacts.
+    mergeSprite: 1 # Fixes flame-like bleeding.
 SLKA-25041:
   name: "Armored Core 3 Silent Line"
   region: "NTSC-K"
@@ -21132,6 +21326,8 @@ SLKA-25219:
   name: "Monster Hunter G"
   region: "NTSC-K"
   compat: 5
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLKA-25221:
   name: "Busin Zero - Wizardry Alternative Neo"
   region: "NTSC-K"
@@ -21326,6 +21522,8 @@ SLKA-25320:
   name: "Ikusa Gami"
   region: "NTSC-K"
   compat: 5
+  gameFixes:
+    - VIF1StallHack # Fixes black screen on boot.
 SLKA-25321:
   name: "K.League - Winning Eleven 9 - Asia Championship"
   region: "NTSC-K"
@@ -21399,6 +21597,8 @@ SLKA-25366:
   name: "Naruto - Uzumaki Chronicles 2"
   region: "NTSC-K"
   compat: 5
+  gameFixes:
+    - OPHFlagHack # Fixes game freezing.
 SLKA-25374:
   name: "FIFA Street 2"
   region: "NTSC-K"
@@ -21504,6 +21704,9 @@ SLPM-55008:
   name: "Sengoku Basara X"
   region: "NTSC-J"
   compat: 5
+SLPM-55013:
+  name: "Sorayume"
+  region: "NTSC-J"
 SLPM-55015:
   name: "Yotsunoha - A Journey of Sincerity [Limited Edition]"
   region: "NTSC-J"
@@ -21515,6 +21718,18 @@ SLPM-55024:
   region: "NTSC-J"
 SLPM-55033:
   name: "J. League Winning Eleven 2008 - Club Championship"
+  region: "NTSC-J"
+SLPM-55039:
+  name: "Soukoku no Kusabi - Hiiro no Kakera 3 [Limited Edition]"
+  region: "NTSC-J"
+SLPM-55040:
+  name: "Soukoku no Kusabi - Hiiro no Kakera 3"
+  region: "NTSC-J"
+SLPM-55042:
+  name: "Suika A.S Eternal Name  - Sweet So Sweet [Best Edition]"
+  region: "NTSC-J"
+SLPM-55047:
+  name: "Sugar+Spice! - Anoko no Suteki na Nanimokamo"
   region: "NTSC-J"
 SLPM-55051:
   name: "Will o' Wisp - Easter no Kiseki"
@@ -21538,6 +21753,9 @@ SLPM-55065:
         // Game does weird stack manipulation, causing data sent to the IOP to be corrupted unless EE data cache is enabled.
         // This patch skips over the stack code, allowing the game to boot.
         patch=1,EE,00131A64,word,10000003
+SLPM-55069:
+  name: "Saishuu Shiken Kujira - Alive [Sweet So Sweet]"
+  region: "NTSC-J"
 SLPM-55070:
   name: "Yumemi Hakusho - Second Dream [Limited Edition]"
   region: "NTSC-J"
@@ -21549,6 +21767,15 @@ SLPM-55081:
   region: "NTSC-J"
   clampModes:
     eeClampMode: 2 # Fixes wrong color on some characters and breakable objects.
+SLPM-55086:
+  name: "Ever17 The Out of Infinity [Renai Game Selection]"
+  region: "NTSC-J"
+SLPM-55087:
+  name: "Remember11 The Age of Infinity [Renai Game Selection]"
+  region: "NTSC-J"
+SLPM-55088:
+  name: "Never7 The Age of Infinity [Renai Game Selection]"
+  region: "NTSC-J"
 SLPM-55090:
   name: "DanceDanceRevolution X"
   region: "NTSC-J"
@@ -21563,11 +21790,17 @@ SLPM-55096:
   name: "ThunderForce VI"
   region: "NTSC-J"
   compat: 5
+SLPM-55101:
+  name: "Memories Off Duet - 1st and 2nd Stories [Renai Game Selection]"
+  region: "NTSC-J"
 SLPM-55102:
   name: "Pia Carrot e Youkoso!! G.P. Gakuen Princess"
   region: "NTSC-J"
   gsHWFixes:
     pointListPalette: 1
+SLPM-55104:
+  name: "Real Rode"
+  region: "NTSC-J"
 SLPM-55108:
   name: "Fate - Unlimited Codes"
   region: "NTSC-J"
@@ -21682,6 +21915,12 @@ SLPM-55169:
 SLPM-55170:
   name: "Skip Beat!"
   region: "NTSC-J"
+SLPM-55173:
+  name: "Strike Witches - Anata to Dekiru Koto [Limited Edition]"
+  region: "NTSC-J"
+SLPM-55174:
+  name: "Strike Witches - Anata to Dekiru Koto - A Little Peaceful Days"
+  region: "NTSC-J"
 SLPM-55175:
   name: "Under the Moon - Crescent"
   region: "NTSC-J"
@@ -21698,6 +21937,18 @@ SLPM-55184:
   name: "Melty Blood - Actress Again"
   region: "NTSC-J"
   compat: 5
+SLPM-55185:
+  name: "Sweet Honey Coming [Deluxe Pack]"
+  region: "NTSC-J"
+SLPM-55186:
+  name: "Sweet Honey Coming"
+  region: "NTSC-J"
+SLPM-55188:
+  name: "Rosario to Vampire Capu 2 - Koi to Yume no Rapsodia [Limited Edition]"
+  region: "NTSC-J"
+SLPM-55189:
+  name: "Rosario to Vampire Capu 2 - Koi to Yume no Rapsodia"
+  region: "NTSC-J"
 SLPM-55191:
   name: "L2 - Love x Loop"
   region: "NTSC-J"
@@ -21708,6 +21959,15 @@ SLPM-55191:
         // Game does weird stack manipulation, causing data sent to the IOP to be corrupted unless EE data cache is enabled.
         // This patch skips over the stack code, allowing the game to boot.
         patch=1,EE,001B4828,word,10000008
+SLPM-55202:
+  name: "Shuumatsu Shoujo Gensou Alicematic Apocalypse [Russel Games Best]"
+  region: "NTSC-J"
+SLPM-55205:
+  name: "S.Y.K Shinsetsu Saiyuuki [Limited Edition]"
+  region: "NTSC-J"
+SLPM-55206:
+  name: "S.Y.K Shinsetsu Saiyuuki"
+  region: "NTSC-J"
 SLPM-55207:
   name: "Hakuouki - Zuisouroku [Limited Edition]"
   region: "NTSC-J"
@@ -21723,6 +21983,9 @@ SLPM-55222:
 SLPM-55226:
   name: "FIFA 10 - World Class Soccer"
   region: "NTSC-J"
+SLPM-55243:
+  name: "Suzunone Seven - Rebirth Knot"
+  region: "NTSC-J"
 SLPM-55244:
   name: "Need for Speed - Undercover [Ea-SY! 1980]"
   region: "NTSC-J"
@@ -21732,6 +21995,9 @@ SLPM-55244:
     skipDrawEnd: 1 # Removes even more blurriness and garbage texture like on top left.
 SLPM-55246:
   name: "Wand of Fortune - Mirai e no Prologue"
+  region: "NTSC-J"
+SLPM-55247:
+  name: "S.Y.K Renshouden"
   region: "NTSC-J"
 SLPM-55251:
   name: "WWE SmackDown vs. Raw 2009"
@@ -21832,6 +22098,12 @@ SLPM-60138:
     vuClampMode: 2 # Fixes water reflection.
   gameFixes:
     - EETimingHack # Fixes flickering graphics.
+SLPM-60167:
+  name: "Zero [Trial]"
+  region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SLPM-60172:
   name: "Itadaki Street 3 - Okuman Chouja ni Shiteageru"
   region: "NTSC-J"
@@ -21916,6 +22188,11 @@ SLPM-61007:
   region: "NTSC-J"
   speedHacks:
     mvuFlagSpeedHack: 0
+SLPM-61008:
+  name: "Devil May Cry [Trial]"
+  region: "NTSC-J"
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-61009:
   name: "Silent Hill 2 (Red Ribbon) [Trial]"
   region: "NTSC-J"
@@ -21925,6 +22202,8 @@ SLPM-61009:
 SLPM-61010:
   name: "Devil May Cry [Trial Version]"
   region: "NTSC-J"
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-61011:
   name: "Silent Hill 2 (Black Ribbon) [Video Trial]"
   region: "NTSC-J"
@@ -21934,6 +22213,14 @@ SLPM-61011:
 SLPM-61018:
   name: "Abarenbou Princess [Trial]"
   region: "NTSC-J"
+SLPM-61039:
+  name: "Gun Survivor 4: Biohazard: Heroes Never Die [Demo]"
+  region: "NTSC-J"
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes character offset with flashlight and blurriness.
+    alignSprite: 1 # Fixes vertical lines.
+    roundSprite: 2 # Fixes font artifacts.
+    mergeSprite: 1 # Fixes flame-like bleeding.
 SLPM-61046:  
   name: "Dennou Senki - Virtual-On Marz [Trial]"
   region: "NTSC-J"
@@ -21968,6 +22255,16 @@ SLPM-61120:
 SLPM-61127:
   name: "FlatOut [Trial]"
   region: "NTSC-J"
+SLPM-61130:
+  name: "Ikusa Gami [Trial Version]"
+  region: "NTSC-J"
+  gameFixes:
+    - VIF1StallHack # Fixes black screen on boot.
+SLPM-61132:
+  name: "Ikusa Gami [Trial Version]"
+  region: "NTSC-J"
+  gameFixes:
+    - VIF1StallHack # Fixes black screen on boot.
 SLPM-61133:
   name: "Soul Calibur III [Trial Version]"
   region: "NTSC-J"
@@ -21983,6 +22280,8 @@ SLPM-61135:
   region: "NTSC-J"
   clampModes:
     vuClampMode: 2 # Fixes invisible QTE button prompts and overbright in some scenes.
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPM-61147:
   name: "Xenosaga Episode III - Also Sprach Zarathustra [Demo]"
   region: "NTSC-J"
@@ -21991,6 +22290,11 @@ SLPM-61147:
     autoFlush: 1 # Fixes shadows in cutscenes.
     halfPixelOffset: 1 # Fixes lighting misalignment and reduces ground shadows (probably texture cache issue).
     roundSprite: 2 # Fixes font artifacts.
+SLPM-61157:
+  name: "Naruto Shippuuden: Narutimate Accel [Trial]"
+  region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPM-62001:
   name: "Drum Mania"
   region: "NTSC-J"
@@ -22242,6 +22546,9 @@ SLPM-62113:
 SLPM-62114:
   name: "Crash Bandicoot 4 - Sakuretsu! Majin Power"
   region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.
 SLPM-62117:
   name: "Momotaro Train X"
   region: "NTSC-J"
@@ -22540,6 +22847,8 @@ SLPM-62239:
 SLPM-62241:
   name: "Harry Potter to Himitsu no Heya"
   region: "NTSC-J"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -23244,6 +23553,8 @@ SLPM-62512:
 SLPM-62513:
   name: "Harry Potter and the Chamber of Secrets [EA Best Hits]"
   region: "NTSC-J"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -24009,9 +24320,18 @@ SLPM-64502:
 SLPM-64504:
   name: "Maximo"
   region: "NTSC-K"
-SLPM-64513:
-  name: "Crash Bandicoot - Return of the Demon King"
+SLPM-64509:
+  name: "Crash Bandicoot - Return of the Demon King [English Dub Edition]" # Wrath of Cortex
   region: "NTSC-K"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.  
+SLPM-64513:
+  name: "Crash Bandicoot - Return of the Demon King" # Wrath of Cortex
+  region: "NTSC-K"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.  
 SLPM-64522:
   name: "La Pucelle"
   region: "NTSC-K"
@@ -24026,6 +24346,8 @@ SLPM-64525:
 SLPM-64528:
   name: "Harry Potter and the Chamber of Secrets"
   region: "NTSC-K"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -24131,6 +24453,8 @@ SLPM-65022:
 SLPM-65023:
   name: "Devil May Cry [Demo] [BioHazard - Code Veronica - Perfect Version - Bonus Disc]"
   region: "NTSC-J"
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-65024:
   name: "BioHazard - 5th Anniversary Package - Nightmare Returns [Disc1of2]"
   region: "NTSC-J"
@@ -24154,6 +24478,8 @@ SLPM-65038:
   name: "Devil May Cry"
   region: "NTSC-J"
   compat: 5
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-65039:
   name: "Densha de Go! Shinkansen"
   region: "NTSC-J"
@@ -24655,7 +24981,8 @@ SLPM-65209:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
   patches:
     BEC32D49:
       content: |-
@@ -24830,6 +25157,11 @@ SLPM-65245:
   name: "BioHazard Gun Survivor 4 - Heroes Never Die"
   region: "NTSC-J"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes character offset with flashlight and blurriness.
+    alignSprite: 1 # Fixes vertical lines.
+    roundSprite: 2 # Fixes font artifacts.
+    mergeSprite: 1 # Fixes flame-like bleeding.
 SLPM-65246:
   name: "Kaidou Battle"
   region: "NTSC-J"
@@ -24954,8 +25286,10 @@ SLPM-65283:
   name: "Green Green - Sound of the Ring Romantic"
   region: "NTSC-J"
 SLPM-65284:
-  name: "World Rally Championship II Extreme"
+  name: "WRC II Extreme"
   region: "NTSC-J"
+  gameFixes:
+    - XGKickHack # Fixes SPS.
 SLPM-65285:
   name: "Love Hina Gorgeous [First Limited Edition]"
   region: "NTSC-J"
@@ -25326,6 +25660,8 @@ SLPM-65407:
   name: "Transformers Tatakai"
   region: "NTSC-J"
   compat: 5
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes flickering FMVs.
 SLPM-65408:
   name: "Growlanser IV - Wayfarer of the Time"
   region: "NTSC-J"
@@ -25431,7 +25767,8 @@ SLPM-65438:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
 SLPM-65439:
   name: "Star Ocean 3 [Director's Cut] [Disc2of2]"
   region: "NTSC-J"
@@ -25439,7 +25776,8 @@ SLPM-65439:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
   memcardFilters:
     - "SLPM-65438"
 SLPM-65441:
@@ -25491,6 +25829,9 @@ SLPM-65454:
   name: "Prince of Tennis - Smash Hit! 2"
   region: "NTSC-J"
   compat: 5
+SLPM-65455:
+  name: "Nobunaga no Yabou - Soutenroku [with Power-Up Kit]"
+  region: "NTSC-J"
 SLPM-65456:
   name: "Magical Nurse Witch Komugi-chan [Limited Edition]"
   region: "NTSC-J"
@@ -25611,6 +25952,8 @@ SLPM-65494:
 SLPM-65495:
   name: "Monster Hunter"
   region: "NTSC-J"
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLPM-65496:
   name: "Hyper Street Fighter"
   region: "NTSC-J"
@@ -25834,8 +26177,10 @@ SLPM-65572:
   name: "Generation of Chaos 4"
   region: "NTSC-J"
 SLPM-65573:
-  name: "World Rally Championship II Extreme [Spike The Best]"
+  name: "WRC II Extreme [Spike The Best]"
   region: "NTSC-J"
+  gameFixes:
+    - XGKickHack # Fixes SPS.
 SLPM-65574:
   name: "Silent Hill 4 - The Room"
   region: "NTSC-J"
@@ -26146,6 +26491,9 @@ SLPM-65671:
   region: "NTSC-J"
 SLPM-65672:
   name: "W - Wish"
+  region: "NTSC-J"
+SLPM-65673:
+  name: "Sangokushi IX [with Power-Up Kit]"
   region: "NTSC-J"
 SLPM-65674:
   name: "Taikou Risshiden V"
@@ -26799,6 +27147,8 @@ SLPM-65869:
   name: "Monster Hunter G"
   region: "NTSC-J"
   compat: 5
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLPM-65870:
   name: "Magic Teacher Negima - Honor Version"
   region: "NTSC-J"
@@ -27208,7 +27558,8 @@ SLPM-65995:
   clampModes:
     vuClampMode: 3 # Fixes minor SPS on characters.
   gsHWFixes:
-    preloadFrameData: 1
+    preloadFrameData: 1 # Fixes bad textures on Jake.
+    halfPixelOffset: 1 # Fixes double image.
 SLPM-65996:
   name: "Mars of Destruction [Limited Edition]"
   region: "NTSC-J"
@@ -27666,6 +28017,9 @@ SLPM-66132:
   gsHWFixes:
     halfPixelOffset: 3 # Fixes bloom misalignment still a bit misaligned.
     roundSprite: 1 # Fixes bloom misalignment still a bit misaligned.
+SLPM-66133:
+  name: "Shuffle! On the Stage [Deluxe Pack]"
+  region: "NTSC-J"
 SLPM-66134:
   name: "Shuffle! On the Stage"
   region: "NTSC-J"
@@ -27850,6 +28204,8 @@ SLPM-66183:
 SLPM-66184:
   name: "Ikusa Gami"
   region: "NTSC-J"
+  gameFixes:
+    - VIF1StallHack # Fixes black screen on boot.
 SLPM-66185:
   name: "Game ni Nattayo! Dokura-chan [Limited Edition]"
   region: "NTSC-J"
@@ -28200,6 +28556,8 @@ SLPM-66280:
   name: "Monster Hunter 2"
   region: "NTSC-J"
   compat: 5
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLPM-66281:
   name: "Sonic Riders"
   region: "NTSC-J"
@@ -28301,6 +28659,9 @@ SLPM-66307:
     - "SLPM-74249"
 SLPM-66308:
   name: "Harukanaru Toki no Naka Premium Boxset"
+  region: "NTSC-J"
+SLPM-66312:
+  name: "Saishuu Heiki Kanojo [Konami the Best]"
   region: "NTSC-J"
 SLPM-66313:
   name: "GuitarFreaksV & DrumManiaV"
@@ -28891,7 +29252,8 @@ SLPM-66478:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
 SLPM-66479:
   name: "Star Ocean 3 - Till the End of Time [Ultimate Hits] [Disc2of2]"
   region: "NTSC-J"
@@ -28899,7 +29261,8 @@ SLPM-66479:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
   memcardFilters:
     - "SLPM-66478"
 SLPM-66480:
@@ -28990,6 +29353,8 @@ SLPM-66501:
 SLPM-66502:
   name: "Devil May Cry [Mega Hits]"
   region: "NTSC-J"
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-66503:
   name: "Metal Gear Solid 2 [Mega Hits]"
   region: "NTSC-J"
@@ -30690,6 +31055,8 @@ SLPM-67502:
   name: "Devil May Cry"
   region: "NTSC-K"
   compat: 5
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-67505:
   name: "James Bond 007 - Agent Under Fire"
   region: "NTSC-K"
@@ -30775,12 +31142,19 @@ SLPM-68003:
 SLPM-68005:
   name: "Harry Potter to Himitsu no Heya [Demo - Coca Cola Original Version]"
   region: "NTSC-J"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
 SLPM-68018:
   name: "Virtua Fighter - 10th Anniversary Edition"
   region: "NTSC-J"
+SLPM-68019:
+  name: "Naruto Shippuuden - Narutimate Accel 2"
+  region: "NTSC-J" 
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPM-68503:
   name: "Metal Gear Solid 2 - Sons of Liberty [Shareholder Edition]"
   region: "NTSC-J"
@@ -30808,6 +31182,9 @@ SLPM-74002:
 SLPM-74003:
   name: "Crash Bandicoot 4 - Sakuretsu! Majin Power! [PlayStation 2 The Best]"
   region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.
 SLPM-74004:
   name: "Maximo - Ghosts to Glory [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -30903,6 +31280,8 @@ SLPM-74226:
 SLPM-74227:
   name: "Ikusa Gami [PlayStation 2 The Best]"
   region: "NTSC-J"
+  gameFixes:
+    - VIF1StallHack # Fixes black screen on boot.
 SLPM-74228:
   name: "Fuuun Bakumatsu-den [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -30914,6 +31293,8 @@ SLPM-74229:
 SLPM-74230:
   name: "Devil May Cry [PlayStation 2 The Best]"
   region: "NTSC-J"
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLPM-74231:
   name: "Kessen III [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -30971,6 +31352,8 @@ SLPM-74244:
 SLPM-74245:
   name: "Monster Hunter 2 [PlayStation 2 The Best]"
   region: "NTSC-J"
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLPM-74246:
   name: "Capcom vs. SNK 2 - Millionaire Fighting 2001 [PlayStation 2 the Best - Reprint]"
   region: "NTSC-J"
@@ -30993,6 +31376,8 @@ SLPM-74247:
 SLPM-74248:
   name: "Monster Hunter G [PlayStation 2 The Best]"
   region: "NTSC-J"
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLPM-74249:
   name: "Sengoku Musou Mushoden [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -31536,6 +31921,8 @@ SLPS-20216:
 SLPS-20218:
   name: "Ninja Assault"
   region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes intro captions not displaying.
 SLPS-20219:
   name: "Tsukande! Mawashite! Dossun Pazuru Egg Mania"
   region: "NTSC-J"
@@ -31563,6 +31950,8 @@ SLPS-20230:
 SLPS-20234:
   name: "Harry Potter to Himitsu no Heya"
   region: "NTSC-J"
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -32471,18 +32860,9 @@ SLPS-25074:
   name: "Project Zero"
   region: "NTSC-J"
   compat: 5
-  patches:
-    default:
-      content: |-
-        // 9883194E
-        comment=- At least when using GSdx in D3D11 Hardware mode, and due to missing
-        comment=-  rendering-fixes, black stripes can show up on ghosts,
-        comment=-  spirits and photos, when Upscaling and\or using WideScreen-patching.
-        comment=- This can be fixed by having 'Enable HW Hacks' set
-        comment=-  in the GSdx configuration dialog, and having 'Align Sprite' set
-        comment=-  and 'Sprite' set to Half in 'Advanced Settings and Hacks'.
   gsHWFixes:
     halfPixelOffset: 2 # Fixes blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SLPS-25075:
   name: "Sidewinder F"
   region: "NTSC-J"
@@ -33309,6 +33689,19 @@ SLPS-25346:
 SLPS-25347:
   name: "King of Fighters 2002, The"
   region: "NTSC-J"
+  patches:
+    ABD16263:
+      content: |-
+        author=kozarovv (adapted by Immersion95)
+        // Fix for Depth precision.
+        // Game fills upper 16bits of depth with 0xFFFF.
+        // This results in a really high 32 bit value which is then converted to float
+        // because both hw and sw renderers lack double precision the lower 16 bits of the initial 32 bit value lose precision.
+        patch=1,EE,000ffc00,word,f88a0000
+        patch=1,EE,000ffc04,word,a080000b
+        patch=1,EE,000ffc08,word,0805E04B
+        patch=1,EE,00178124,word,0803ff00
+        patch=1,EE,00178128,word,4bea497d
 SLPS-25348:
   name: "Kokoro no Tobira [Limited Edition]"
   region: "NTSC-J"
@@ -33551,6 +33944,19 @@ SLPS-25406:
 SLPS-25407:
   name: "King of Fighters 2003, The"
   region: "NTSC-J"
+  patches:
+    D2EC432D:
+      content: |-
+        author=kozarovv (adapted by Immersion95)
+        // Fix for Depth precision.
+        // Game fills upper 16bits of depth with 0xFFFF.
+        // This results in a really high 32 bit value which is then converted to float
+        // because both hw and sw renderers lack double precision the lower 16 bits of the initial 32 bit value lose precision.
+        patch=1,EE,000ffc00,word,f88a0000
+        patch=1,EE,000ffc04,word,a080000b
+        patch=1,EE,000ffc08,word,080C5783
+        patch=1,EE,00315E04,word,0803ff00
+        patch=1,EE,00315E08,word,4bea497d
 SLPS-25408:
   name: "Armored Core - Nine Breaker"
   region: "NTSC-J"
@@ -34014,6 +34420,8 @@ SLPS-25534:
 SLPS-25535:
   name: "NeoGeo Online Collection Vol.3 - The King of Fighters - Orochi Collection [Special Pack]"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
 SLPS-25537:
   name: "Super Robot Wars - Alpha 3"
   region: "NTSC-J"
@@ -34087,6 +34495,19 @@ SLPS-25558:
   name: "NeoGeo Battle Coliseum"
   region: "NTSC-J"
   compat: 5
+  patches:
+    7D6924E8:
+      content: |-
+        author=kozarovv (adapted by Immersion95)
+        // Fix for Depth precision.
+        // Game fills upper 16bits of depth with 0xFFFF.
+        // This results in a really high 32 bit value which is then converted to float
+        // because both hw and sw renderers lack double precision the lower 16 bits of the initial 32 bit value lose precision.
+        patch=1,EE,000ffc00,word,f88a0000
+        patch=1,EE,000ffc04,word,a080000b
+        patch=1,EE,000ffc08,word,080CE49B
+        patch=1,EE,00339264,word,0803ff00
+        patch=1,EE,00339268,word,4bea497d
 SLPS-25559:
   name: "Samurai Spirits - Tenkaichi Kenkakuden"
   region: "NTSC-J"
@@ -34198,6 +34619,8 @@ SLPS-25589:
   region: "NTSC-J"
   clampModes:
     vuClampMode: 2 # Fixes invisible QTE button prompts and overbright in some scenes.
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPS-25590:
   name: "Namco Museum Arcade Hits"
   region: "NTSC-J"
@@ -34244,6 +34667,8 @@ SLPS-25604:
 SLPS-25605:
   name: "NeoGeo Online Collection Vol.3 - The King of Fighters - Orochi Collection"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
 SLPS-25606:
   name: "Zettai Zetsumei Toshi 2 - Itetsuita Kioutachi"
   region: "NTSC-J"
@@ -34528,6 +34953,8 @@ SLPS-25660:
 SLPS-25661:
   name: "King of Fighters, The - Nests"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
 SLPS-25662:
   name: "Kyo Kara Maoh! The 1st trip of Maoh! [Premium Box]"
   region: "NTSC-J"
@@ -34877,6 +35304,8 @@ SLPS-25767:
 SLPS-25768:
   name: "Naruto Shippuuden Narutimate Accel"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPS-25769:
   name: "Netsu Chu! Pro Baseball 2007"
   region: "NTSC-J"
@@ -34970,6 +35399,8 @@ SLPS-25790:
 SLPS-25791:
   name: "King of Fighters, The - Orochi Collection [NeoGeo Online Collection the Best]"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
 SLPS-25792:
   name: "Bakumatsu Roman - Last Blade 2-in-1 [NeoGeo Online Collection the Best]"
   region: "NTSC-J"
@@ -35113,6 +35544,8 @@ SLPS-25836:
 SLPS-25837:
   name: "Naruto Shippuuden - Narutimate Accel 2"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPS-25838:
   name: "Taiheiyou no Arashi - Senkan Yamato, Akatsuki ni Shutsugeki su"
   region: "NTSC-J"
@@ -35213,6 +35646,8 @@ SLPS-25864:
 SLPS-25865:
   name: "King of Fighters, The - Nests [SNK the Best]"
   region: "NTSC-J"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
 SLPS-25866:
   name: "Fuuun Super Combo [SNK the Best]"
   region: "NTSC-J"
@@ -35849,6 +36284,8 @@ SLPS-73251:
   region: "NTSC-J"
   clampModes:
     vuClampMode: 2 # Fixes invisible QTE button prompts and overbright in some scenes.
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLPS-73252:
   name: "Tales of the Abyss [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -35867,6 +36304,7 @@ SLPS-73255:
   region: "NTSC-J"
   gsHWFixes:
     halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SLPS-73256:
   name: "Fatal Frame II - Crimson Butterfly [PlayStation 2 the Best - Reprint]"
   region: "NTSC-J"
@@ -35915,6 +36353,7 @@ SLPS-73405:
   region: "NTSC-J"
   gsHWFixes:
     halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SLPS-73406:
   name: "Dead or Alive 2 - Hardcore [PlayStation 2 The Best]"
   region: "NTSC-J"
@@ -36753,6 +37192,8 @@ SLUS-20216:
   name: "Devil May Cry"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
   patches:
     79B8A95F:
       content: |-
@@ -36869,6 +37310,9 @@ SLUS-20238:
   name: "Crash Bandicoot - The Wrath of Cortex"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.
 SLUS-20239:
   name: "Driven"
   region: "NTSC-U"
@@ -37255,6 +37699,8 @@ SLUS-20333:
   name: "Turok - Evolution"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    textureInsideRT: 1 # Fixes underwater levels.
 SLUS-20334:
   name: "Kelly Slater's Pro Surfer"
   region: "NTSC-U"
@@ -37418,6 +37864,8 @@ SLUS-20375:
   name: "Mister Mosquito"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SLUS-20376:
   name: "Mad Maestro!"
   region: "NTSC-U"
@@ -37481,18 +37929,9 @@ SLUS-20388:
   name: "Fatal Frame"
   region: "NTSC-U"
   compat: 5
-  patches:
-    default:
-      content: |-
-        // 339A0B8C
-        comment=- At least when using GSdx in D3D11 Hardware mode, and due to missing
-        comment=-  rendering-fixes, black stripes can show up on ghosts,
-        comment=-  spirits and photos, when Upscaling and\or using WideScreen-patching.
-        comment=- This can be fixed by having 'Enable HW Hacks' set
-        comment=-  in the GSdx configuration dialog, and having 'Align Sprite' set
-        comment=-  and 'Sprite' set to Half in 'Advanced Settings and Hacks'.
   gsHWFixes:
     halfPixelOffset: 2 # Reduces blurriness.
+    disablePartialInvalidation: 1 # Fixes ghost rendering.
 SLUS-20389:
   name: "Endgame"
   region: "NTSC-U"
@@ -37964,7 +38403,8 @@ SLUS-20488:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
 SLUS-20489:
   name: "Whirl Tour"
   region: "NTSC-U"
@@ -37981,6 +38421,8 @@ SLUS-20492:
   name: "Ninja Assault"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes intro captions not displaying.
 SLUS-20493:
   name: "Gungrave"
   region: "NTSC-U"
@@ -38348,6 +38790,8 @@ SLUS-20576:
   name: "Harry Potter and The Chamber of Secrets"
   region: "NTSC-U"
   compat: 2
+  gameFixes:
+    - EETimingHack # Fixes flickering textures.
   gsHWFixes:
     mipmap: 1
     cpuFramebufferConversion: 1 # Fixes right side of the screen from garbage textures.
@@ -38741,6 +39185,11 @@ SLUS-20669:
   name: "Resident Evil - Dead Aim"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 1 # Fixes character offset with flashlight and blurriness.
+    alignSprite: 1 # Fixes vertical lines.
+    roundSprite: 2 # Fixes font artifacts.
+    mergeSprite: 1 # Fixes flame-like bleeding.
 SLUS-20670:
   name: "Great Escape, The"
   region: "NTSC-U"
@@ -39519,6 +39968,8 @@ SLUS-20852:
   name: "Terminator 3, The - The Redemption"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    autoFlush: 1 # Fixes environment lights visible through player model.
 SLUS-20853:
   name: "Looney Tunes - Back in Action"
   region: "NTSC-U"
@@ -39694,7 +40145,8 @@ SLUS-20891:
   gameFixes:
     - VuAddSubHack
   gsHWFixes:
-    roundSprite: 2 # Fixes door transition vertical lines and minimap artifacts.
+    halfPixelOffset: 2 # Fixes bloom and ghosting in certain areas.
+    roundSprite: 1 # Fixes door transition vertical lines and minimap artifacts.
   memcardFilters:
     - "SLUS-20488"
 SLUS-20892:
@@ -39726,6 +40178,8 @@ SLUS-20896:
   name: "Monster Hunter"
   region: "NTSC-U"
   compat: 5
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLUS-20897:
   name: "Swords of Yi"
   region: "NTSC-U"
@@ -40386,7 +40840,8 @@ SLUS-21018:
   clampModes:
     vuClampMode: 3 # Fixes minor SPS on characters.
   gsHWFixes:
-    preloadFrameData: 1
+    preloadFrameData: 1 # Fixes bad textures on Jake.
+    halfPixelOffset: 1 # Fixes double image.
 SLUS-21019:
   name: "Technic Beat"
   region: "NTSC-U"
@@ -40764,7 +41219,7 @@ SLUS-21104:
   patches:
     95BB1901:
       content: |-
-        comment=Rearranging COP2 ops to avoid clip flag resonse. Fixes SPS.
+        comment=Rearranging COP2 ops to avoid clip flag response. Fixes SPS.
         patch=1,EE,001b0458,word,484E9000
         patch=1,EE,001b045c,word,4BDBD9FF
 SLUS-21105:
@@ -41280,6 +41735,8 @@ SLUS-21209:
   compat: 5
   gameFixes:
     - EETimingHack # Mitigates bounciness of vertical shaking but better fix with EE cyclerate +1.
+  gsHWFixes:
+    alignSprite: 1 # Fixes black lines when upscaling.
 SLUS-21212:
   name: "Spartan - Total Warrior"
   region: "NTSC-U"
@@ -41387,8 +41844,11 @@ SLUS-21231:
   name: "Sniper Elite"
   region: "NTSC-U"
   compat: 5
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
   gsHWFixes:
-    autoFlush: 1
+    autoFlush: 1 # Fixes bloom misalignment.
+    halfPixelOffset: 2 # Fixes bloom misalignment.
 SLUS-21232:
   name: "College Hoops 2K6"
   region: "NTSC-U"
@@ -41790,6 +42250,10 @@ SLUS-21307:
   name: "Ice Age 2 - The Meltdown"
   region: "NTSC-U"
   compat: 2
+  clampModes:
+    eeClampMode: 2 # Fixes occasional SPS on moving around, jumping and falling.
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
   patches:
     EEC195CA:
       content: |-
@@ -43092,6 +43556,8 @@ SLUS-21594:
   name: "Naruto - Uzumaki Chronicles 2"
   region: "NTSC-U"
   compat: 5
+  gameFixes:
+    - OPHFlagHack # Fixes game freezing.
 SLUS-21595:
   name: "T.M.N.T. - Teenage Mutant Ninja Turtles"
   region: "NTSC-U"
@@ -43591,6 +44057,12 @@ SLUS-21701:
   name: "MX vs. ATV - Untamed"
   region: "NTSC-U"
   compat: 5
+  patches:
+    08FE7DFD:
+      content: |-
+        comment=Rearranging COP2 ops to avoid clip flag response. Fixes SPS.
+        patch=1,EE,001a9d98,word,484E9000
+        patch=1,EE,001a9d9c,word,4BDBD9FF
 SLUS-21702:
   name: "Fire Pro Wrestling - Returns"
   region: "NTSC-U"
@@ -43706,6 +44178,8 @@ SLUS-21727:
   compat: 5
   clampModes:
     vuClampMode: 2 # Fixes invisible QTE button prompts and overbright in some scenes.
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLUS-21728:
   name: "Crash - Mind Over Mutant"
   region: "NTSC-U"
@@ -44285,6 +44759,8 @@ SLUS-21862:
   name: "Naruto Shippuden - Ultimate Ninja 4"
   region: "NTSC-U"
   compat: 5
+  gameFixes:
+    - SoftwareRendererFMVHack # Fixes vertical lines in FMVs.
 SLUS-21863:
   name: "Suzuki TT Superbikes - Real Road Racing Championship"
   region: "NTSC-U"
@@ -44351,6 +44827,8 @@ SLUS-21878:
   name: "Ice Age 3 - Dawn of the Dinosaurs"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 2 # Fixes blurriness.
 SLUS-21879:
   name: "Marvel - Ultimate Alliance 2"
   region: "NTSC-U"
@@ -44847,9 +45325,14 @@ SLUS-29008:
 SLUS-29009:
   name: "Devil May Cry [Demo]"
   region: "NTSC-U"
+  gsHWFixes:
+    disablePartialInvalidation: 1 # Fixes corrupt textures.
 SLUS-29010:
   name: "Crash Bandicoot - The Wrath of Cortex [Demo]"
   region: "NTSC-U"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.
 SLUS-29011:
   name: "WWF SmackDown! - Just Bring It [Demo]"
   region: "NTSC-U"
@@ -45121,6 +45604,8 @@ SLUS-29108:
 SLUS-29110:
   name: "Monster Hunter [Public Beta Vol.1 - Ver.1.01]"
   region: "NTSC-U"
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 SLUS-29111:
   name: "Asterix & Obelix XXL - Kick Buttix [Demo]"
   region: "NTSC-U"
@@ -45517,7 +46002,10 @@ TCPS-10148:
   name: "Zero Shikikan Josentoki Ni [Limited Edition]"
   region: "NTSC-J"
 TCPS-10152:
-  name: "Rozen Maiden - Duel Valzer"
+  name: "Rozen Maiden - Duellwalzer"
+  region: "NTSC-J"
+TCPS-10153:
+  name: "Rozen Maiden - Duellwalzer [Limited Edition]"
   region: "NTSC-J"
 TCPS-10154:
   name: "Ys V - Lost Kefin - Kingdom of Sand"
@@ -45534,6 +46022,15 @@ TCPS-10168:
 TCPS-10172:
   name: "Homura [Taito the Best]"
   region: "NTSC-J"
+TCPS-10182:
+  name: "Rozen Maiden - Gebetgarten [Limited Edition]"
+  region: "NTSC-J"
+TCPS-10183:
+  name: "Taito Memories II - Gekan"
+  region: "NTSC-J"
+TCPS-10184:
+  name: "Rozen Maiden - Duellwalzer [Taito the Best]"
+  region: "NTSC-J"
 TLES-52149:
   name: "Splinter Cell - Pandora Tomorrow Beta Trial Code"
   region: "PAL-E"
@@ -45543,6 +46040,8 @@ TLES-52339:
 TLES-52707:
   name: "Monster Hunter Beta Trial Code"
   region: "PAL-E"
+  clampModes:
+    vuClampMode: 3 # Fixes lighting on character models as caves and other locations don't turn mobs into glow-in-the-dark creatures by themselves.
 TLES-52781:
   name: "WWE - Smackdown Vs Raw Beta Trial Code"
   region: "PAL-E"
@@ -45560,3 +46059,15 @@ TLES-82043:
   region: "PAL-E"
   gsHWFixes:
     halfPixelOffset: 2 # Fixes blurriness.
+VW067-J1:
+  name: "Crash Bandicoot 4 - Sakuretsu! Majin Power!"
+  region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.
+VW067-J2:
+  name: "Crash Bandicoot 4 - Sakuretsu! Majin Power! [PlayStation 2 The Best]"
+  region: "NTSC-J"
+  gsHWFixes:
+    preloadFrameData: 1 # Fixes random texture corruptions such as horizontal lines.
+    cpuFramebufferConversion: 1 # Fixes fog wall.

@@ -37,7 +37,7 @@
 #include "wx_dialog/dialog.h"
 
 #ifndef __APPLE__
-Display* GSdsp;
+Display* GSdsp = nullptr;
 Window GSwin;
 #endif
 
@@ -50,6 +50,11 @@ HostKeyEvent event;
 
 static HostKeyEvent s_event;
 std::string s_padstrLogPath("logs/");
+#ifndef PCSX2_CORE
+// PADclose is called from the core thread but PADupdate is called from the main thread
+// I kind of hate this solution but it only needs to be here until we switch to Qt so whatever
+static std::mutex s_pad_lock;
+#endif
 
 KeyStatus g_key_status;
 
@@ -96,6 +101,9 @@ s32 PADopen(const WindowInfo& wi)
 
 void PADclose()
 {
+#ifndef PCSX2_CORE
+	std::lock_guard<std::mutex> guard(s_pad_lock);
+#endif
 	device_manager.devices.clear();
 }
 
@@ -255,13 +263,16 @@ void PADupdate(int pad)
 	// Emulate an user activity
 	static int count = 0;
 	count++;
-	if ((count & 0xFFF) == 0)
+	if (GSdsp && (count & 0xFFF) == 0)
 	{
 		// 1 call every 4096 Vsync is enough
 		XResetScreenSaver(GSdsp);
 	}
 #endif
 
+#ifndef PCSX2_CORE
+	std::lock_guard<std::mutex> guard(s_pad_lock);
+#endif
 	// Actually PADupdate is always call with pad == 0. So you need to update both
 	// pads -- Gregory
 	device_manager.Update();

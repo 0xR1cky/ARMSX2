@@ -39,6 +39,7 @@ function(get_git_version_info)
 	set(PCSX2_WC_TIME 0)
 	set(PCSX2_GIT_REV "")
 	set(PCSX2_GIT_TAG "")
+	set(PCSX2_GIT_HASH "")
 	if (GIT_FOUND AND EXISTS ${PROJECT_SOURCE_DIR}/.git)
 		EXECUTE_PROCESS(WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} COMMAND ${GIT_EXECUTABLE} show -s --format=%ci HEAD
 			OUTPUT_VARIABLE PCSX2_WC_TIME
@@ -56,8 +57,16 @@ function(get_git_version_info)
 			OUTPUT_VARIABLE PCSX2_GIT_TAG
 			OUTPUT_STRIP_TRAILING_WHITESPACE
 			ERROR_QUIET)
+
+		EXECUTE_PROCESS(WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} COMMAND ${GIT_EXECUTABLE} rev-parse HEAD
+			OUTPUT_VARIABLE PCSX2_GIT_HASH
+			OUTPUT_STRIP_TRAILING_WHITESPACE
+			ERROR_QUIET)
 	endif()
-	if(PCSX2_GIT_REV)
+	if ("${PCSX2_GIT_TAG}" MATCHES "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+		string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" PCSX2_VERSION_LONG  "${PCSX2_GIT_TAG}")
+		string(REGEX MATCH "[0-9]+\\.[0-9]+\\.[0-9]+" PCSX2_VERSION_SHORT "${PCSX2_GIT_TAG}")
+	elseif(PCSX2_GIT_REV)
 		set(PCSX2_VERSION_LONG "${PCSX2_GIT_REV}")
 		string(REGEX MATCH "[0-9]+\\.[0-9]+(\\.[0-9]+)?(-[a-z][a-z0-9]+)?" PCSX2_VERSION_SHORT "${PCSX2_VERSION_LONG}")
 	else()
@@ -71,6 +80,7 @@ function(get_git_version_info)
 	set(PCSX2_WC_TIME "${PCSX2_WC_TIME}" PARENT_SCOPE)
 	set(PCSX2_GIT_REV "${PCSX2_GIT_REV}" PARENT_SCOPE)
 	set(PCSX2_GIT_TAG "${PCSX2_GIT_TAG}" PARENT_SCOPE)
+	set(PCSX2_GIT_HASH "${PCSX2_GIT_HASH}" PARENT_SCOPE)
 	set(PCSX2_VERSION_LONG "${PCSX2_VERSION_LONG}" PARENT_SCOPE)
 	set(PCSX2_VERSION_SHORT "${PCSX2_VERSION_SHORT}" PARENT_SCOPE)
 endfunction()
@@ -86,6 +96,7 @@ function(write_svnrev_h)
 				"#define GIT_TAG_MID ${CMAKE_MATCH_2}\n"
 				"#define GIT_TAG_LO  ${CMAKE_MATCH_3}\n"
 				"#define GIT_REV \"\"\n"
+				"#define GIT_HASH \"${PCSX2_GIT_HASH}\"\n"
 			)
 		else()
 			file(WRITE ${CMAKE_BINARY_DIR}/common/include/svnrev.h
@@ -93,6 +104,7 @@ function(write_svnrev_h)
 				"#define GIT_TAG \"${PCSX2_GIT_TAG}\"\n"
 				"#define GIT_TAGGED_COMMIT 1\n"
 				"#define GIT_REV \"\"\n"
+				"#define GIT_HASH \"${PCSX2_GIT_HASH}\"\n"
 			)
 		endif()
 	else()
@@ -101,6 +113,7 @@ function(write_svnrev_h)
 			"#define GIT_TAG \"${PCSX2_GIT_TAG}\"\n"
 			"#define GIT_TAGGED_COMMIT 0\n"
 			"#define GIT_REV \"${PCSX2_GIT_REV}\"\n"
+			"#define GIT_HASH \"${PCSX2_GIT_HASH}\"\n"
 		)
 	endif()
 endfunction()

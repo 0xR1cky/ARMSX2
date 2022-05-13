@@ -187,9 +187,6 @@
     <Filter Include="System\Ps2\GS\Renderers">
       <UniqueIdentifier>{f65f5552-af5b-47b0-9029-48d4dc33c2f9}</UniqueIdentifier>
     </Filter>
-    <Filter Include="System\Ps2\GS\Renderers\Direct3D">
-      <UniqueIdentifier>{6e0dc702-cb44-4a22-a595-4cbd335f31a4}</UniqueIdentifier>
-    </Filter>
     <Filter Include="System\Ps2\GS\Renderers\Hardware">
       <UniqueIdentifier>{85d4539e-fc10-4369-98f0-0ee9a6a9cc00}</UniqueIdentifier>
     </Filter>
@@ -226,11 +223,14 @@
     <Filter Include="System\Ps2\GS\Shaders\Vulkan">
       <UniqueIdentifier>{8c7c08ed-6c87-4b10-82ca-c832e84828c4}</UniqueIdentifier>
     </Filter>
-    <Filter Include="System\Ps2\GS\Shaders\Direct3D11">
-      <UniqueIdentifier>{eb697f5b-85f5-424a-a7e4-8d8b73d3426e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="System\Ps2\GS\Renderers\Direct3D12">
       <UniqueIdentifier>{3951f622-8975-4d9a-9bc0-65e6646b9416}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\GS\Renderers\Direct3D11">
+      <UniqueIdentifier>{6e0dc702-cb44-4a22-a595-4cbd335f31a4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Ps2\GS\Shaders\Direct3D">
+      <UniqueIdentifier>{eb697f5b-85f5-424a-a7e4-8d8b73d3426e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -319,19 +319,19 @@
       <Filter>System\Ps2\GS\Shaders\Vulkan</Filter>
     </None>
     <None Include="..\bin\resources\shaders\dx11\tfx.fx">
-      <Filter>System\Ps2\GS\Shaders\Direct3D11</Filter>
+      <Filter>System\Ps2\GS\Shaders\Direct3D</Filter>
     </None>
     <None Include="..\bin\resources\shaders\dx11\shadeboost.fx">
-      <Filter>System\Ps2\GS\Shaders\Direct3D11</Filter>
+      <Filter>System\Ps2\GS\Shaders\Direct3D</Filter>
     </None>
     <None Include="..\bin\resources\shaders\dx11\merge.fx">
-      <Filter>System\Ps2\GS\Shaders\Direct3D11</Filter>
+      <Filter>System\Ps2\GS\Shaders\Direct3D</Filter>
     </None>
     <None Include="..\bin\resources\shaders\dx11\interlace.fx">
-      <Filter>System\Ps2\GS\Shaders\Direct3D11</Filter>
+      <Filter>System\Ps2\GS\Shaders\Direct3D</Filter>
     </None>
     <None Include="..\bin\resources\shaders\dx11\convert.fx">
-      <Filter>System\Ps2\GS\Shaders\Direct3D11</Filter>
+      <Filter>System\Ps2\GS\Shaders\Direct3D</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -353,9 +353,6 @@
     <ClCompile Include="Dump.cpp">
       <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="x86\iMisc.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
     <ClCompile Include="Pcsx2Config.cpp">
       <Filter>System</Filter>
     </ClCompile>
@@ -366,9 +363,6 @@
       <Filter>System</Filter>
     </ClCompile>
     <ClCompile Include="System.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
-    <ClCompile Include="System\SysThreadBase.cpp">
       <Filter>System</Filter>
     </ClCompile>
     <ClCompile Include="Elfheader.cpp">
@@ -602,7 +596,7 @@
     <ClCompile Include="ps2\Iop\IopHwWrite.cpp">
       <Filter>System\Ps2\Iop\Hardware</Filter>
     </ClCompile>
-    <ClCompile Include="CDVD\CdRom.cpp">
+    <ClCompile Include="CDVD\Ps1CD.cpp">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClCompile>
     <ClCompile Include="CDVD\CDVD.cpp">
@@ -630,9 +624,6 @@
       <Filter>System\Ps2\IPU\mpeg2lib</Filter>
     </ClCompile>
     <ClCompile Include="GS.cpp">
-      <Filter>System\Ps2\GS\GIF</Filter>
-    </ClCompile>
-    <ClCompile Include="GSState.cpp">
       <Filter>System\Ps2\GS\GIF</Filter>
     </ClCompile>
     <ClCompile Include="MTGS.cpp">
@@ -692,7 +683,7 @@
     <ClCompile Include="IPU\IPUdma.cpp">
       <Filter>System\Ps2\IPU</Filter>
     </ClCompile>
-    <ClCompile Include="ps2\LegacyDmac.cpp">
+    <ClCompile Include="Dmac.cpp">
       <Filter>System\Ps2</Filter>
     </ClCompile>
     <ClCompile Include="Gif_Unit.cpp">
@@ -1029,13 +1020,13 @@
       <Filter>System\ISO</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\DX11\GSDevice11.cpp">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\DX11\GSTexture11.cpp">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\DX11\GSTextureFX11.cpp">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\OpenGL\GLLoader.cpp">
       <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
@@ -1097,9 +1088,6 @@
     <ClCompile Include="GS\Renderers\HW\GSRendererHW.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClCompile>
-    <ClCompile Include="GS\Renderers\HW\GSRendererNew.cpp">
-      <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
-    </ClCompile>
     <ClCompile Include="GS\Renderers\HW\GSTextureCache.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClCompile>
@@ -1143,7 +1131,7 @@
       <Filter>System\Ps2\GS\Window</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\DX11\D3D.cpp">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClCompile>
     <ClCompile Include="MemoryCardFile.cpp">
       <Filter>System\Ps2\Iop</Filter>
@@ -1463,7 +1451,7 @@
     <ClInclude Include="ps2\Iop\IopHw_Internal.h">
       <Filter>System\Ps2\Iop\Hardware</Filter>
     </ClInclude>
-    <ClInclude Include="CDVD\CdRom.h">
+    <ClInclude Include="CDVD\Ps1CD.h">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClInclude>
     <ClInclude Include="CDVD\CDVD.h">
@@ -1860,10 +1848,10 @@
       <Filter>System\Ps2\GS\GIF</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\DX11\GSDevice11.h">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\DX11\GSTexture11.h">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\OpenGL\GLLoader.h">
       <Filter>System\Ps2\GS\Renderers\OpenGL</Filter>
@@ -1931,9 +1919,6 @@
     <ClInclude Include="GS\Renderers\HW\GSRendererHW.h">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClInclude>
-    <ClInclude Include="GS\Renderers\HW\GSRendererNew.h">
-      <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
-    </ClInclude>
     <ClInclude Include="GS\Renderers\HW\GSTextureCache.h">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClInclude>
@@ -1986,7 +1971,7 @@
       <Filter>System\Ps2\GS\Window</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\DX11\D3D.h">
-      <Filter>System\Ps2\GS\Renderers\Direct3D</Filter>
+      <Filter>System\Ps2\GS\Renderers\Direct3D11</Filter>
     </ClInclude>
     <ClInclude Include="MemoryCardFolder.h">
       <Filter>System\Ps2\Iop</Filter>

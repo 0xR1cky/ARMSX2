@@ -19,6 +19,7 @@
 // The EventText function will pick it up.
 
 #include "PrecompiledHeader.h"
+#include "IopCounters.h"
 #include "R3000A.h"
 #include "Common.h"
 #include "SPU2/spu2.h"
@@ -167,7 +168,7 @@ void psxRcntInit()
 	psxNextsCounter = psxRegs.cycle;
 }
 
-static bool __fastcall _rcntFireInterrupt(int i, bool isOverflow)
+static bool _rcntFireInterrupt(int i, bool isOverflow)
 {
 	bool ret;
 
@@ -200,7 +201,7 @@ static bool __fastcall _rcntFireInterrupt(int i, bool isOverflow)
 
 	return ret;
 }
-static void __fastcall _rcntTestTarget(int i)
+static void _rcntTestTarget(int i)
 {
 	if (psxCounters[i].count < psxCounters[i].target)
 		return;

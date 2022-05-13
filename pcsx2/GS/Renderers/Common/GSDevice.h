@@ -75,11 +75,10 @@ enum ChannelFetch
 class MergeConstantBuffer
 {
 public:
+	GSVector4 BGColor;
 	u32 EMODA;
 	u32 EMODC;
 	u32 pad[2];
-
-	MergeConstantBuffer() { memset(this, 0, sizeof(*this)); }
 };
 
 class InterlaceConstantBuffer
@@ -718,7 +717,7 @@ public:
 	/// Must be called to free resources after calling `DownloadTexture` or `DownloadTextureConvert`
 	virtual void DownloadTextureComplete() {}
 
-	virtual void CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r) {}
+	virtual void CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, u32 destX, u32 destY) {}
 	virtual void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, ShaderConvert shader = ShaderConvert::COPY, bool linear = true) {}
 	virtual void StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, bool red, bool green, bool blue, bool alpha) {}
 

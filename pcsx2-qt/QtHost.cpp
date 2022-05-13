@@ -22,10 +22,13 @@
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
+#include <KnownFolders.h>
+#include <ShlObj.h>
 #endif
 
 #include "common/Assertions.h"
 #include "common/Console.h"
+#include "common/CrashHandler.h"
 #include "common/FileSystem.h"
 #include "common/SettingsWrapper.h"
 #include "common/StringUtil.h"
@@ -39,6 +42,7 @@
 #include "GameList/GameListWidget.h"
 #include "MainWindow.h"
 #include "QtHost.h"
+#include "svnrev.h"
 
 #include "pcsx2/DebugTools/Debug.h"
 
@@ -51,6 +55,9 @@ static constexpr u32 SETTINGS_SAVE_DELAY = 1000;
 namespace QtHost {
 static void InitializeWxRubbish();
 static bool InitializeConfig();
+static bool ShouldUsePortableMode();
+static void SetResourcesDirectory();
+static void SetDataDirectory();
 static void HookSignals();
 static bool SetCriticalFolders();
 static void SetDefaultConfig();
@@ -62,6 +69,7 @@ static void SaveSettings();
 //////////////////////////////////////////////////////////////////////////
 static std::unique_ptr<QTimer> s_settings_save_timer;
 static std::unique_ptr<INISettingsInterface> s_base_settings_interface;
+static bool s_batch_mode = false;
 
 //////////////////////////////////////////////////////////////////////////
 // Initialization/Shutdown
@@ -104,15 +112,15 @@ bool QtHost::SetCriticalFolders()
 {
 	std::string program_path(FileSystem::GetProgramPath());
 	EmuFolders::AppRoot = wxDirName(wxFileName(StringUtil::UTF8StringToWxString(program_path)));
-	EmuFolders::DataRoot = EmuFolders::AppRoot;
-#ifndef _WIN32
-	const char* homedir = getenv("HOME");
-	if (homedir)
-		EmuFolders::DataRoot = Path::Combine(wxString::FromUTF8(homedir), wxString(L"PCSX2"));
-#endif
+	SetResourcesDirectory();
+	SetDataDirectory();
 
-	EmuFolders::Settings = EmuFolders::DataRoot.Combine(wxDirName(L"inis"));
-	EmuFolders::Resources = EmuFolders::AppRoot.Combine(wxDirName(L"resources"));
+	// allow SetDataDirectory() to change settings directory (if we want to split config later on)
+	if (!EmuFolders::Settings.IsOk())
+		EmuFolders::Settings = EmuFolders::DataRoot.Combine(wxDirName(L"inis"));
+
+	// Write crash dumps to the data directory, since that'll be accessible for certain.
+	CrashHandler::SetWriteDirectory(EmuFolders::DataRoot.ToUTF8().data());
 
 	// the resources directory should exist, bail out if not
 	if (!EmuFolders::Resources.Exists())
@@ -123,6 +131,82 @@ bool QtHost::SetCriticalFolders()
 	}
 
 	return true;
+}
+
+bool QtHost::ShouldUsePortableMode()
+{
+	// Check whether portable.ini exists in the program directory.
+	return FileSystem::FileExists(Path::CombineStdString(EmuFolders::AppRoot, "portable.ini").c_str());
+}
+
+void QtHost::SetResourcesDirectory()
+{
+#ifndef __APPLE__
+	// On Windows/Linux, these are in the binary directory.
+	EmuFolders::Resources = EmuFolders::AppRoot.Combine(wxDirName(L"resources"));
+#else
+	// On macOS, this is in the bundle resources directory.
+	EmuFolders::Resources = EmuFolders::AppRoot.Combine(wxDirName("../Resources"));
+#endif
+}
+
+void QtHost::SetDataDirectory()
+{
+	if (ShouldUsePortableMode())
+	{
+		EmuFolders::DataRoot = EmuFolders::AppRoot;
+		return;
+	}
+
+#if defined(_WIN32)
+	// On Windows, use My Documents\PCSX2 to match old installs.
+	PWSTR documents_directory;
+	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, NULL, &documents_directory)))
+	{
+		if (std::wcslen(documents_directory) > 0)
+			EmuFolders::DataRoot = wxDirName(Path::Combine(wxString(documents_directory), L"PCSX2"));
+		CoTaskMemFree(documents_directory);
+	}
+#elif defined(__linux__)
+	// Check for $HOME/PCSX2 first, for legacy installs.
+	const char* home_dir = getenv("HOME");
+	const std::string legacy_dir(home_dir ? Path::CombineStdString(home_dir, "PCSX2") : std::string());
+	if (!legacy_dir.empty() && FileSystem::DirectoryExists(legacy_dir.c_str()))
+	{
+		EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(legacy_dir));
+	}
+	else
+	{
+		// otherwise, use $XDG_CONFIG_HOME/PCSX2.
+		const char* xdg_config_home = getenv("XDG_CONFIG_HOME");
+		if (xdg_config_home && xdg_config_home[0] == '/' && FileSystem::DirectoryExists(xdg_config_home))
+		{
+			EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(Path::CombineStdString(xdg_config_home, "PCSX2")));
+		}
+		else if (!legacy_dir.empty())
+		{
+			// fall back to the legacy PCSX2-in-home.
+			EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(legacy_dir));
+		}
+	}
+#elif defined(__APPLE__)
+	static constexpr char MAC_DATA_DIR[] = "Library/Application Support/PCSX2";
+	const char* home_dir = getenv("HOME");
+	if (home_dir)
+		EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(Path::CombineStdString(home_dir, MAC_DATA_DIR)));
+#endif
+
+	// make sure it exists
+	if (EmuFolders::DataRoot.IsOk() && !EmuFolders::DataRoot.Exists())
+	{
+		// we're in trouble if we fail to create this directory... but try to hobble on with portable
+		if (!EmuFolders::DataRoot.Mkdir())
+			EmuFolders::DataRoot.Clear();
+	}
+
+	// couldn't determine the data directory? fallback to portable.
+	if (!EmuFolders::DataRoot.IsOk())
+		EmuFolders::DataRoot = EmuFolders::AppRoot;
 }
 
 void QtHost::UpdateFolders()
@@ -300,12 +384,57 @@ void QtHost::QueueSettingsSave()
 	s_settings_save_timer->start(SETTINGS_SAVE_DELAY);
 }
 
+bool QtHost::InBatchMode()
+{
+	return s_batch_mode;
+}
+
+void QtHost::SetBatchMode(bool enabled)
+{
+	s_batch_mode = enabled;
+}
+
 void QtHost::RunOnUIThread(const std::function<void()>& func, bool block /*= false*/)
 {
 	// main window always exists, so it's fine to attach it to that.
 	QMetaObject::invokeMethod(g_main_window, "runOnUIThread",
 		block ? Qt::BlockingQueuedConnection : Qt::QueuedConnection,
 		Q_ARG(const std::function<void()>&, func));
+}
+
+QString QtHost::GetAppNameAndVersion()
+{
+	QString ret;
+	if constexpr (!PCSX2_isReleaseVersion && GIT_TAGGED_COMMIT)
+	{
+		ret = QStringLiteral("PCSX2 Nightly - " GIT_TAG);
+	}
+	else if constexpr (PCSX2_isReleaseVersion)
+	{
+#define APPNAME_STRINGIZE(x) #x
+		ret = QStringLiteral("PCSX2 "
+			APPNAME_STRINGIZE(PCSX2_VersionHi) "."
+			APPNAME_STRINGIZE(PCSX2_VersionMid) "."
+			APPNAME_STRINGIZE(PCSX2_VersionLo));
+#undef APPNAME_STRINGIZE
+	}
+	else
+	{
+		return QStringLiteral("PCSX2 " GIT_REV);
+	}
+
+	return ret;
+}
+
+QString QtHost::GetAppConfigSuffix()
+{
+#if defined(PCSX2_DEBUG)
+	return QStringLiteral(" [Debug]");
+#elif defined(PCSX2_DEVBUILD)
+	return QStringLiteral(" [Devel]");
+#else
+	return QString();
+#endif
 }
 
 std::optional<std::vector<u8>> Host::ReadResourceFile(const char* filename)
@@ -409,46 +538,52 @@ void QtHost::HookSignals()
 
 static bool s_debugger_attached = false;
 static bool s_console_handle_set = false;
-static HANDLE s_console_handle = nullptr;
+static bool s_console_allocated = false;
+static HANDLE s_console_handle = INVALID_HANDLE_VALUE;
+static HANDLE s_old_console_stdin = NULL;
+static HANDLE s_old_console_stdout = NULL;
+static HANDLE s_old_console_stderr = NULL;
 
-static void __concall ConsoleWinQt_SetTitle(const wxString& title)
+static void ConsoleWinQt_SetTitle(const wxString& title)
 {
 	SetConsoleTitleW(title.wc_str());
 }
 
-static void __concall ConsoleWinQt_DoSetColor(ConsoleColors color)
+static void ConsoleWinQt_DoSetColor(ConsoleColors color)
 {
 	if (!s_console_handle)
 		return;
 
-	static constexpr WORD colors[ConsoleColors_Count] = {
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, // default
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, // black
-		FOREGROUND_GREEN, // green
-		FOREGROUND_RED, // red
-		FOREGROUND_BLUE, // blue
-		FOREGROUND_RED | FOREGROUND_BLUE, // magenta
-		FOREGROUND_RED | FOREGROUND_GREEN, // orange
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, // gray
-		FOREGROUND_BLUE | FOREGROUND_INTENSITY, // cyan
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY, // yellow
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY, // white
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, // strong black
-		FOREGROUND_RED | FOREGROUND_INTENSITY, // strong red
-		FOREGROUND_GREEN | FOREGROUND_INTENSITY, // strong green
-		FOREGROUND_BLUE | FOREGROUND_INTENSITY, // strong blue
-		FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY, // strong magenta
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY, // strong orange
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE, // strong gray
-		FOREGROUND_BLUE | FOREGROUND_INTENSITY, // strong cyan
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY, // strong yellow
-		FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE | FOREGROUND_INTENSITY, // strong white
+	static constexpr wchar_t colors[][ConsoleColors_Count] = {
+		L"\033[0m", // default
+		L"\033[30m\033[1m", // black
+		L"\033[32m", // green
+		L"\033[31m", // red
+		L"\033[34m", // blue
+		L"\033[35m", // magenta
+		L"\033[35m", // orange (FIXME)
+		L"\033[37m", // gray
+		L"\033[36m", // cyan
+		L"\033[33m", // yellow
+		L"\033[37m", // white
+		L"\033[30m\033[1m", // strong black
+		L"\033[31m\033[1m", // strong red
+		L"\033[32m\033[1m", // strong green
+		L"\033[34m\033[1m", // strong blue
+		L"\033[35m\033[1m", // strong magenta
+		L"\033[35m\033[1m", // strong orange (FIXME)
+		L"\033[37m\033[1m", // strong gray
+		L"\033[36m\033[1m", // strong cyan
+		L"\033[33m\033[1m", // strong yellow
+		L"\033[37m\033[1m", // strong white
 	};
 
-	SetConsoleTextAttribute(s_console_handle, colors[static_cast<u32>(color)]);
+	const wchar_t* colortext = colors[static_cast<u32>(color)];
+	DWORD written;
+	WriteConsoleW(s_console_handle, colortext, std::wcslen(colortext), &written, nullptr);
 }
 
-static void __concall ConsoleWinQt_Newline()
+static void ConsoleWinQt_Newline()
 {
 	if (!s_console_handle)
 		return;
@@ -460,7 +595,7 @@ static void __concall ConsoleWinQt_Newline()
 	WriteConsoleW(s_console_handle, L"\n", 1, &written, nullptr);
 }
 
-static void __concall ConsoleWinQt_DoWrite(const wxString& fmt)
+static void ConsoleWinQt_DoWrite(const wxString& fmt)
 {
 	if (!s_console_handle)
 		return;
@@ -472,7 +607,7 @@ static void __concall ConsoleWinQt_DoWrite(const wxString& fmt)
 	WriteConsoleW(s_console_handle, fmt.wc_str(), static_cast<DWORD>(fmt.size()), &written, nullptr);
 }
 
-static void __concall ConsoleWinQt_DoWriteLn(const wxString& fmt)
+static void ConsoleWinQt_DoWriteLn(const wxString& fmt)
 {
 	if (!s_console_handle)
 		return;
@@ -509,41 +644,61 @@ static BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType)
 	return TRUE;
 }
 
-#endif
-
-void QtHost::UpdateLogging()
+static bool EnableVirtualTerminalProcessing(HANDLE hConsole)
 {
-	// TODO: Make this an actual option.
-	const bool system_console_enabled = QtHost::GetBaseBoolSettingValue("Logging", "EnableSystemConsole", false);
+	if (hConsole == INVALID_HANDLE_VALUE)
+		return false;
 
-	const bool any_logging_sinks = system_console_enabled;
-	DevConWriterEnabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableVerbose", false);
-	SysConsole.eeConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableEEConsole", true);
-	SysConsole.iopConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableIOPConsole", true);
+	DWORD old_mode;
+	if (!GetConsoleMode(hConsole, &old_mode))
+		return false;
 
-#ifdef _WIN32
-	if (system_console_enabled)
+	// already enabled?
+	if (old_mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
+		return true;
+
+	return SetConsoleMode(hConsole, old_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
+}
+
+static void SetSystemConsoleEnabled(bool enabled)
+{
+	if (enabled)
 	{
 		s_debugger_attached = IsDebuggerPresent();
 		if (!s_console_handle_set)
 		{
+			s_old_console_stdin = GetStdHandle(STD_INPUT_HANDLE);
+			s_old_console_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
+			s_old_console_stderr = GetStdHandle(STD_ERROR_HANDLE);
+
 			bool handle_valid = (GetConsoleWindow() != NULL);
 			if (!handle_valid)
 			{
-				AllocConsole();
-				handle_valid = (freopen("CONIN$", "r", stdin) != nullptr);
-				handle_valid = (freopen("CONOUT$", "w", stdout) != nullptr);
-				handle_valid = (freopen("CONOUT$", "w", stderr) != nullptr);
+				s_console_allocated = AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole();
+				handle_valid = (GetConsoleWindow() != NULL);
 			}
 
 			if (handle_valid)
 			{
 				s_console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-				s_console_handle_set = true;
+				if (s_console_handle != INVALID_HANDLE_VALUE)
+				{
+					s_console_handle_set = true;
+
+					// This gets us unix-style coloured output.
+					EnableVirtualTerminalProcessing(GetStdHandle(STD_OUTPUT_HANDLE));
+					EnableVirtualTerminalProcessing(GetStdHandle(STD_ERROR_HANDLE));
+
+					// Redirect stdout/stderr.
+					std::FILE* fp;
+					freopen_s(&fp, "CONIN$", "r", stdin);
+					freopen_s(&fp, "CONOUT$", "w", stdout);
+					freopen_s(&fp, "CONOUT$", "w", stderr);
+				}
 			}
 		}
 
-		if (!s_console_handle && !s_debugger_attached)
+		if (!s_console_handle_set && !s_debugger_attached)
 		{
 			Console_SetActiveHandler(ConsoleWriter_Null);
 			SetConsoleCtrlHandler(ConsoleCtrlHandler, FALSE);
@@ -558,17 +713,61 @@ void QtHost::UpdateLogging()
 	{
 		Console_SetActiveHandler(ConsoleWriter_Null);
 		SetConsoleCtrlHandler(ConsoleCtrlHandler, FALSE);
+
+		if (s_console_handle_set)
+		{
+			s_console_handle_set = false;
+
+			// redirect stdout/stderr back to null.
+			std::FILE* fp;
+			freopen_s(&fp, "NUL:", "w", stderr);
+			freopen_s(&fp, "NUL:", "w", stdout);
+			freopen_s(&fp, "NUL:", "w", stdin);
+
+			// release console and restore state
+			SetStdHandle(STD_INPUT_HANDLE, s_old_console_stdin);
+			SetStdHandle(STD_OUTPUT_HANDLE, s_old_console_stdout);
+			SetStdHandle(STD_ERROR_HANDLE, s_old_console_stderr);
+			s_old_console_stdin = NULL;
+			s_old_console_stdout = NULL;
+			s_old_console_stderr = NULL;
+			if (s_console_allocated)
+			{
+				s_console_allocated = false;
+				FreeConsole();
+			}
+		}
 	}
+}
+
 #else
-	if (system_console_enabled)
-	{
+
+// Unix doesn't need any special handling for console.
+static void SetSystemConsoleEnabled(bool enabled)
+{
+	if (enabled)
 		Console_SetActiveHandler(ConsoleWriter_Stdout);
-	}
 	else
-	{
 		Console_SetActiveHandler(ConsoleWriter_Null);
-	}
+}
+
 #endif
+
+void QtHost::InitializeEarlyConsole()
+{
+	SetSystemConsoleEnabled(true);
+}
+
+void QtHost::UpdateLogging()
+{
+	const bool system_console_enabled = QtHost::GetBaseBoolSettingValue("Logging", "EnableSystemConsole", false);
+
+	const bool any_logging_sinks = system_console_enabled;
+	DevConWriterEnabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableVerbose", false);
+	SysConsole.eeConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableEEConsole", true);
+	SysConsole.iopConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableIOPConsole", true);
+
+	SetSystemConsoleEnabled(system_console_enabled);
 }
 
 #include <wx/module.h>

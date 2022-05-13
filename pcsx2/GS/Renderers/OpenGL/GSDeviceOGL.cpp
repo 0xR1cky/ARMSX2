@@ -120,7 +120,7 @@ void GSDeviceOGL::GenerateProfilerData()
 	GLuint64 time_start = 0;
 	GLuint64 time_end = 0;
 	std::vector<double> times;
-	const double ms = 0.000001;
+	constexpr double ms = 0.000001;
 
 	const int replay = theApp.GetConfigI("linux_replay");
 	const int first_query = replay > 1 ? m_profiler.last_query / replay : 0;
@@ -380,7 +380,7 @@ bool GSDeviceOGL::Create(HostDisplay* display)
 				m_convert.ps[i].RegisterUniform("EMOD");
 		}
 
-		PSSamplerSelector point;
+		const PSSamplerSelector point;
 		m_convert.pt = GetSamplerID(point);
 
 		PSSamplerSelector bilinear;
@@ -1145,7 +1145,7 @@ void GSDeviceOGL::BlitRect(GSTexture* sTex, const GSVector4i& r, const GSVector2
 }
 
 // Copy a sub part of a texture into another
-void GSDeviceOGL::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r)
+void GSDeviceOGL::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r, u32 destX, u32 destY)
 {
 	ASSERT(sTex && dTex);
 	if (!(sTex && dTex))
@@ -1167,7 +1167,7 @@ void GSDeviceOGL::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r
 	glCopyImageSubData(sid, GL_TEXTURE_2D,
 		0, r.x, r.y, 0,
 		did, GL_TEXTURE_2D,
-		0, 0, 0, 0,
+		0, destX, destY, 0,
 		r.width(), r.height(), 1);
 }
 
@@ -1840,7 +1840,7 @@ void GSDeviceOGL::RenderHW(GSHWDrawConfig& config)
 	if (config.ps.hdr)
 	{
 		GSVector2i size = config.rt->GetSize();
-		hdr_rt = CreateRenderTarget(size.x, size.y, GSTexture::Format::FloatColor);
+		hdr_rt = CreateRenderTarget(size.x, size.y, GSTexture::Format::FloatColor, false);
 		hdr_rt->CommitRegion(GSVector2i(config.drawarea.z, config.drawarea.w));
 		OMSetRenderTargets(hdr_rt, config.ds, &config.scissor);
 

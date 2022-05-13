@@ -52,6 +52,8 @@ static std::string GetDumpSerial()
 }
 #endif
 
+std::unique_ptr<GSRenderer> g_gs_renderer;
+
 GSRenderer::GSRenderer()
 	: m_shift_key(false)
 	, m_control_key(false)
@@ -90,6 +92,9 @@ bool GSRenderer::Merge(int field)
 			fr[i] = GetFrameRect(i);
 			dr[i] = GetDisplayRect(i);
 			display_offsets[i] = GetResolutionOffset(i);
+
+			if (isinterlaced() && m_regs->SMODE2.FFMD)
+				display_offsets[i].y >>= 1;
 
 			display_combined.x = std::max(GetFrameMagnifiedRect(i).right + abs(display_offsets[i].x), display_combined.x);
 			display_combined.y = std::max(GetFrameMagnifiedRect(i).bottom + abs(display_offsets[i].y), display_combined.y);
@@ -193,7 +198,7 @@ bool GSRenderer::Merge(int field)
 
 	const bool slbg = m_regs->PMODE.SLBG;
 
-	const GSVector2i resolution(GetResolution());
+	GSVector2i resolution(GetResolution());
 	bool scanmask_frame = true;
 
 	for (int i = 0; i < 2; i++)
@@ -221,9 +226,8 @@ bool GSRenderer::Merge(int field)
 			if (!ignore_offset)
 				off.y &= ~1;
 		}
-
 		// All the following code is literally just to try and fill the window as much as possible and reduce blur put in by gamedevs by offsetting the DISPLAY's.
-		if (!ignore_offset && display_combined.y < (resolution.y-1) && display_combined.x < (resolution.x-1))
+		if (!ignore_offset && display_combined.y < (resolution.y) && display_combined.x < (resolution.x))
 		{
 			float difference[2];
 			difference[0] = resolution.x / (float)display_combined.x;
@@ -245,14 +249,18 @@ bool GSRenderer::Merge(int field)
 				}
 			}
 			// Anti blur hax
-			if (display_diff.x < 4)
+			// Offset by DISPLAY setting
+			if (samesrc)
 			{
-				off.x -= display_diff.x;
-			}
+				if (display_diff.x < 4)
+					off.x -= display_diff.x;
+				if (display_diff.y < 4)
+					off.y -= display_diff.y;
 
-			if (display_diff.y < 4)
-			{
-				off.y -= display_diff.y;
+				if (frame_diff.x == 1)
+					off.x += 1;
+				if (frame_diff.y == 1)
+					off.y += 1;
 			}
 		}
 		else if(ignore_offset) // Stretch to fit the window.
@@ -278,65 +286,69 @@ bool GSRenderer::Merge(int field)
 			{
 				r.bottom += height_change;
 			}
-			// Anti blur hax.
 			if (!slbg || !feedback_merge)
 			{
+				const int videomode = static_cast<int>(GetVideoMode()) - 1;
+				GSVector2i base_resolution(VideoModeOffsets[videomode].x, VideoModeOffsets[videomode].y);
+
+				if (isinterlaced() && !m_regs->SMODE2.FFMD)
+					base_resolution.y *= 2;
+
+				if (display_diff.x >= 4)
+					off.x = display_diff.x;
+
+				if (display_diff.y >= 4)
+					off.y = display_diff.y;
+
+				// Anti blur hax.
+				if (samesrc)
+				{
+					// Offset by DISPLAY setting
+					if (display_diff.x < 4)
+					{
+						off.x = 0;
+						if (base_resolution.x > resolution.x)
+							resolution.x -= display_diff.x;
+					}
+					if (display_diff.y < 4)
+					{
+						off.y = 0;
+						if (base_resolution.y > resolution.y)
+							resolution.y -= display_diff.y;
+					}
+
+					// Offset by DISPFB setting
+					if (frame_diff.x == 1)
+						off.x += 1;
+
+					if (frame_diff.y == 1)
+						off.y += 1;
+				}
+
 				if (display_diff.x > 4)
 					off.x = display_diff.x;
 
 				if (display_diff.y > 4)
 					off.y = display_diff.y;
 			}
-			
-			if (!slbg || !feedback_merge)
-			{
-				if (samesrc)
-				{
-					if (display_diff.x < 4 && off.x)
-						off.x = 0;
-					if (display_diff.y < 4)
-						off.y = 0;
-
-					if (display_diff.x > 4)
-						off.x = display_diff.x;
-
-					if (display_diff.y > 4)
-						off.y = display_diff.y;
-
-					if (frame_diff.x == 1)
-						off.x += 1;
-					if (frame_diff.y == 1)
-						off.y += 1;
-				}
-				else
-				{
-					if (display_diff.x > 4)
-						off.x = display_diff.x;
-
-					if (display_diff.y > 4)
-						off.y = display_diff.y;
-				}
-			}
 		}
-		// Anti blur hax.
+		// Anti blur hax if the resolution matches
 		else if (samesrc)
 		{
+			// Offset by DISPLAY setting
 			if (display_diff.x < 4)
 				off.x -= display_diff.x;
 			if (display_diff.y < 4)
 				off.y -= display_diff.y;
 
+			// Offset by DISPFB setting
 			if (frame_diff.x == 1)
 				off.x += 1;
 			if (frame_diff.y == 1)
 				off.y += 1;
 		}
 		// End of Resize/Anti-Blur code.
-
-		// Offsets are in full rect form, needs resizing for the actual draw if interlaced half frame.
-		if (m_regs->SMODE2.INT && m_regs->SMODE2.FFMD)
-			off.y /= 2;
-
+		
 		// src_gs_read is the size which we're really reading from GS memory.
 		src_gs_read[i] = ((GSVector4(fr[i]) + GSVector4(0, y_offset[i], 0, y_offset[i])) * scale) / GSVector4(tex[i]->GetSize()).xyxy();
 

@@ -14,12 +14,12 @@ target_sources(common PRIVATE
 	EventSource.inl
 	SafeArray.inl
 	Console.cpp
+	CrashHandler.cpp
 	EventSource.cpp
 	Exceptions.cpp
 	FastFormatString.cpp
 	FastJmp.cpp
 	FileSystem.cpp
-	Mutex.cpp
 	Misc.cpp
 	MD5Digest.cpp
 	PathUtils.cpp
@@ -27,13 +27,11 @@ target_sources(common PRIVATE
 	Perf.cpp
 	ProgressCallback.cpp
 	pxTranslate.cpp
-	RwMutex.cpp
 	Semaphore.cpp
 	SettingsWrapper.cpp
 	StringHelpers.cpp
 	StringUtil.cpp
 	Timer.cpp
-	ThreadTools.cpp
 	WindowInfo.cpp
 	emitter/bmi.cpp
 	emitter/cpudetect.cpp
@@ -65,6 +63,7 @@ target_sources(common PRIVATE
 	Assertions.h
 	boost_spsc_queue.hpp
 	Console.h
+	CrashHandler.h
 	Dependencies.h
 	EnumOps.h
 	EventSource.h
@@ -83,10 +82,8 @@ target_sources(common PRIVATE
 	ProgressCallback.h
 	pxForwardDefs.h
 	RedtapeWindows.h
-	RwMutex.h
 	SafeArray.h
 	ScopedGuard.h
-	ScopedPtrMT.h
 	SettingsInterface.h
 	SettingsWrapper.h
 	StringHelpers.h
@@ -173,9 +170,13 @@ endif()
 if(WIN32)
 	enable_language(ASM_MASM)
 	target_sources(common PRIVATE FastJmp.asm)
-	target_link_libraries(common PUBLIC WIL::WIL D3D12MemAlloc pthreads4w Winmm.lib)
+	target_link_libraries(common PUBLIC WIL::WIL D3D12MemAlloc Winmm.lib)
 	target_sources(common PRIVATE
+		CrashHandler.cpp
+		CrashHandler.h
 		FastJmp.asm
+		StackWalker.cpp
+		StackWalker.h
 		D3D11/ShaderCache.cpp
 		D3D11/ShaderCache.h
 		D3D11/ShaderCompiler.cpp
@@ -237,7 +238,6 @@ if(USE_OPENGL)
 				GL/ContextEGLWayland.cpp
 				GL/ContextEGLWayland.h
 			)
-			target_link_libraries(common PRIVATE ${WAYLAND_EGL_LIBRARIES})
 		endif()
 	endif()
 endif()

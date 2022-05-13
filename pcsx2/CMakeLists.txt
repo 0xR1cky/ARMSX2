@@ -119,6 +119,7 @@ set(pcsx2Sources
 	COP0.cpp
 	COP2.cpp
 	Counters.cpp
+	Dmac.cpp
 	GameDatabase.cpp
 	Dump.cpp
 	Elfheader.cpp
@@ -129,7 +130,6 @@ set(pcsx2Sources
 	Gif_Logger.cpp
 	Gif_Unit.cpp
 	GS.cpp
-	GSState.cpp
 	Host.cpp
 	HostDisplay.cpp
 	Hw.cpp
@@ -255,7 +255,7 @@ set(pcsx2Headers
 # CDVD sources
 set(pcsx2CDVDSources
 	CDVD/BlockdumpFileReader.cpp
-	CDVD/CdRom.cpp
+	CDVD/Ps1CD.cpp
 	CDVD/CDVDaccess.cpp
 	CDVD/CDVD.cpp
 	CDVD/CDVDdiscReader.cpp
@@ -276,7 +276,7 @@ set(pcsx2CDVDSources
 
 # CDVD headers
 set(pcsx2CDVDHeaders
-	CDVD/CdRom.h
+	CDVD/Ps1CD.h
 	CDVD/CDVDaccess.h
 	CDVD/CDVD.h
 	CDVD/CDVD_internal.h
@@ -685,7 +685,6 @@ set(pcsx2GSSources
 	GS/Renderers/Null/GSTextureNull.cpp
 	GS/Renderers/HW/GSHwHack.cpp
 	GS/Renderers/HW/GSRendererHW.cpp
-	GS/Renderers/HW/GSRendererNew.cpp
 	GS/Renderers/HW/GSTextureCache.cpp
 	GS/Renderers/HW/GSTextureReplacementLoaders.cpp
 	GS/Renderers/HW/GSTextureReplacements.cpp
@@ -747,7 +746,6 @@ set(pcsx2GSHeaders
 	GS/Renderers/Null/GSRendererNull.h
 	GS/Renderers/Null/GSTextureNull.h
 	GS/Renderers/HW/GSRendererHW.h
-	GS/Renderers/HW/GSRendererNew.h
 	GS/Renderers/HW/GSTextureCache.h
 	GS/Renderers/HW/GSTextureReplacements.h
 	GS/Renderers/HW/GSVertexHW.h
@@ -1121,6 +1119,7 @@ set(pcsx2GuiSources
 	gui/MainFrame.cpp
 	gui/MainMenuClicks.cpp
 	gui/MessageBoxes.cpp
+	gui/Mutex.cpp
 	gui/MSWstuff.cpp
 	gui/Panels/BaseApplicableConfigPanel.cpp
 	gui/Panels/BiosSelectorPanel.cpp
@@ -1135,13 +1134,16 @@ set(pcsx2GuiSources
 	gui/Panels/PathsPanel.cpp
 	gui/Panels/SpeedhacksPanel.cpp
 	gui/Panels/VideoPanel.cpp
+	gui/PersistentThread.cpp
 	gui/pxCheckBox.cpp
 	gui/pxRadioPanel.cpp
 	gui/pxStaticText.cpp
 	gui/pxWindowTextWriter.cpp
 	gui/RecentIsoList.cpp
 	gui/Saveslots.cpp
+	gui/SysCoreThread.cpp
 	gui/SysState.cpp
+	gui/SysThreadBase.cpp
 	gui/ThreadingDialogs.cpp
 	gui/UpdateUI.cpp
 	gui/wxAppWithHelpers.cpp
@@ -1186,6 +1188,7 @@ set(pcsx2GuiHeaders
 	gui/Panels/ConfigurationPanels.h
 	gui/Panels/LogOptionsPanels.h
 	gui/Panels/MemoryCardPanels.h
+	gui/PersistentThread.h
 	gui/pxCheckBox.h
 	gui/pxEvents.h
 	gui/pxEventThread.h
@@ -1193,6 +1196,7 @@ set(pcsx2GuiHeaders
 	gui/pxStaticText.h
 	gui/RecentIsoList.h
 	gui/Saveslots.h
+	gui/SysThreads.h
 	gui/ThreadingDialogs.h
 	gui/ThreadingDialogs.cpp
 	gui/wxGuiTools.h
@@ -1284,7 +1288,6 @@ set(pcsx2LinuxHeaders
 set(pcsx2ps2Sources
 	ps2/BiosTools.cpp
 	ps2/pgif.cpp
-	ps2/LegacyDmac.cpp
 	ps2/Iop/IopHwRead.cpp
 	ps2/Iop/IopHwWrite.cpp
 	ps2/Iop/PsxBios.cpp)
@@ -1371,19 +1374,9 @@ set(pcsx2RecordingVirtualPadResources
 	${res_rec_vp_src}/upPressed.h
 )
 
-# System sources
-set(pcsx2SystemSources
-	System/SysThreadBase.cpp)
-if(NOT PCSX2_CORE)
-	list(APPEND pcsx2SystemSources
-		System/SysCoreThread.cpp
-	)
-endif()
-
 # System headers
 set(pcsx2SystemHeaders
-	System/RecTypes.h
-	System/SysThreads.h)
+	System/RecTypes.h)
 
 # Utilities sources
 set(pcsx2UtilitiesSources
@@ -1418,7 +1411,6 @@ set(pcsx2x86Sources
 	x86/iCore.cpp
 	x86/iFPU.cpp
 	x86/iFPUd.cpp
-	x86/iMisc.cpp
 	x86/iMMI.cpp
 	x86/iR3000A.cpp
 	x86/iR3000Atables.cpp
@@ -1521,7 +1513,6 @@ target_sources(PCSX2 PRIVATE
 	${pcsx2FrontendHeaders}
 	${pcsx2ps2Sources}
 	${pcsx2ps2Headers}
-	${pcsx2SystemSources}
 	${pcsx2SystemHeaders}
 	${pcsx2UtilitiesSources}
 	${pcsx2UtilitiesHeaders})
@@ -1625,7 +1616,6 @@ endif()
 if(WIN32)
 	target_link_libraries(PCSX2_FLAGS INTERFACE
 		baseclasses
-		pthreads4w
 		WIL::WIL
 		D3D12MemAlloc
 		setupapi.lib
@@ -1644,6 +1634,11 @@ if(WIN32)
 		opengl32.lib
 		comsuppw.lib
 	)
+	if(NOT PCSX2_CORE)
+		target_link_libraries(PCSX2_FLAGS INTERFACE
+			pthreads4w
+		)
+	endif()
 elseif(APPLE)
 	target_link_libraries(PCSX2_FLAGS INTERFACE
 		PCAP::PCAP

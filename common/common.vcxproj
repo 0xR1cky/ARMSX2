@@ -21,7 +21,6 @@
   <ImportGroup Label="PropertySheets">
     <Import Project="vsprops\CommonLibrary.props" />
     <Import Project="vsprops\3rdpartyDeps.props" />
-    <Import Project="vsprops\pthreads.props" />
     <Import Condition="$(Configuration.Contains(Debug))" Project="vsprops\CodeGen_Debug.props" />
     <Import Condition="$(Configuration.Contains(Devel))" Project="vsprops\CodeGen_Devel.props" />
     <Import Condition="$(Configuration.Contains(Release))" Project="vsprops\CodeGen_Release.props" />
@@ -45,6 +44,7 @@
   <ItemGroup>
     <ClCompile Include="AlignedMalloc.cpp" />
     <ClCompile Include="Console.cpp" />
+    <ClCompile Include="CrashHandler.cpp" />
     <ClCompile Include="D3D11\ShaderCache.cpp" />
     <ClCompile Include="D3D11\ShaderCompiler.cpp" />
     <ClCompile Include="D3D12\Builders.cpp" />
@@ -68,6 +68,7 @@
     <ClCompile Include="MD5Digest.cpp" />
     <ClCompile Include="ProgressCallback.cpp" />
     <ClCompile Include="pxTranslate.cpp" />
+    <ClCompile Include="StackWalker.cpp" />
     <ClCompile Include="StringUtil.cpp" />
     <ClCompile Include="SettingsWrapper.cpp" />
     <ClCompile Include="Timer.cpp" />
@@ -96,10 +97,7 @@
     <ClCompile Include="Windows\WinMisc.cpp" />
     <ClCompile Include="Windows\WinThreads.cpp" />
     <ClCompile Include="Misc.cpp" />
-    <ClCompile Include="Mutex.cpp" />
-    <ClCompile Include="RwMutex.cpp" />
     <ClCompile Include="Semaphore.cpp" />
-    <ClCompile Include="ThreadTools.cpp" />
     <ClCompile Include="emitter\bmi.cpp" />
     <ClCompile Include="emitter\cpudetect.cpp" />
     <ClCompile Include="emitter\fpu.cpp" />
@@ -122,6 +120,7 @@
     <ClInclude Include="Align.h" />
     <ClInclude Include="AlignedMalloc.h" />
     <ClInclude Include="BitCast.h" />
+    <ClInclude Include="CrashHandler.h" />
     <ClInclude Include="D3D11\ShaderCache.h" />
     <ClInclude Include="D3D11\ShaderCompiler.h" />
     <ClInclude Include="D3D12\Builders.h" />
@@ -144,10 +143,10 @@
     <ClInclude Include="MD5Digest.h" />
     <ClInclude Include="ProgressCallback.h" />
     <ClInclude Include="ScopedGuard.h" />
+    <ClInclude Include="StackWalker.h" />
     <ClInclude Include="StringUtil.h" />
     <ClInclude Include="SettingsInterface.h" />
     <ClInclude Include="SettingsWrapper.h" />
-    <ClInclude Include="ThreadingInternal.h" />
     <ClInclude Include="Assertions.h" />
     <ClInclude Include="Console.h" />
     <ClInclude Include="Dependencies.h" />
@@ -174,8 +173,6 @@
     <ClInclude Include="Vulkan\Util.h" />
     <ClInclude Include="WindowInfo.h" />
     <ClInclude Include="Threading.h" />
-    <ClInclude Include="PersistentThread.h" />
-    <ClInclude Include="RwMutex.h" />
     <ClInclude Include="emitter\implement\bmi.h" />
     <ClInclude Include="emitter\cpudetect_internal.h" />
     <ClInclude Include="emitter\instructions.h" />
@@ -212,9 +209,6 @@
     </ProjectReference>
     <ProjectReference Include="..\3rdparty\glslang\glslang.vcxproj">
       <Project>{ef6834a9-11f3-4331-bc34-21b325abb180}</Project>
-    </ProjectReference>
-    <ProjectReference Include="..\3rdparty\pthreads4w\build\pthreads4w.vcxproj">
-      <Project>{0fae817d-9a32-4830-857e-81da57246e16}</Project>
     </ProjectReference>
     <ProjectReference Include="..\3rdparty\wxwidgets3.0\build\msw\wx30_base.vcxproj">
       <Project>{3fcc50c2-81e9-5db2-b8d8-2129427568b1}</Project>

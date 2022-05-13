@@ -252,6 +252,11 @@ GraphicsSettingsWidget::GraphicsSettingsWidget(SettingsDialog* dialog, QWidget* 
 	connect(m_ui.enableHWFixes, &QCheckBox::stateChanged, this, &GraphicsSettingsWidget::onEnableHardwareFixesChanged);
 	updateRendererDependentOptions();
 
+	dialog->registerWidgetHelp(m_ui.enableHWFixes, tr("Manual Hardware Renderer Fixes"), tr("Unchecked"),
+		tr("Enabling this option gives you the ability to change the renderer and upscaling fixes "
+		   "to your games. However IF you have ENABLED this, you WILL DISABLE AUTOMATIC "
+		   "SETTINGS and you can re-enable automatic settings by unchecking this option."));
+
 	dialog->registerWidgetHelp(m_ui.useBlitSwapChain, tr("Use Blit Swap Chain"), tr("Unchecked"),
 		tr("Uses a blit presentation model instead of flipping when using the Direct3D 11 "
 		   "renderer. This usually results in slower performance, but may be required for some "
@@ -354,8 +359,10 @@ void GraphicsSettingsWidget::updateRendererDependentOptions()
 
 #ifdef _WIN32
 	const bool is_dx11 = (type == GSRendererType::DX11 || type == GSRendererType::SW);
+	const bool is_sw_dx = (type == GSRendererType::DX11 || type == GSRendererType::DX12 || type == GSRendererType::SW);
 #else
 	const bool is_dx11 = false;
+	const bool is_sw_dx = false;
 #endif
 
 	const bool is_hardware = (type == GSRendererType::DX11 || type == GSRendererType::DX12 || type == GSRendererType::OGL || type == GSRendererType::VK);
@@ -412,6 +419,9 @@ void GraphicsSettingsWidget::updateRendererDependentOptions()
 
 		m_software_renderer_visible = is_software;
 	}
+
+	m_ui.overrideTextureBarriers->setDisabled(is_sw_dx);
+	m_ui.overrideGeometryShader->setDisabled(is_sw_dx);
 
 	m_ui.useBlitSwapChain->setEnabled(is_dx11);
 
