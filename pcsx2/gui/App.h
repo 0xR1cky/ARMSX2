@@ -215,12 +215,12 @@ namespace Exception
 	//
 	class StartupAborted : public CancelEvent
 	{
-		DEFINE_RUNTIME_EXCEPTION(StartupAborted, CancelEvent, L"Startup initialization was aborted by the user.")
+		DEFINE_RUNTIME_EXCEPTION(StartupAborted, CancelEvent, "Startup initialization was aborted by the user.")
 
 	public:
-		StartupAborted(const wxString& reason)
+		StartupAborted(std::string reason)
 		{
-			m_message_diag = L"Startup aborted: " + reason;
+			m_message_diag = "Startup aborted: " + reason;
 		}
 	};
 
@@ -764,7 +764,6 @@ extern void UI_DisableSysActions();
 extern void UI_EnableSysActions();
 
 extern void UI_DisableSysShutdown();
-
 
 #define AffinityAssert_AllowFrom_SysExecutor() \
 	pxAssertMsg(wxGetApp().SysExecutorThread.IsSelf(), "Thread affinity violation: Call allowed from SysExecutor thread only.")

@@ -45,29 +45,26 @@ static constexpr ISzAlloc g_Alloc = {SzAlloc, SzFree};
 
 static std::FILE* s_file_console_stream;
 static constexpr IConsoleWriter s_file_console_writer = {
-	[](const wxString& fmt) { // WriteRaw
-		auto buf = fmt.ToUTF8();
-		std::fwrite(buf.data(), buf.length(), 1, s_file_console_stream);
+	[](const char* fmt) { // WriteRaw
+		std::fputs(fmt, s_file_console_stream);
 		std::fflush(s_file_console_stream);
 	},
-	[](const wxString& fmt) { // DoWriteLn
-		auto buf = fmt.ToUTF8();
-		std::fwrite(buf.data(), buf.length(), 1, s_file_console_stream);
+	[](const char* fmt) { // DoWriteLn
+		std::fputs(fmt, s_file_console_stream);
 		std::fputc('\n', s_file_console_stream);
 		std::fflush(s_file_console_stream);
 	},
 	[](ConsoleColors) { // DoSetColor
 	},
-	[](const wxString& fmt) { // DoWriteFromStdout
-		auto buf = fmt.ToUTF8();
-		std::fwrite(buf.data(), buf.length(), 1, s_file_console_stream);
+	[](const char* fmt) { // DoWriteFromStdout
+		std::fputs(fmt, s_file_console_stream);
 		std::fflush(s_file_console_stream);
 	},
 	[]() { // Newline
 		std::fputc('\n', s_file_console_stream);
 		std::fflush(s_file_console_stream);
 	},
-	[](const wxString&) { // SetTitle
+	[](const char*) { // SetTitle
 	}};
 
 static void CloseConsoleFile()
@@ -97,7 +94,7 @@ Updater::~Updater()
 
 void Updater::SetupLogging(ProgressCallback* progress, const std::string& destination_directory)
 {
-	const std::string log_path(Path::CombineStdString(destination_directory, "updater.log"));
+	const std::string log_path(Path::Combine(destination_directory, "updater.log"));
 	s_file_console_stream = FileSystem::OpenCFile(log_path.c_str(), "w");
 	if (!s_file_console_stream)
 	{

@@ -47,6 +47,7 @@
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\sdl2\include;$(SolutionDir)3rdparty\sdl2\SDL\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\libzip;$(SolutionDir)3rdparty\libzip\libzip\lib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\d3d12memalloc\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\zstd\zstd\lib</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
@@ -187,6 +188,9 @@
     <ClCompile Include="Frontend\D3D12HostDisplay.cpp" />
     <ClCompile Include="Frontend\GameList.cpp" />
     <ClCompile Include="Frontend\ImGuiManager.cpp" />
+    <ClCompile Include="Frontend\imgui_impl_dx11.cpp" />
+    <ClCompile Include="Frontend\imgui_impl_dx12.cpp" />
+    <ClCompile Include="Frontend\imgui_impl_opengl3.cpp" />
     <ClCompile Include="Frontend\imgui_impl_vulkan.cpp" />
     <ClCompile Include="Frontend\INISettingsInterface.cpp" />
     <ClCompile Include="Frontend\InputManager.cpp" />
@@ -205,7 +209,6 @@
     <ClCompile Include="GS\Renderers\DX12\GSTexture12.cpp" />
     <ClCompile Include="GS\Renderers\HW\GSTextureReplacementLoaders.cpp" />
     <ClCompile Include="GS\Renderers\HW\GSTextureReplacements.cpp" />
-    <ClCompile Include="GS\Window\GSwxDialog.cpp" />
     <ClCompile Include="GS\Renderers\Vulkan\GSDeviceVK.cpp" />
     <ClCompile Include="GS\Renderers\Vulkan\GSTextureVK.cpp" />
     <ClCompile Include="Host.cpp" />
@@ -222,7 +225,6 @@
     <ClCompile Include="PerformanceMetrics.cpp" />
     <ClCompile Include="SPU2\DplIIdecoder.cpp" />
     <ClCompile Include="SPU2\debug.cpp" />
-    <ClCompile Include="SPU2\Host\CfgHelpers.cpp" />
     <ClCompile Include="SPU2\Host\Config.cpp" />
     <ClCompile Include="SPU2\Host\ConfigDebug.cpp" />
     <ClCompile Include="SPU2\Host\ConfigSoundTouch.cpp" />
@@ -269,7 +271,6 @@
     <ClCompile Include="GS\Renderers\DX11\GSDevice11.cpp" />
     <ClCompile Include="GS\Renderers\Null\GSDeviceNull.cpp" />
     <ClCompile Include="GS\Renderers\OpenGL\GSDeviceOGL.cpp" />
-    <ClCompile Include="GS\Window\GSDialog.cpp" />
     <ClCompile Include="GS\Renderers\Common\GSDirtyRect.cpp" />
     <ClCompile Include="GS\GSDrawingContext.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSDrawScanline.cpp" />
@@ -309,7 +310,6 @@
     <ClCompile Include="GS\Renderers\Common\GSVertexTrace.cpp" />
     <ClCompile Include="SPU2\Windows\SndOut_XAudio2.cpp" />
     <ClCompile Include="USB\USBNull.cpp" />
-    <ClCompile Include="Utilities\FileUtils.cpp" />
     <ClCompile Include="Dump.cpp" />
     <ClCompile Include="VMManager.cpp" />
     <ClCompile Include="windows\Optimus.cpp" />
@@ -501,6 +501,10 @@
     <ClInclude Include="Frontend\D3D12HostDisplay.h" />
     <ClInclude Include="Frontend\GameList.h" />
     <ClInclude Include="Frontend\ImGuiManager.h" />
+    <ClInclude Include="Frontend\imgui_impl_dx11.h" />
+    <ClInclude Include="Frontend\imgui_impl_dx12.h" />
+    <ClInclude Include="Frontend\imgui_impl_opengl3.h" />
+    <ClInclude Include="Frontend\imgui_impl_vulkan.h" />
     <ClInclude Include="Frontend\INISettingsInterface.h" />
     <ClInclude Include="Frontend\InputManager.h" />
     <ClInclude Include="Frontend\InputSource.h" />
@@ -516,7 +520,6 @@
     <ClInclude Include="GS\Renderers\DX12\GSDevice12.h" />
     <ClInclude Include="GS\Renderers\DX12\GSTexture12.h" />
     <ClInclude Include="GS\Renderers\HW\GSTextureReplacements.h" />
-    <ClInclude Include="GS\Window\GSwxDialog.h" />
     <ClInclude Include="GS\Renderers\Vulkan\GSDeviceVK.h" />
     <ClInclude Include="GS\Renderers\Vulkan\GSTextureVK.h" />
     <ClInclude Include="Host.h" />
@@ -564,7 +567,6 @@
     <ClInclude Include="GS\Renderers\DX11\GSDevice11.h" />
     <ClInclude Include="GS\Renderers\Null\GSDeviceNull.h" />
     <ClInclude Include="GS\Renderers\OpenGL\GSDeviceOGL.h" />
-    <ClInclude Include="GS\Window\GSDialog.h" />
     <ClInclude Include="GS\Renderers\Common\GSDirtyRect.h" />
     <ClInclude Include="GS\GSDrawingContext.h" />
     <ClInclude Include="GS\GSDrawingEnvironment.h" />
@@ -693,7 +695,6 @@
     <ClInclude Include="CDVD\CDVD.h" />
     <ClInclude Include="CDVD\CDVD_internal.h" />
     <ClInclude Include="CDVD\CDVDaccess.h" />
-    <ClInclude Include="CDVD\CDVDisoReader.h" />
     <ClInclude Include="Ipu\IPU.h" />
     <ClInclude Include="Ipu\IPU_Fifo.h" />
     <ClInclude Include="Ipu\yuv2rgb.h" />
@@ -737,9 +738,6 @@
     <ClInclude Include="CDVD\IsoFS\SectorSource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="GS\GS.rc" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="$(SolutionDir)3rdparty\baseclasses\baseclasses.vcxproj">
       <Project>{27f17499-a372-4408-8afa-4f9f4584fbd3}</Project>
     </ProjectReference>
@@ -758,9 +756,6 @@
     <ProjectReference Include="$(SolutionDir)3rdparty\soundtouch\SoundTouch.vcxproj">
       <Project>{e9b51944-7e6d-4bcd-83f2-7bbd5a46182d}</Project>
     </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)3rdparty\wxwidgets3.0\build\msw\wx30_base.vcxproj">
-      <Project>{3fcc50c2-81e9-5db2-b8d8-2129427568b1}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)3rdparty\xz\liblzma.vcxproj">
       <Project>{12728250-16ec-4dc6-94d7-e21dd88947f8}</Project>
     </ProjectReference>
@@ -769,10 +764,6 @@
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)3rdparty\zlib\zlib.vcxproj">
       <Project>{2f6c0388-20cb-4242-9f6c-a6ebb6a83f47}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
-    <ProjectReference Include="$(SolutionDir)tools\bin2cpp\bin2c.vcxproj">
-      <Project>{677b7d11-d5e1-40b3-88b1-9a4df83d2213}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
     <ProjectReference Include="$(SolutionDir)3rdparty\jpgd\jpgd.vcxproj">

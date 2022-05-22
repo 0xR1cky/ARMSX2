@@ -101,10 +101,10 @@ void cpuReset()
 	EEsCycle = 0;
 	EEoCycle = cpuRegs.cycle;
 
-	pgifInit();
-	hwReset();
-	rcntInit();
 	psxReset();
+	pgifInit();
+
+	hwReset();
 
 	extern void Deci2Reset();		// lazy, no good header for it yet.
 	Deci2Reset();
@@ -130,11 +130,6 @@ void cpuReset()
 	g_eeloadMain = 0, g_eeloadExec = 0, g_osdsys_str = 0;
 }
 
-void cpuShutdown()
-{
-	hwShutdown();
-}
-
 __ri void cpuException(u32 code, u32 bd)
 {
 	bool errLevel2, checkStatus;
@@ -146,7 +141,7 @@ __ri void cpuException(u32 code, u32 bd)
 	if(cpuRegs.CP0.n.Status.b.ERL == 0)
 	{
 		//Error Level 0-1
-		errLevel2 = FALSE;
+		errLevel2 = false;
 		checkStatus = (cpuRegs.CP0.n.Status.b.BEV == 0); //  for TLB/general exceptions
 
 		if (((code & 0x7C) >= 0x8) && ((code & 0x7C) <= 0xC))
@@ -159,7 +154,7 @@ __ri void cpuException(u32 code, u32 bd)
 	else
 	{
 		//Error Level 2
-		errLevel2 = TRUE;
+		errLevel2 = true;
 		checkStatus = (cpuRegs.CP0.n.Status.b.DEV == 0); // for perf/debug exceptions
 
 		Console.Error("*PCSX2* FIX ME: Level 2 cpuException");

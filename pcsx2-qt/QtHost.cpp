@@ -30,6 +30,7 @@
 #include "common/Console.h"
 #include "common/CrashHandler.h"
 #include "common/FileSystem.h"
+#include "common/Path.h"
 #include "common/SettingsWrapper.h"
 #include "common/StringUtil.h"
 
@@ -53,7 +54,6 @@ static constexpr u32 SETTINGS_SAVE_DELAY = 1000;
 // Local function declarations
 //////////////////////////////////////////////////////////////////////////
 namespace QtHost {
-static void InitializeWxRubbish();
 static bool InitializeConfig();
 static bool ShouldUsePortableMode();
 static void SetResourcesDirectory();
@@ -84,7 +84,6 @@ bool QtHost::Initialize()
 	qRegisterMetaType<InputBindingKey>();
 	qRegisterMetaType<const GameList::Entry*>();
 
-	InitializeWxRubbish();
 	if (!InitializeConfig())
 	{
 		Console.WriteLn("Failed to initialize config.");
@@ -110,20 +109,19 @@ void QtHost::Shutdown()
 
 bool QtHost::SetCriticalFolders()
 {
-	std::string program_path(FileSystem::GetProgramPath());
-	EmuFolders::AppRoot = wxDirName(wxFileName(StringUtil::UTF8StringToWxString(program_path)));
+	EmuFolders::AppRoot = Path::Canonicalize(Path::GetDirectory(FileSystem::GetProgramPath()));
 	SetResourcesDirectory();
 	SetDataDirectory();
 
 	// allow SetDataDirectory() to change settings directory (if we want to split config later on)
-	if (!EmuFolders::Settings.IsOk())
-		EmuFolders::Settings = EmuFolders::DataRoot.Combine(wxDirName(L"inis"));
+	if (EmuFolders::Settings.empty())
+		EmuFolders::Settings = Path::Combine(EmuFolders::DataRoot, "inis");
 
 	// Write crash dumps to the data directory, since that'll be accessible for certain.
-	CrashHandler::SetWriteDirectory(EmuFolders::DataRoot.ToUTF8().data());
+	CrashHandler::SetWriteDirectory(EmuFolders::DataRoot);
 
 	// the resources directory should exist, bail out if not
-	if (!EmuFolders::Resources.Exists())
+	if (!FileSystem::DirectoryExists(EmuFolders::Resources.c_str()))
 	{
 		QMessageBox::critical(nullptr, QStringLiteral("Error"),
 			QStringLiteral("Resources directory is missing, your installation is incomplete."));
@@ -136,17 +134,17 @@ bool QtHost::SetCriticalFolders()
 bool QtHost::ShouldUsePortableMode()
 {
 	// Check whether portable.ini exists in the program directory.
-	return FileSystem::FileExists(Path::CombineStdString(EmuFolders::AppRoot, "portable.ini").c_str());
+	return FileSystem::FileExists(Path::Combine(EmuFolders::AppRoot, "portable.ini").c_str());
 }
 
 void QtHost::SetResourcesDirectory()
 {
 #ifndef __APPLE__
 	// On Windows/Linux, these are in the binary directory.
-	EmuFolders::Resources = EmuFolders::AppRoot.Combine(wxDirName(L"resources"));
+	EmuFolders::Resources = Path::Combine(EmuFolders::AppRoot, "resources");
 #else
 	// On macOS, this is in the bundle resources directory.
-	EmuFolders::Resources = EmuFolders::AppRoot.Combine(wxDirName("../Resources"));
+	EmuFolders::Resources = Path::Canonicalize(Path::Combine(EmuFolders::AppRoot, "../Resources"));
 #endif
 }
 
@@ -164,16 +162,16 @@ void QtHost::SetDataDirectory()
 	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_Documents, 0, NULL, &documents_directory)))
 	{
 		if (std::wcslen(documents_directory) > 0)
-			EmuFolders::DataRoot = wxDirName(Path::Combine(wxString(documents_directory), L"PCSX2"));
+			EmuFolders::DataRoot = Path::Combine(StringUtil::WideStringToUTF8String(documents_directory), "PCSX2");
 		CoTaskMemFree(documents_directory);
 	}
 #elif defined(__linux__)
 	// Check for $HOME/PCSX2 first, for legacy installs.
 	const char* home_dir = getenv("HOME");
-	const std::string legacy_dir(home_dir ? Path::CombineStdString(home_dir, "PCSX2") : std::string());
+	const std::string legacy_dir(home_dir ? Path::Combine(home_dir, "PCSX2") : std::string());
 	if (!legacy_dir.empty() && FileSystem::DirectoryExists(legacy_dir.c_str()))
 	{
-		EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(legacy_dir));
+		EmuFolders::DataRoot = std::move(legacy_dir);
 	}
 	else
 	{
@@ -181,31 +179,31 @@ void QtHost::SetDataDirectory()
 		const char* xdg_config_home = getenv("XDG_CONFIG_HOME");
 		if (xdg_config_home && xdg_config_home[0] == '/' && FileSystem::DirectoryExists(xdg_config_home))
 		{
-			EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(Path::CombineStdString(xdg_config_home, "PCSX2")));
+			EmuFolders::DataRoot = Path::Combine(xdg_config_home, "PCSX2");
 		}
 		else if (!legacy_dir.empty())
 		{
 			// fall back to the legacy PCSX2-in-home.
-			EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(legacy_dir));
+			EmuFolders::DataRoot = std::move(legacy_dir);
 		}
 	}
 #elif defined(__APPLE__)
 	static constexpr char MAC_DATA_DIR[] = "Library/Application Support/PCSX2";
 	const char* home_dir = getenv("HOME");
 	if (home_dir)
-		EmuFolders::DataRoot = wxDirName(StringUtil::UTF8StringToWxString(Path::CombineStdString(home_dir, MAC_DATA_DIR)));
+		EmuFolders::DataRoot = Path::Combine(home_dir, MAC_DATA_DIR);
 #endif
 
 	// make sure it exists
-	if (EmuFolders::DataRoot.IsOk() && !EmuFolders::DataRoot.Exists())
+	if (!EmuFolders::DataRoot.empty() && !FileSystem::DirectoryExists(EmuFolders::DataRoot.c_str()))
 	{
 		// we're in trouble if we fail to create this directory... but try to hobble on with portable
-		if (!EmuFolders::DataRoot.Mkdir())
-			EmuFolders::DataRoot.Clear();
+		if (!FileSystem::CreateDirectoryPath(EmuFolders::DataRoot.c_str(), false))
+			EmuFolders::DataRoot.clear();
 	}
 
 	// couldn't determine the data directory? fallback to portable.
-	if (!EmuFolders::DataRoot.IsOk())
+	if (EmuFolders::DataRoot.empty())
 		EmuFolders::DataRoot = EmuFolders::AppRoot;
 }
 
@@ -222,7 +220,7 @@ bool QtHost::InitializeConfig()
 	if (!SetCriticalFolders())
 		return false;
 
-	const std::string path(Path::CombineStdString(EmuFolders::Settings, "PCSX2.ini"));
+	const std::string path(Path::Combine(EmuFolders::Settings, "PCSX2.ini"));
 	s_base_settings_interface = std::make_unique<INISettingsInterface>(std::move(path));
 	Host::Internal::SetBaseSettingsLayer(s_base_settings_interface.get());
 
@@ -439,7 +437,7 @@ QString QtHost::GetAppConfigSuffix()
 
 std::optional<std::vector<u8>> Host::ReadResourceFile(const char* filename)
 {
-	const std::string path(Path::CombineStdString(EmuFolders::Resources, filename));
+	const std::string path(Path::Combine(EmuFolders::Resources, filename));
 	std::optional<std::vector<u8>> ret(FileSystem::ReadBinaryFile(path.c_str()));
 	if (!ret.has_value())
 		Console.Error("Failed to read resource file '%s'", filename);
@@ -448,7 +446,7 @@ std::optional<std::vector<u8>> Host::ReadResourceFile(const char* filename)
 
 std::optional<std::string> Host::ReadResourceFileToString(const char* filename)
 {
-	const std::string path(Path::CombineStdString(EmuFolders::Resources, filename));
+	const std::string path(Path::Combine(EmuFolders::Resources, filename));
 	std::optional<std::string> ret(FileSystem::ReadFileToString(path.c_str()));
 	if (!ret.has_value())
 		Console.Error("Failed to read resource file to string '%s'", filename);
@@ -544,9 +542,9 @@ static HANDLE s_old_console_stdin = NULL;
 static HANDLE s_old_console_stdout = NULL;
 static HANDLE s_old_console_stderr = NULL;
 
-static void ConsoleWinQt_SetTitle(const wxString& title)
+static void ConsoleWinQt_SetTitle(const char* title)
 {
-	SetConsoleTitleW(title.wc_str());
+	SetConsoleTitleW(StringUtil::UTF8StringToWideString(title).c_str());
 }
 
 static void ConsoleWinQt_DoSetColor(ConsoleColors color)
@@ -595,31 +593,37 @@ static void ConsoleWinQt_Newline()
 	WriteConsoleW(s_console_handle, L"\n", 1, &written, nullptr);
 }
 
-static void ConsoleWinQt_DoWrite(const wxString& fmt)
+static void ConsoleWinQt_DoWrite(const char* fmt)
 {
 	if (!s_console_handle)
 		return;
+
+	// TODO: Put this on the stack.
+	std::wstring wfmt(StringUtil::UTF8StringToWideString(fmt));
 
 	if (s_debugger_attached)
-		OutputDebugStringW(fmt.wc_str());
+		OutputDebugStringW(wfmt.c_str());
 
 	DWORD written;
-	WriteConsoleW(s_console_handle, fmt.wc_str(), static_cast<DWORD>(fmt.size()), &written, nullptr);
+	WriteConsoleW(s_console_handle, wfmt.c_str(), static_cast<DWORD>(wfmt.length()), &written, nullptr);
 }
 
-static void ConsoleWinQt_DoWriteLn(const wxString& fmt)
+static void ConsoleWinQt_DoWriteLn(const char* fmt)
 {
 	if (!s_console_handle)
 		return;
+
+	// TODO: Put this on the stack.
+	std::wstring wfmt(StringUtil::UTF8StringToWideString(fmt));
 
 	if (s_debugger_attached)
 	{
-		OutputDebugStringW(fmt.wc_str());
+		OutputDebugStringW(wfmt.c_str());
 		OutputDebugStringW(L"\n");
 	}
 
 	DWORD written;
-	WriteConsoleW(s_console_handle, fmt.wc_str(), static_cast<DWORD>(fmt.size()), &written, nullptr);
+	WriteConsoleW(s_console_handle, wfmt.c_str(), static_cast<DWORD>(wfmt.length()), &written, nullptr);
 	WriteConsoleW(s_console_handle, L"\n", 1, &written, nullptr);
 }
 
@@ -768,25 +772,4 @@ void QtHost::UpdateLogging()
 	SysConsole.iopConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableIOPConsole", true);
 
 	SetSystemConsoleEnabled(system_console_enabled);
-}
-
-#include <wx/module.h>
-
-#ifdef _WIN32
-extern "C" HINSTANCE wxGetInstance();
-extern void wxSetInstance(HINSTANCE hInst);
-#endif
-
-void QtHost::InitializeWxRubbish()
-{
-	wxLog::DoCreateOnDemand();
-	wxLog::GetActiveTarget();
-
-#ifdef _WIN32
-	if (!wxGetInstance())
-		wxSetInstance(::GetModuleHandle(NULL));
-#endif // _WIN32
-
-	wxModule::RegisterModules();
-	wxModule::InitializeModules();
 }

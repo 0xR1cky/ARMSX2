@@ -19,7 +19,6 @@
 
 #include <atomic>
 #include <mutex>
-#include <wx/mstream.h>
 
 #include "common/Console.h"
 #include "common/FileSystem.h"
@@ -265,7 +264,7 @@ void VMManager::ApplyGameFixes()
 
 std::string VMManager::GetGameSettingsPath(u32 game_crc)
 {
-	return Path::CombineStdString(EmuFolders::GameSettings, StringUtil::StdStringFromFormat("%08X.ini", game_crc));
+	return Path::Combine(EmuFolders::GameSettings, StringUtil::StdStringFromFormat("%08X.ini", game_crc));
 }
 
 void VMManager::RequestDisplaySize(float scale /*= 0.0f*/)
@@ -346,7 +345,7 @@ bool VMManager::UpdateGameSettingsLayer()
 
 static void LoadPatches(const std::string& crc_string, bool show_messages, bool show_messages_when_disabled)
 {
-	FastFormatAscii message;
+	std::string message;
 
 	int patch_count = 0;
 	if (EmuConfig.EnablePatches)
@@ -356,7 +355,7 @@ static void LoadPatches(const std::string& crc_string, bool show_messages, bool 
 		if (patches && (patch_count = LoadPatchesFromString(*patches)) > 0)
 		{
 			PatchesCon->WriteLn(Color_Green, "(GameDB) Patches Loaded: %d", patch_count);
-			message.Write("%u game patches", patch_count);
+			fmt::format_to(std::back_inserter(message), "{} game patches", patch_count);
 		}
 	}
 
@@ -368,7 +367,7 @@ static void LoadPatches(const std::string& crc_string, bool show_messages, bool 
 		if (cheat_count > 0)
 		{
 			PatchesCon->WriteLn(Color_Green, "Cheats Loaded: %d", cheat_count);
-			message.Write("%s%u cheat patches", (patch_count > 0) ? " and " : "", cheat_count);
+			fmt::format_to(std::back_inserter(message), "{}{} cheat patches", (patch_count > 0) ? " and " : "", cheat_count);
 		}
 	}
 
@@ -400,15 +399,15 @@ static void LoadPatches(const std::string& crc_string, bool show_messages, bool 
 		}
 
 		if (ws_patch_count > 0)
-			message.Write("%s%u widescreen patches", (patch_count > 0 || cheat_count > 0) ? " and " : "", ws_patch_count);
+			fmt::format_to(std::back_inserter(message), "{}{} widescreen patches", (patch_count > 0 || cheat_count > 0) ? " and " : "", ws_patch_count);
 	}
 
 	if (show_messages)
 	{
 		if (cheat_count > 0 || ws_patch_count > 0)
 		{
-			message.Write(" are active.");
-			Host::AddKeyedOSDMessage("LoadPatches", message.GetString().ToStdString(), 5.0f);
+			message += " are active.";
+			Host::AddKeyedOSDMessage("LoadPatches", std::move(message), 5.0f);
 		}
 		else if (show_messages_when_disabled)
 		{
@@ -459,7 +458,7 @@ void VMManager::UpdateRunningGame(bool force)
 				s_game_name = "Booting PS2 BIOS...";
 		}
 
-		sioSetGameSerial(StringUtil::UTF8StringToWxString(memcardFilters.empty() ? s_game_serial : memcardFilters));
+		sioSetGameSerial(memcardFilters.empty() ? s_game_serial : memcardFilters);
 	}
 
 	UpdateGameSettingsLayer();
@@ -854,7 +853,7 @@ std::string VMManager::GetSaveStateFileName(const char* game_serial, u32 game_cr
 		else
 			filename = StringUtil::StdStringFromFormat("%s (%08X).%02d.p2s", game_serial, game_crc, slot);
 
-		filename = Path::CombineStdString(EmuFolders::Savestates, filename);
+		filename = Path::Combine(EmuFolders::Savestates, filename);
 	}
 
 	return filename;
@@ -1111,7 +1110,9 @@ bool VMManager::IsElfFileName(const std::string& path)
 
 bool VMManager::IsGSDumpFileName(const std::string& path)
 {
-	return (StringUtil::EndsWithNoCase(path, ".gs") || StringUtil::EndsWithNoCase(path, ".gs.xz"));
+	return (StringUtil::EndsWithNoCase(path, ".gs") ||
+			StringUtil::EndsWithNoCase(path, ".gs.xz") ||
+			StringUtil::EndsWithNoCase(path, ".gs.zst"));
 }
 
 void VMManager::Execute()
@@ -1330,7 +1331,7 @@ void VMManager::CheckForMemoryCardConfigChanges(const Pcsx2Config& old_config)
 		if (sioSerial.empty())
 			sioSerial = s_game_serial;
 	}
-	sioSetGameSerial(StringUtil::UTF8StringToWxString(sioSerial));
+	sioSetGameSerial(sioSerial);
 }
 
 void VMManager::CheckForConfigChanges(const Pcsx2Config& old_config)

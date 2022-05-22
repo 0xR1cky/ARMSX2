@@ -96,9 +96,9 @@ void _hwWrite32( u32 mem, u32 value )
 					if (!vifWrite32<0>(mem, value)) return;
 				}
 			}
-			else iswitch(mem)
+			else switch(mem)
 			{
-				icase(GIF_CTRL)
+				case (GIF_CTRL):
 				{
 					// Not exactly sure what RST needs to do
 					gifRegs.ctrl.write(value & 9);
@@ -111,7 +111,7 @@ void _hwWrite32( u32 mem, u32 value )
 					return;
 				}
 
-				icase(GIF_MODE)
+				case (GIF_MODE):
 				{
 					gifRegs.mode.write(value);
 					//Need to kickstart the GIF if the M3R mask comes off
@@ -291,21 +291,20 @@ void _hwWrite8(u32 mem, u8 value)
 #if PSX_EXTRALOGS
 	if ((mem & 0x1000ff00) == 0x1000f300) DevCon.Warning("8bit Write to SIF Register %x value %x wibble", mem, value);
 #endif
-	iswitch (mem)
-	icase(SIO_TXFIFO)
+	if (mem == SIO_TXFIFO)
 	{
-		static bool iggy_newline = false;
+		static bool included_newline = false;
 		static char sio_buffer[1024];
 		static int sio_count;
 
 		if (value == '\r')
 		{
-			iggy_newline = true;
+			included_newline = true;
 			sio_buffer[sio_count++] = '\n';
 		}
-		else if (!iggy_newline || (value != '\n'))
+		else if (!included_newline || (value != '\n'))
 		{
-			iggy_newline = false;
+			included_newline = false;
 			sio_buffer[sio_count++] = value;
 		}
 

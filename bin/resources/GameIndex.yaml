@@ -362,7 +362,7 @@ SCAJ-20003:
   name: "Warrior in Argus"
   region: "NTSC-J"
 SCAJ-20004:
-  name: ".hack//Outbreak Part 3"
+  name: "dot hack - Outbreak Part 3"
   region: "NTSC-Unk"
   memcardFilters:
     - "SCPS-55029"
@@ -450,7 +450,7 @@ SCAJ-20023:
   gsHWFixes:
     alignSprite: 1 # Fixes vertical lines.
 SCAJ-20024:
-  name: ".hack//Quarantine Part 4"
+  name: "dot hack - Quarantine Part 4"
   region: "NTSC-Unk"
   memcardFilters:
     - "SCPS-55029"
@@ -529,7 +529,9 @@ SCAJ-20047:
   region: "NTSC-Unk"
 SCAJ-20048:
   name: "R - Racing Evolution"
-  region: "NTSC-Unk"
+  region: "NTSC-J"
+  gsHWFixes:
+    alignSprite: 1 # Fixes vertical lines.
 SCAJ-20050:
   name: "Fatal Frame II - Crimson Butterfly"
   region: "NTSC-Unk"
@@ -3282,7 +3284,7 @@ SCES-52677:
 SCES-52748:
   name: "EyeToy - Play 2"
   region: "PAL-M12"
-  compat: 2
+  compat: 5
 SCES-52756:
   name: "DJ - Decks & FX - Claudio Coccoluto Edition"
   region: "PAL-I"
@@ -5990,7 +5992,7 @@ SCPS-55028:
   name: "Popolocrois Story - Hajime no Bouken"
   region: "NTSC-J"
 SCPS-55029:
-  name: ".hack//Infection Part 1"
+  name: "dot hack - Infection Part 1"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -6031,7 +6033,7 @@ SCPS-55041:
   name: "Memories Off"
   region: "NTSC-J"
 SCPS-55042:
-  name: ".hack//Mutation Part 2"
+  name: "dot hack - Mutation Part 2"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -7399,7 +7401,7 @@ SCUS-97467:
 SCUS-97468:
   name: "EyeToy - Play 2"
   region: "NTSC-U"
-  compat: 2
+  compat: 5
 SCUS-97469:
   name: "Neopets - The Darkest Faerie [Demo]"
   region: "NTSC-U"
@@ -12848,7 +12850,7 @@ SLES-52230:
   gameFixes:
     - OPHFlagHack # Fixes some hanging throughout the game.
 SLES-52237:
-  name: ".hack//Infection Part 1"
+  name: "dot hack - Infection Part 1"
   region: "PAL-M5"
   memcardFilters:
     - "SLES-52237"
@@ -13319,7 +13321,7 @@ SLES-52466:
   name: "Ribbit King"
   region: "PAL-M5"
 SLES-52467:
-  name: ".hack//Mutation Part 2"
+  name: "dot hack - Mutation Part 2"
   region: "PAL-M5"
   compat: 5
   memcardFilters:
@@ -13328,7 +13330,7 @@ SLES-52467:
     - "SLES-52468"
     - "SLES-52469"
 SLES-52468:
-  name: ".hack//Quarantine Part 4"
+  name: "dot hack - Quarantine Part 4"
   region: "PAL-M5"
   compat: 5
   memcardFilters:
@@ -13337,7 +13339,7 @@ SLES-52468:
     - "SLES-52468"
     - "SLES-52469"
 SLES-52469:
-  name: ".hack//Outbreak Part 3"
+  name: "dot hack - Outbreak Part 3"
   region: "PAL-M5"
   compat: 5
   memcardFilters:
@@ -14122,21 +14124,29 @@ SLES-52807:
   region: "PAL-E"
   clampModes:
     eeClampMode: 3 # Fixes the inability to collect items.
+  gsHWFixes:
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
 SLES-52808:
   name: "Lemony Snicket's A Series of Unfortunate Events"
   region: "PAL-F"
   clampModes:
     eeClampMode: 3 # Fixes the inability to collect items.
+  gsHWFixes:
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
 SLES-52809:
   name: "Lemony Snicket - Schauriger Schlamassel"
   region: "PAL-G"
   clampModes:
     eeClampMode: 3 # Fixes the inability to collect items.
+  gsHWFixes:
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
 SLES-52810:
   name: "Lemony Snicket's Una Serie Disfortunati Eventi"
   region: "PAL-I"
   clampModes:
     eeClampMode: 3 # Fixes the inability to collect items.
+  gsHWFixes:
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
 SLES-52811:
   name: "Get on da Mic"
   region: "PAL-M3"
@@ -14178,6 +14188,8 @@ SLES-52825:
   region: "PAL-S"
   clampModes:
     eeClampMode: 3 # Fixes the inability to collect items.
+  gsHWFixes:
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
 SLES-52831:
   name: "Syberia 2"
   region: "PAL-M5"
@@ -17414,6 +17426,8 @@ SLES-54205:
 SLES-54209:
   name: "Sopranos, The - Road to Respect"
   region: "PAL-E-S"
+  gsHWFixes:
+    halfPixelOffset: 2 # Reduces ghosting but doesn't fully fix it.
 SLES-54210:
   name: "NBA 2K7"
   region: "PAL-M5"
@@ -18246,6 +18260,11 @@ SLES-54555:
 SLES-54559:
   name: "Free Running"
   region: "PAL-E"
+  gameFixes:
+    - SoftwareRendererFMVHack # Flickering in FMV.
+  gsHWFixes:
+    autoFlush: 1 # Reduces post-processing misalignment.
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
   patches:
     d6a0a3ef:
       content: |-
@@ -22090,6 +22109,15 @@ SLPM-60109:
 SLPM-60123:
   name: "Gekikuukan Pro Baseball - The End of the Century 1999 [Trial]"
   region: "NTSC-J"
+SLPM-60124:
+  name: "Shadow Hearts II [Demo]"
+  region: "NTSC-J"
+SLPM-60125:
+  name: "GI Jockey 2 [Demo]"
+  region: "NTSC-J"
+SLPM-60126:
+  name: "Hajime no Ippo - Victorious Boxers [Trial]"
+  region: "NTSC-J"
 SLPM-60138:
   name: "Klonoa 2 - Lunatea's Veil [Trial]"
   region: "NTSC-J"
@@ -22115,6 +22143,11 @@ SLPM-60207:
     - SoftwareRendererFMVHack # Flickering and wrong textures in FMV.
   clampModes:
     eeClampMode: 3 # For camera issues in some scenes.
+SLPM-60216:
+  name: "R - Racing Evolution [Trial]"
+  region: "NTSC-J"
+  gsHWFixes:
+    alignSprite: 1 # Fixes vertical lines.
 SLPM-60239:
   name: "Katamari Damacy [Trial]"
   region: "NTSC-J"
@@ -32987,7 +33020,7 @@ SLPS-25120:
   name: "Gundam Gihren's Ambition"
   region: "NTSC-J"
 SLPS-25121:
-  name: ".hack//Infection Part 1"
+  name: "dot hack - Infection Part 1"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -33055,7 +33088,7 @@ SLPS-25142:
   gameFixes:
     - VUSyncHack # Fixes the inverted legs.
 SLPS-25143:
-  name: ".hack//Mutation Part 2"
+  name: "dot hack - Mutation Part 2"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -33106,7 +33139,7 @@ SLPS-25156:
   name: "King of Fighters 2000, The"
   region: "NTSC-J"
 SLPS-25158:
-  name: ".hack//Outbreak Part 3"
+  name: "dot hack - Outbreak Part 3"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -33246,7 +33279,7 @@ SLPS-25201:
   name: "Reveal Fantasia"
   region: "NTSC-J"
 SLPS-25202:
-  name: ".hack//Quarantine Part 4"
+  name: "dot hack - Quarantine Part 4"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -33533,6 +33566,8 @@ SLPS-25299:
 SLPS-25300:
   name: "R - Racing Evolution"
   region: "NTSC-J"
+  gsHWFixes:
+    alignSprite: 1 # Fixes vertical lines.
 SLPS-25301:
   name: "Missing Parts - The Tantei Stories - Side A"
   region: "NTSC-J"
@@ -34391,7 +34426,7 @@ SLPS-25526:
   name: "Medical 91"
   region: "NTSC-J"
 SLPS-25527:
-  name: ".hack//Fragment"
+  name: "dot hack - Fragment"
   region: "NTSC-J"
   compat: 5
 SLPS-25528:
@@ -34855,7 +34890,7 @@ SLPS-25650:
   region: "NTSC-J"
   compat: 5
 SLPS-25651:
-  name: "dot Hack G.U. Vol.1 - Saitan"
+  name: "dot hack G.U. Vol.1 - Saitan"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -34884,7 +34919,7 @@ SLPS-25654:
   name: "Cluster Edge"
   region: "NTSC-J"
 SLPS-25655:
-  name: "dot Hack G.U. Vol.2 - Kimi Omou Koe"
+  name: "dot hack G.U. Vol.2 - Kimi Omou Koe"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -34904,7 +34939,7 @@ SLPS-25655:
     - "SLPS-25656"
     - "SLPS-25756"
 SLPS-25656:
-  name: "dot Hack - G.U. Vol.3 - Aruku Youna Hayasa de"
+  name: "dot hack - G.U. Vol.3 - Aruku Youna Hayasa de"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -35247,7 +35282,7 @@ SLPS-25754:
   name: "Kino no Tabi 2 - The Beautiful World [Electric Shock SP]"
   region: "NTSC-J"
 SLPS-25756:
-  name: "dot Hack G.U. Vol.1 - Saitan [Bandai the Best]"
+  name: "dot hack G.U. Vol.1 - Saitan [Bandai the Best]"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -36124,7 +36159,7 @@ SLPS-73229:
   name: "TearRing Saga Series - Berwick Saga [PlayStation 2 The Best]"
   region: "NTSC-J"
 SLPS-73230:
-  name: "dot Hack - Vol.1 & Vol.2 [PlayStation 2 The Best] [Vol.1 Disc]"
+  name: "dot hack - Vol.1 & Vol.2 [PlayStation 2 The Best] [Vol.1 Disc]"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -36140,7 +36175,7 @@ SLPS-73230:
     - "SLPS-73232"
     - "SLPS-73233"
 SLPS-73231:
-  name: "dot Hack - Vol.1 & Vol.2 [PlayStation 2 The Best] [Vol.2 Disc]"
+  name: "dot hack - Vol.1 & Vol.2 [PlayStation 2 The Best] [Vol.2 Disc]"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -36156,7 +36191,7 @@ SLPS-73231:
     - "SLPS-73232"
     - "SLPS-73233"
 SLPS-73232:
-  name: "dot Hack - Vol.3 & Vol.4 [PlayStation 2 The Best] [Vol.3 Disc]"
+  name: "dot hack - Vol.3 & Vol.4 [PlayStation 2 The Best] [Vol.3 Disc]"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -36172,7 +36207,7 @@ SLPS-73232:
     - "SLPS-73232"
     - "SLPS-73233"
 SLPS-73233:
-  name: "dot Hack - Vol.3 & Vol.4 [PlayStation 2 The Best] [Vol.4 Disc]"
+  name: "dot hack - Vol.3 & Vol.4 [PlayStation 2 The Best] [Vol.4 Disc]"
   region: "NTSC-J"
   memcardFilters:
     - "SCPS-55029"
@@ -37409,7 +37444,7 @@ SLUS-20266:
   region: "NTSC-U"
   compat: 5
 SLUS-20267:
-  name: ".hack//Infection Part 1"
+  name: "dot hack - Infection Part 1"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -38717,7 +38752,7 @@ SLUS-20561:
   region: "NTSC-U"
   compat: 5
 SLUS-20562:
-  name: ".hack//Mutation Part 2"
+  name: "dot hack - Mutation Part 2"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -38726,7 +38761,7 @@ SLUS-20562:
     - "SLUS-20563"
     - "SLUS-20564"
 SLUS-20563:
-  name: ".hack//Outbreak Part 3"
+  name: "dot hack - Outbreak Part 3"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -38735,7 +38770,7 @@ SLUS-20563:
     - "SLUS-20563"
     - "SLUS-20564"
 SLUS-20564:
-  name: "dot Hack - Part 4 - Quarantine"
+  name: "dot hack - Quarantine Part 4"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -39411,9 +39446,11 @@ SLUS-20720:
   region: "NTSC-U"
   compat: 5
 SLUS-20721:
-  name: "R Racing Evolution"
+  name: "R - Racing Evolution"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    alignSprite: 1 # Fixes vertical lines.
 SLUS-20722:
   name: "Maximo vs. Army of Zin"
   region: "NTSC-U"
@@ -41112,6 +41149,8 @@ SLUS-21078:
   compat: 5
   clampModes:
     eeClampMode: 3 # Fixes the inability to collect items.
+  gsHWFixes:
+    halfPixelOffset: 1 # Reduces lighting misalignment but doesn't fully fix it.
 SLUS-21079:
   name: "Armored Core Nexus [Revolution Disc]"
   region: "NTSC-U"
@@ -41994,7 +42033,7 @@ SLUS-21256:
   region: "NTSC-U"
   compat: 5
 SLUS-21258:
-  name: "dot Hack - G.U. Vol.1 - Rebirth"
+  name: "dot hack - G.U. Vol.1 - Rebirth"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -42723,6 +42762,8 @@ SLUS-21388:
   name: "Sopranos, The - Road to Respect"
   region: "NTSC-U"
   compat: 5
+  gsHWFixes:
+    halfPixelOffset: 2 # Reduces ghosting but doesn't fully fix it.
 SLUS-21389:
   name: "Xenosaga - Episode III - Also Sprach Zarathustra [Disc1of2]"
   region: "NTSC-U"
@@ -43165,7 +43206,7 @@ SLUS-21479:
   gameFixes:
     - EETimingHack
 SLUS-21480:
-  name: "Dot Hack GU Volume 1 - Rebirth - Terminal Disc"
+  name: "dot hack GU Volume 1 - Rebirth - Terminal Disc"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -43210,7 +43251,7 @@ SLUS-21487:
   region: "NTSC-U"
   compat: 5
 SLUS-21488:
-  name: "dot Hack - G.U. Vol.2 - Reminisce"
+  name: "dot hack - G.U. Vol.2 - Reminisce"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -43223,7 +43264,7 @@ SLUS-21488:
     - "SLUS-21489"
     - "SLUS-21480"
 SLUS-21489:
-  name: "dot Hack - G.U. Vol.3 - Redemption"
+  name: "dot hack - G.U. Vol.3 - Redemption"
   region: "NTSC-U"
   compat: 5
   memcardFilters:
@@ -43360,6 +43401,8 @@ SLUS-21548:
 SLUS-21549:
   name: "Sopranos, The [Collector's Edition]"
   region: "NTSC-U"
+  gsHWFixes:
+    halfPixelOffset: 2 # Reduces ghosting but doesn't fully fix it.
 SLUS-21550:
   name: "Metal Slug Anthology"
   region: "NTSC-U"
@@ -45192,7 +45235,7 @@ SLUS-28021:
   name: "Everquest Online Adventures [Beta Vol.2.0]"
   region: "NTSC-U"
 SLUS-28023:
-  name: "dot Hack - Part 1 - Infection [Trade Demo]"
+  name: "dot hack - Infection Part 1 [Trade Demo]"
   region: "NTSC-U"
 SLUS-28025:
   name: "Disaster Report [Trade Demo]"
@@ -45210,7 +45253,7 @@ SLUS-28031:
   name: "Auto Modellista - Public Beta Volume 2.0"
   region: "NTSC-U"
 SLUS-28032:
-  name: ".hack//Mutation Part 2 [Trade Demo]"
+  name: "dot hack - Mutation Part 2 [Trade Demo]"
   region: "NTSC-U"
 SLUS-28034:
   name: "Disgaea - Hour of Darkness [Trade Demo]"
@@ -45417,7 +45460,7 @@ SLUS-29040:
   name: "Dr. Muto [Demo]"
   region: "NTSC-U"
 SLUS-29042:
-  name: "dot Hack - Part 1 - Infection [Regular Demo]"
+  name: "dot hack - Infection Part 1 [Regular Demo]"
   region: "NTSC-U"
 SLUS-29044:
   name: "Pride FC - Fighting Championships [Demo]"
@@ -45446,7 +45489,7 @@ SLUS-29054:
   name: "Splashdown - Rides Gone Wild [Demo]"
   region: "NTSC-U"
 SLUS-29055:
-  name: "dot Hack - Part 2 - Mutation [Regular Demo]"
+  name: "dot hack - Mutation Part 2 [Regular Demo]"
   region: "NTSC-U"
 SLUS-29056:
   name: "Alter Echo [Demo]"
@@ -45476,7 +45519,7 @@ SLUS-29063:
   name: "Everquest Online Adventures - Frontiers [Public Beta Ver.1.0]"
   region: "NTSC-U"
 SLUS-29065:
-  name: "dot Hack - Part 3 - Outbreak [Demo]"
+  name: "dot hack - Outbreak Part 3 [Demo]"
   region: "NTSC-U"
 SLUS-29067:
   name: "Tak and the Power of Juju [Demo]"
@@ -45540,7 +45583,7 @@ SLUS-29083:
   name: "Maximo vs. The Army of Zin [Demo]"
   region: "NTSC-U"
 SLUS-29084:
-  name: "dot Hack - Part 4 - Quarantine [Demo]"
+  name: "dot hack - Quarantine Part 4 [Demo]"
   region: "NTSC-U"
 SLUS-29086:
   name: "FIFA Soccer 2004 [Demo]"
@@ -45849,7 +45892,7 @@ SLUS-29198:
   name: "Guitar Hero II [Demo]"
   region: "NTSC-U"
 SLUS-29199:
-  name: ".hack//G.U. Vol. 1//Rebirth"
+  name: "dot hack - G.U. Vol. 1//Rebirth"
   region: "NTSC-U"
 SLUS-29200:
   name: "FIFA Soccer 08 [Demo]"

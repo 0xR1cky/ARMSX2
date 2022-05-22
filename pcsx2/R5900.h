@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include "common/Exceptions.h"
+
 class BaseR5900Exception;
 
 // --------------------------------------------------------------------------------------
@@ -418,8 +420,6 @@ extern void CPU_INT( EE_EventType n, s32 ecycle );
 extern uint intcInterrupt();
 extern uint dmacInterrupt();
 
-
-extern void cpuInit();
 extern void cpuReset();		// can throw Exception::FileNotFound.
 extern void cpuException(u32 code, u32 bd);
 extern void cpuTlbMissR(u32 addr, u32 bd);

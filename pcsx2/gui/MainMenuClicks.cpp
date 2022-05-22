@@ -341,7 +341,7 @@ wxWindowID SwapOrReset_CdvdSrc(wxWindow* owner, CDVD_SourceType newsrc)
 
 	if (result != wxID_RESET)
 	{
-		Console.Indent().WriteLn(L"(CdvdSource) HotSwapping CDVD source types from %s to %s.",
+		Console.Indent().WriteLn("(CdvdSource) HotSwapping CDVD source types from %ls to %ls.",
 								 WX_STR(wxString(CDVD_SourceLabels[enum_cast(oldsrc)])),
 								 WX_STR(wxString(CDVD_SourceLabels[enum_cast(newsrc)])));
 		//CoreThread.ChangeCdvdSource();
@@ -1040,7 +1040,7 @@ void MainEmuFrame::Menu_Capture_Screenshot_Screenshot_Click(wxCommandEvent& even
 	{
 		return;
 	}
-	GSmakeSnapshot(g_Conf->Folders.Snapshots.ToString().char_str());
+	GSQueueSnapshot(std::string(), 0);
 }
 
 void MainEmuFrame::Menu_Capture_Screenshot_Screenshot_As_Click(wxCommandEvent& event)
@@ -1056,7 +1056,7 @@ void MainEmuFrame::Menu_Capture_Screenshot_Screenshot_As_Click(wxCommandEvent& e
 	wxFileDialog fileDialog(this, _("Select a file"), g_Conf->Folders.Snapshots.ToAscii(), wxEmptyString, "PNG files (*.png)|*.png", wxFD_SAVE | wxFD_OVERWRITE_PROMPT);
 
 	if (fileDialog.ShowModal() == wxID_OK)
-		GSmakeSnapshot((char*)fileDialog.GetPath().char_str());
+		GSQueueSnapshot(StringUtil::wxStringToUTF8String(fileDialog.GetPath()), 0);
 
 	// Resume emulation
 	if (!wasPaused)

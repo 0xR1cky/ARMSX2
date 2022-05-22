@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <vector>
+
 #include "System.h"
 #include "common/Exceptions.h"
 
@@ -354,9 +356,7 @@ namespace Exception
 	{
 		DEFINE_STREAM_EXCEPTION(SaveStateLoadError, BadStream)
 
-		virtual wxString FormatDiagnosticMessage() const;
-		virtual wxString FormatDisplayMessage() const;
+		virtual std::string FormatDiagnosticMessage() const;
+		virtual std::string FormatDisplayMessage() const;
 	};
 }; // namespace Exception
-
-extern wxString GetSavestateFolder( int slot );

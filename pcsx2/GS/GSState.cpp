@@ -17,9 +17,11 @@
 #include "GSState.h"
 #include "GSGL.h"
 #include "GSUtil.h"
+#include "common/StringUtil.h"
 
 #include <algorithm> // clamp
 #include <cfloat> // FLT_MAX
+#include <fstream>
 #include <iomanip> // Dump Verticles
 
 int GSState::s_n = 0;
@@ -510,16 +512,6 @@ GSVector2i GSState::GetResolution()
 		total_rect.w = std::min(total_rect.w, resolution.y);
 		resolution.x = total_rect.z;
 		resolution.y = total_rect.w;
-
-		// When we're ignoring offsets we need to account for pictures which are usually offset up off the screen
-		// where more of the bottom would normally be visible, stops some games looking so cut off.
-		const int display_offset = std::min(GetResolutionOffset(0).y, GetResolutionOffset(1).y);
-
-		// If there is a negative vertical offset on the picture, we need to read more.
-		if (display_offset < 0)
-		{
-			resolution.y += -display_offset;
-		}
 	}
 
 	return resolution;
@@ -555,7 +547,10 @@ GSVector4i GSState::GetFrameRect(int i)
 	rectangle.bottom = rectangle.top + h;
 
 	if (isinterlaced() && m_regs->SMODE2.FFMD && h > 1)
+	{
+		rectangle.bottom += 1;
 		rectangle.bottom >>= 1;
+	}
 
 	return rectangle;
 }
@@ -1862,7 +1857,7 @@ void GSState::Read(u8* mem, int len)
 
 	if (s_dump && s_save && s_n >= s_saven)
 	{
-		std::string s = m_dump_root + format(
+		std::string s = m_dump_root + StringUtil::StdStringFromFormat(
 			"%05d_read_%05x_%d_%d_%d_%d_%d_%d.bmp",
 			s_n, (int)m_env.BITBLTBUF.SBP, (int)m_env.BITBLTBUF.SBW, (int)m_env.BITBLTBUF.SPSM,
 			r.left, r.top, r.right, r.bottom);

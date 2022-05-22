@@ -91,8 +91,7 @@ bool GSDevice11::Create(HostDisplay* display)
 
 	if (!GSConfig.DisableShaderCache)
 	{
-		if (!m_shader_cache.Open(StringUtil::wxStringToUTF8String(EmuFolders::Cache.ToString()),
-				m_dev->GetFeatureLevel(), SHADER_VERSION, GSConfig.UseDebugDevice))
+		if (!m_shader_cache.Open(EmuFolders::Cache, m_dev->GetFeatureLevel(), SHADER_VERSION, GSConfig.UseDebugDevice))
 		{
 			Console.Warning("Shader cache failed to open.");
 		}
@@ -356,7 +355,7 @@ void GSDevice11::RestoreAPIState()
 		static_cast<float>(m_state.viewport.x), static_cast<float>(m_state.viewport.y),
 		0.0f, 1.0f);
 	m_ctx->RSSetViewports(1, &vp);
-	m_ctx->RSSetScissorRects(1, m_state.scissor);
+	m_ctx->RSSetScissorRects(1, reinterpret_cast<const D3D11_RECT*>(&m_state.scissor));
 	m_ctx->RSSetState(m_rs.get());
 
 	m_ctx->OMSetDepthStencilState(m_state.dss, m_state.sref);
@@ -1183,7 +1182,7 @@ void GSDevice11::OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector
 	{
 		m_state.scissor = r;
 
-		m_ctx->RSSetScissorRects(1, r);
+		m_ctx->RSSetScissorRects(1, reinterpret_cast<const D3D11_RECT*>(&r));
 	}
 }
 

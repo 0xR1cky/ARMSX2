@@ -23,6 +23,7 @@
 #include <QtWidgets/QStyle>
 #include <QtWidgets/QStyleFactory>
 
+#include "common/Assertions.h"
 #include "common/FileSystem.h"
 
 #include "pcsx2/CDVD/CDVDaccess.h"
@@ -45,10 +46,8 @@
 #include "Settings/InterfaceSettingsWidget.h"
 #include "SettingWidgetBinder.h"
 
-extern u32 GSmakeSnapshot(char* path);
-
 static constexpr char DISC_IMAGE_FILTER[] =
-	QT_TRANSLATE_NOOP("MainWindow", "All File Types (*.bin *.iso *.cue *.chd *.cso *.gz *.elf *.irx *.m3u *.gs *.gs.xz);;"
+	QT_TRANSLATE_NOOP("MainWindow", "All File Types (*.bin *.iso *.cue *.chd *.cso *.gz *.elf *.irx *.m3u *.gs *.gs.xz *.gs.zst);;"
 									"Single-Track Raw Images (*.bin *.iso);;"
 									"Cue Sheets (*.cue);;"
 									"MAME CHD Images (*.chd);;"
@@ -57,7 +56,7 @@ static constexpr char DISC_IMAGE_FILTER[] =
 									"ELF Executables (*.elf);;"
 									"IRX Executables (*.irx);;"
 									"Playlists (*.m3u);;"
-									"GS Dumps (*.gs *.gs.xz)");
+									"GS Dumps (*.gs *.gs.xz *.gs.zst)");
 
 const char* MainWindow::DEFAULT_THEME_NAME = "darkfusion";
 
@@ -211,6 +210,8 @@ void MainWindow::connectSignals()
 	connect(m_ui.actionEnableEEConsoleLogging, &QAction::triggered, this, &MainWindow::onLoggingOptionChanged);
 	SettingWidgetBinder::BindWidgetToBoolSetting(nullptr, m_ui.actionEnableIOPConsoleLogging, "Logging", "EnableIOPConsole", true);
 	connect(m_ui.actionEnableIOPConsoleLogging, &QAction::triggered, this, &MainWindow::onLoggingOptionChanged);
+
+	connect(m_ui.actionSaveGSDump, &QAction::triggered, this, &MainWindow::onSaveGSDumpActionTriggered);
 
 	// These need to be queued connections to stop crashing due to menus opening/closing and switching focus.
 	connect(m_game_list_widget, &GameListWidget::refreshProgress, this, &MainWindow::onGameListRefreshProgress);
@@ -514,8 +515,12 @@ void MainWindow::setIconThemeFromSettings()
 
 void MainWindow::onScreenshotActionTriggered()
 {
-	Host::AddOSDMessage("Saved Screenshot.", 10.0f);
-	GSmakeSnapshot(EmuFolders::Snapshots.ToString().char_str());
+	g_emu_thread->queueSnapshot(0);
+}
+
+void MainWindow::onSaveGSDumpActionTriggered()
+{
+	g_emu_thread->queueSnapshot(1);
 }
 
 void MainWindow::saveStateToConfig()
@@ -1138,7 +1143,7 @@ void MainWindow::startupUpdateCheck()
 
 void MainWindow::onToolsOpenDataDirectoryTriggered()
 {
-	const QString path(QtUtils::WxStringToQString(EmuFolders::DataRoot.ToString()));
+	const QString path(QString::fromStdString(EmuFolders::DataRoot));
 	QtUtils::OpenURL(this, QUrl::fromLocalFile(path));
 }
 

@@ -611,6 +611,22 @@ void EmuThread::runOnCPUThread(const std::function<void()>& func)
 	func();
 }
 
+void EmuThread::queueSnapshot(quint32 gsdump_frames)
+{
+	if (!isOnEmuThread())
+	{
+		QMetaObject::invokeMethod(this, "queueSnapshot", Qt::QueuedConnection, Q_ARG(quint32, gsdump_frames));
+		return;
+	}
+
+	if (!VMManager::HasValidVM())
+		return;
+
+	GetMTGS().RunOnGSThread([gsdump_frames]() {
+		GSQueueSnapshot(std::string(), gsdump_frames);
+	});
+}
+
 void EmuThread::updateDisplay()
 {
 	pxAssertRel(!isOnEmuThread(), "Not on emu thread");
@@ -650,7 +666,7 @@ HostDisplay* EmuThread::acquireHostDisplay(HostDisplay::RenderAPI api)
 		return nullptr;
 	}
 
-	if (!s_host_display->InitializeRenderDevice(StringUtil::wxStringToUTF8String(EmuFolders::Cache.ToString()), false) ||
+	if (!s_host_display->InitializeRenderDevice(EmuFolders::Cache, false) ||
 		!ImGuiManager::Initialize())
 	{
 		Console.Error("Failed to initialize device/imgui");
@@ -700,7 +716,15 @@ void Host::ReleaseHostDisplay()
 
 bool Host::BeginPresentFrame(bool frame_skip)
 {
-	return s_host_display->BeginPresent(frame_skip);
+	if (!s_host_display->BeginPresent(frame_skip))
+	{
+		// if we're skipping a frame, we need to reset imgui's state, since
+		// we won't be calling EndPresentFrame().
+		ImGuiManager::NewFrame();
+		return false;
+	}
+
+	return true;
 }
 
 void Host::EndPresentFrame()
@@ -893,13 +917,6 @@ SysMtgsThread& GetMTGS()
 // ------------------------------------------------------------------------
 
 BEGIN_HOTKEY_LIST(g_host_hotkeys)
-DEFINE_HOTKEY("Screenshot", "General", "Save Screenshot", [](bool pressed) {
-	if (!pressed)
-	{
-		Host::AddOSDMessage("Saved Screenshot.", 10.0f);
-		GSmakeSnapshot(EmuFolders::Snapshots.ToString().char_str());
-	}
-})
 DEFINE_HOTKEY("ShutdownVM", "System", "Shut Down Virtual Machine", [](bool pressed) {
 	if (!pressed)
 	{
