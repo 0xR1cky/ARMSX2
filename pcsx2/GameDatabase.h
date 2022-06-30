@@ -76,6 +76,7 @@ namespace GameDatabaseSchema
 		EstimateTextureRegion,
 		PCRTCOffsets,
 		PCRTCOverscan,
+		PreRoundSprites,
 
 		// integer settings
 		Mipmap,
