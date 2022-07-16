@@ -682,9 +682,7 @@ void AppConfig::LoadSave(IniInterface& ini, SettingsWrapper& wrap)
 	Folders.LoadSave(ini);
 
 	GSWindow.LoadSave(ini);
-#ifndef DISABLE_RECORDING
 	inputRecording.loadSave(ini);
-#endif
 	AudioCapture.LoadSave(ini);
 	Templates.LoadSave(ini);
 
@@ -888,6 +886,7 @@ void AppConfig::GSWindowOptions::LoadSave(IniInterface& ini)
 			// WARNING: array must be NULL terminated to compute it size
 			NULL};
 
+	g_Conf->EmuOptions.GS.SyncToHostRefreshRate = ini.EntryBitBool(L"SyncToHostRefreshRate", g_Conf->EmuOptions.GS.SyncToHostRefreshRate, g_Conf->EmuOptions.GS.SyncToHostRefreshRate);
 	ini.EnumEntry(L"AspectRatio", g_Conf->EmuOptions.GS.AspectRatio, AspectRatioNames, g_Conf->EmuOptions.GS.AspectRatio);
 	if (ini.IsLoading())
 		EmuConfig.CurrentAspectRatio = g_Conf->EmuOptions.GS.AspectRatio;
@@ -908,7 +907,6 @@ void AppConfig::GSWindowOptions::LoadSave(IniInterface& ini)
 		SanityCheck();
 }
 
-#ifndef DISABLE_RECORDING
 AppConfig::InputRecordingOptions::InputRecordingOptions()
 	: VirtualPadPosition(wxDefaultPosition)
 	, m_frame_advance_amount(1)
@@ -922,7 +920,6 @@ void AppConfig::InputRecordingOptions::loadSave(IniInterface& ini)
 	IniEntry(VirtualPadPosition);
 	IniEntry(m_frame_advance_amount);
 }
-#endif
 
 AppConfig::CaptureOptions::CaptureOptions()
 {
@@ -947,10 +944,8 @@ AppConfig::UiTemplateOptions::UiTemplateOptions()
 	OutputProgressive = L"Progressive";
 	OutputInterlaced = L"Interlaced";
 	Paused = L"<PAUSED> ";
-	TitleTemplate = L"Slot: ${slot} | Speed: ${speed} (${vfps}) | ${videomode} | Limiter: ${limiter} | ${gsdx} | ${omodei} | ${cpuusage}";
-#ifndef DISABLE_RECORDING
+	TitleTemplate = L"Slot: ${slot} | Speed: ${speed} (${vfps}) | ${videomode} | Limiter: ${limiter} | ${gs} | ${omodei} | ${cpuusage}";
 	RecordingTemplate = L"Slot: ${slot} | Frame: ${frame}/${maxFrame} | Rec. Mode: ${mode} | Speed: ${speed} (${vfps}) | Limiter: ${limiter}";
-#endif
 }
 
 void AppConfig::UiTemplateOptions::LoadSave(IniInterface& ini)
@@ -967,9 +962,7 @@ void AppConfig::UiTemplateOptions::LoadSave(IniInterface& ini)
 	IniEntry(OutputInterlaced);
 	IniEntry(Paused);
 	IniEntry(TitleTemplate);
-#ifndef DISABLE_RECORDING
 	IniEntry(RecordingTemplate);
-#endif
 }
 
 int AppConfig::GetMaxPresetIndex()
@@ -1040,9 +1033,6 @@ bool AppConfig::IsOkApplyPreset(int n, bool ignoreMTVU)
 	EmuOptions.EnablePatches = true;
 
 	EmuOptions.GS.SynchronousMTGS = default_Pcsx2Config.GS.SynchronousMTGS;
-	EmuOptions.GS.FrameSkipEnable = default_Pcsx2Config.GS.FrameSkipEnable;
-	EmuOptions.GS.FramesToDraw = default_Pcsx2Config.GS.FramesToDraw;
-	EmuOptions.GS.FramesToSkip = default_Pcsx2Config.GS.FramesToSkip;
 
 	EmuOptions.Cpu = default_Pcsx2Config.Cpu;
 	EmuOptions.Gamefixes = default_Pcsx2Config.Gamefixes;

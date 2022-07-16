@@ -24,10 +24,8 @@
 #include "PAD/Gamepad.h"
 
 #include "common/Timer.h"
+#include "Recording/InputRecording.h"
 
-#ifndef DISABLE_RECORDING
-#	include "Recording/InputRecording.h"
-#endif
 
 _sio sio;
 _mcd mcds[2][4];
@@ -207,16 +205,14 @@ SIO_WRITE sioWriteController(u8 data)
 
 	default:
 		sio.buf[sio.bufCount] = PADpoll(data);
-#ifndef DISABLE_RECORDING
-		if (g_Conf->EmuOptions.EnableRecordingTools)
+		if (EmuConfig.EnableRecordingTools)
 		{
 			// Only examine controllers 1 / 2
-			if (sio.slot[sio.port] == 0)
+			if (sio.slot[sio.port] == 0 || sio.slot[sio.port] == 1)
 			{
 				g_InputRecording.ControllerInterrupt(data, sio.port, sio.bufCount, sio.buf);
 			}
 		}
-#endif
 		break;
 	}
 	//Console.WriteLn( "SIO: sent = %02X  From pad data =  %02X  bufCnt %08X ", data, sio.buf[sio.bufCount], sio.bufCount);
@@ -1058,4 +1054,34 @@ void SaveStateBase::sioFreeze()
 				mcds[port][slot].ForceEjection_Timeout = FORCED_MCD_EJECTION_MAX_TRIES;
 		}
 	}
+}
+
+std::tuple<u32, u32> sioConvertPadToPortAndSlot(u32 index)
+{
+	if (index > 4) // [5,6,7]
+		return std::make_tuple(1, index - 4); // 2B,2C,2D
+	else if (index > 1) // [2,3,4]
+		return std::make_tuple(0, index - 1); // 1B,1C,1D
+	else // [0,1]
+		return std::make_tuple(index, 0); // 1A,2A
+}
+
+u32 sioConvertPortAndSlotToPad(u32 port, u32 slot)
+{
+	if (slot == 0)
+		return port;
+	else if (port == 0) // slot=[0,1]
+		return slot + 1; // 2,3,4
+	else
+		return slot + 4; // 5,6,7
+}
+
+bool sioPadIsMultitapSlot(u32 index)
+{
+	return (index >= 2);
+}
+
+bool sioPortAndSlotIsMultitap(u32 port, u32 slot)
+{
+	return (slot != 0);
 }

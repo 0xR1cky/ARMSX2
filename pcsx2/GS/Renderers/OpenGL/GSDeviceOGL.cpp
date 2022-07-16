@@ -226,15 +226,14 @@ bool GSDeviceOGL::Create(HostDisplay* display)
 	m_features.framebuffer_fetch = GLLoader::found_framebuffer_fetch;
 	m_features.dual_source_blend = GLLoader::has_dual_source_blend && !GSConfig.DisableDualSourceBlend;
 	m_features.stencil_buffer = true;
+	// Wide line support in GL is deprecated as of 3.1, so we will just do it in the Geometry Shader.
+	m_features.line_expand = false;
 
 	GLint point_range[2] = {};
-	GLint line_range[2] = {};
 	glGetIntegerv(GL_ALIASED_POINT_SIZE_RANGE, point_range);
-	glGetIntegerv(GL_ALIASED_LINE_WIDTH_RANGE, line_range);
 	m_features.point_expand = (point_range[0] <= static_cast<GLint>(GSConfig.UpscaleMultiplier) && point_range[1] >= static_cast<GLint>(GSConfig.UpscaleMultiplier));
-	m_features.line_expand = (line_range[0] <= static_cast<GLint>(GSConfig.UpscaleMultiplier) && line_range[1] >= static_cast<GLint>(GSConfig.UpscaleMultiplier));
-	Console.WriteLn("Using %s for point expansion and %s for line expansion.",
-		m_features.point_expand ? "hardware" : "geometry shaders", m_features.line_expand ? "hardware" : "geometry shaders");
+
+	Console.WriteLn("Using %s for point expansion.", m_features.point_expand ? "hardware" : "geometry shaders");
 
 	{
 		auto shader = Host::ReadResourceFileToString("shaders/opengl/common_header.glsl");
@@ -394,6 +393,43 @@ bool GSDeviceOGL::Create(HostDisplay* display)
 	}
 
 	// ****************************************************************
+	// present
+	// ****************************************************************
+	{
+		GL_PUSH("GSDeviceOGL::Present");
+
+		// these all share the same vertex shader
+		const auto shader = Host::ReadResourceFileToString("shaders/opengl/present.glsl");
+		if (!shader.has_value())
+		{
+			Host::ReportErrorAsync("GS", "Failed to read shaders/opengl/present.glsl.");
+			return false;
+		}
+
+		std::string present_vs(GetShaderSource("vs_main", GL_VERTEX_SHADER, m_shader_common_header, *shader, {}));
+
+		for (size_t i = 0; i < std::size(m_present); i++)
+		{
+			const char* name = shaderName(static_cast<PresentShader>(i));
+			const std::string ps(GetShaderSource(name, GL_FRAGMENT_SHADER, m_shader_common_header, *shader, {}));
+			if (!m_shader_cache.GetProgram(&m_present[i], present_vs, {}, ps))
+				return false;
+			m_present[i].SetFormattedName("Present pipe %s", name);
+
+			// This is a bit disgusting, but it saves allocating a UBO when no shaders currently need it.
+			m_present[i].RegisterUniform("u_source_rect");
+			m_present[i].RegisterUniform("u_target_rect");
+			m_present[i].RegisterUniform("u_source_size");
+			m_present[i].RegisterUniform("u_target_size");
+			m_present[i].RegisterUniform("u_target_resolution");
+			m_present[i].RegisterUniform("u_rcp_target_resolution");
+			m_present[i].RegisterUniform("u_source_resolution");
+			m_present[i].RegisterUniform("u_rcp_source_resolution");
+			m_present[i].RegisterUniform("u_time");
+		}
+	}
+
+	// ****************************************************************
 	// merge
 	// ****************************************************************
 	{
@@ -436,7 +472,6 @@ bool GSDeviceOGL::Create(HostDisplay* display)
 				return false;
 			m_interlace.ps[i].SetFormattedName("Merge pipe %zu", i);
 			m_interlace.ps[i].RegisterUniform("ZrH");
-			m_interlace.ps[i].RegisterUniform("hH");
 		}
 	}
 
@@ -601,8 +636,6 @@ void GSDeviceOGL::ResetAPIState()
 {
 	if (GLState::point_size)
 		glDisable(GL_PROGRAM_POINT_SIZE);
-	if (GLState::line_width != 1.0f)
-		glLineWidth(1.0f);
 }
 
 void GSDeviceOGL::RestoreAPIState()
@@ -655,8 +688,6 @@ void GSDeviceOGL::RestoreAPIState()
 
 	if (GLState::point_size)
 		glEnable(GL_PROGRAM_POINT_SIZE);
-	if (GLState::line_width != 1.0f)
-		glLineWidth(GLState::line_width);
 }
 
 void GSDeviceOGL::DrawPrimitive()
@@ -1203,31 +1234,18 @@ void GSDeviceOGL::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture
 	                        || ps == m_convert.ps[static_cast<int>(ShaderConvert::RGBA8_TO_FLOAT16)]
 	                        || ps == m_convert.ps[static_cast<int>(ShaderConvert::RGB5A1_TO_FLOAT16)];
 
-	// Performance optimization. It might be faster to use a framebuffer blit for standard case
-	// instead to emulate it with shader
-	// see https://www.opengl.org/wiki/Framebuffer#Blitting
-
 	// ************************************
 	// Init
 	// ************************************
 
 	BeginScene();
 
-	GSVector2i ds;
-	if (dTex)
-	{
-		GL_PUSH("StretchRect from %d to %d", sTex->GetID(), dTex->GetID());
-		ds = dTex->GetSize();
-		dTex->CommitRegion(GSVector2i((int)dRect.z + 1, (int)dRect.w + 1));
-		if (draw_in_depth)
-			OMSetRenderTargets(NULL, dTex);
-		else
-			OMSetRenderTargets(dTex, NULL);
-	}
+	GL_PUSH("StretchRect from %d to %d", sTex->GetID(), dTex->GetID());
+	dTex->CommitRegion(GSVector2i((int)dRect.z + 1, (int)dRect.w + 1));
+	if (draw_in_depth)
+		OMSetRenderTargets(NULL, dTex);
 	else
-	{
-		ds = GSVector2i(m_display->GetWindowWidth(), m_display->GetWindowHeight());
-	}
+		OMSetRenderTargets(dTex, NULL);
 
 	ps.Bind();
 
@@ -1244,23 +1262,6 @@ void GSDeviceOGL::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture
 	OMSetColorMaskState(cms);
 
 	// ************************************
-	// ia
-	// ************************************
-
-
-	// Flip y axis only when we render in the backbuffer
-	// By default everything is render in the wrong order (ie dx).
-	// 1/ consistency between several pass rendering (interlace)
-	// 2/ in case some GS code expect thing in dx order.
-	// Only flipping the backbuffer is transparent (I hope)...
-	GSVector4 flip_sr = sRect;
-	if (!dTex)
-	{
-		flip_sr.y = sRect.w;
-		flip_sr.w = sRect.y;
-	}
-
-	// ************************************
 	// Texture
 	// ************************************
 
@@ -1270,11 +1271,53 @@ void GSDeviceOGL::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture
 	// ************************************
 	// Draw
 	// ************************************
-	DrawStretchRect(flip_sr, dRect, ds);
+	DrawStretchRect(sRect, dRect, dTex->GetSize());
 
 	// ************************************
 	// End
 	// ************************************
+
+	EndScene();
+}
+
+void GSDeviceOGL::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, PresentShader shader, float shaderTime, bool linear)
+{
+	ASSERT(sTex);
+
+	BeginScene();
+
+	const GSVector2i ds(dTex ? dTex->GetSize() : GSVector2i(m_display->GetWindowWidth(), m_display->GetWindowHeight()));
+	DisplayConstantBuffer cb;
+	cb.SetSource(sRect, sTex->GetSize());
+	cb.SetTarget(dRect, ds);
+	cb.SetTime(shaderTime);
+	
+	GL::Program& prog = m_present[static_cast<int>(shader)];
+	prog.Bind();
+	prog.Uniform4fv(0, cb.SourceRect.F32);
+	prog.Uniform4fv(1, cb.TargetRect.F32);
+	prog.Uniform2fv(2, &cb.SourceSize.x);
+	prog.Uniform2fv(3, &cb.TargetSize.x);
+	prog.Uniform2fv(4, &cb.TargetResolution.x);
+	prog.Uniform2fv(5, &cb.RcpTargetResolution.x);
+	prog.Uniform2fv(6, &cb.SourceResolution.x);
+	prog.Uniform2fv(7, &cb.RcpSourceResolution.x);
+	prog.Uniform1f(8, cb.TimeAndPad.x);
+
+	OMSetDepthStencilState(m_convert.dss);
+	OMSetBlendState(false);
+	OMSetColorMaskState();
+
+	PSSetShaderResource(0, sTex);
+	PSSetSamplerState(linear ? m_convert.ln : m_convert.pt);
+
+	// Flip y axis only when we render in the backbuffer
+	// By default everything is render in the wrong order (ie dx).
+	// 1/ consistency between several pass rendering (interlace)
+	// 2/ in case some GS code expect thing in dx order.
+	// Only flipping the backbuffer is transparent (I hope)...
+	const GSVector4 flip_sr(sRect.xwzy());
+	DrawStretchRect(flip_sr, dRect, ds);
 
 	EndScene();
 }
@@ -1382,7 +1425,6 @@ void GSDeviceOGL::DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool
 
 	m_interlace.ps[shader].Bind();
 	m_interlace.ps[shader].Uniform2f(0, 0, 1.0f / s.y);
-	m_interlace.ps[shader].Uniform1f(1, s.y / 2);
 
 	StretchRect(sTex, sRect, dTex, dRect, m_interlace.ps[shader], linear);
 }
@@ -1629,7 +1671,7 @@ void GSDeviceOGL::OMAttachDs(GSTextureOGL* ds)
 	{
 		GLState::ds = id;
 
-		const GLenum target = GLLoader::found_framebuffer_fetch ? GL_DEPTH_ATTACHMENT : GL_DEPTH_STENCIL_ATTACHMENT;
+		const GLenum target = m_features.framebuffer_fetch ? GL_DEPTH_ATTACHMENT : GL_DEPTH_STENCIL_ATTACHMENT;
 		glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, target, GL_TEXTURE_2D, id, 0);
 	}
 }
@@ -1919,12 +1961,6 @@ void GSDeviceOGL::RenderHW(GSHWDrawConfig& config)
 		else
 			glDisable(GL_PROGRAM_POINT_SIZE);
 		GLState::point_size = point_size_enabled;
-	}
-	const float line_width = config.line_expand ? static_cast<float>(GSConfig.UpscaleMultiplier) : 1.0f;
-	if (GLState::line_width != line_width)
-	{
-		GLState::line_width = line_width;
-		glLineWidth(line_width);
 	}
 
 	if (config.destination_alpha == GSHWDrawConfig::DestinationAlphaMode::PrimIDTracking)

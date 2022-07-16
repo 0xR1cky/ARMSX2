@@ -21,11 +21,7 @@
 
 class GSRendererSW final : public GSRenderer
 {
-	static const GSVector4 m_pos_scale;
-#if _M_SSE >= 0x501
-	static const GSVector8 m_pos_scale2;
-#endif
-
+public:
 	class SharedData : public GSDrawScanline::SharedData
 	{
 		struct alignas(16) TextureLevel
@@ -59,13 +55,6 @@ class GSRendererSW final : public GSRenderer
 		void UpdateSource();
 	};
 
-	typedef void (GSRendererSW::*ConvertVertexBufferPtr)(GSVertexSW* RESTRICT dst, const GSVertex* RESTRICT src, size_t count);
-
-	ConvertVertexBufferPtr m_cvb[4][2][2][2];
-
-	template <u32 primclass, u32 tme, u32 fst, u32 q_div>
-	void ConvertVertexBuffer(GSVertexSW* RESTRICT dst, const GSVertex* RESTRICT src, size_t count);
-
 protected:
 	std::unique_ptr<IRasterizer> m_rl;
 	std::unique_ptr<GSTextureCacheSW> m_tc;
@@ -78,7 +67,7 @@ protected:
 	std::atomic<u32> m_fzb_pages[512]; // u16 frame/zbuf pages interleaved
 	std::atomic<u16> m_tex_pages[512];
 
-	void Reset() override;
+	void Reset(bool hardware_reset) override;
 	void VSync(u32 field, bool registers_written) override;
 	GSTexture* GetOutput(int i, int& y_offset) override;
 	GSTexture* GetFeedbackOutput() override;

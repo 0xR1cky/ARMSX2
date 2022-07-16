@@ -93,6 +93,17 @@ const char* dialog_message(int ID, bool* updateText)
 			return cvtString("Enable: Takes in to account offsets in the analogue circuits.\n"
 				"This will use the intended aspect ratios and screen offsets, may cause odd black borders.\n"
 				"Used for screen positioning and screen shake in Wipeout Fusion.");
+		case IDC_PCRTC_OVERSCAN:
+			return cvtString("Shows more overscan area for some games which expect there to be some.\n"
+				"Used for games like Need for Speed Underground (PAL),Crash Nitro Kart (PAL) \n"
+				"and Espgaluda (When using certain Tate modes)");
+		case IDC_PCRTC_ANTIBLUR:
+			return cvtString("Enable: Adds internal anti-blur hacks on the merge ciruit.\n"
+				"This will likely make a lot of games look crisper but is less accurate to the PS2.");
+		case IDC_DISABLE_INTERLACE_OFFSETS:
+			return cvtString("Enable: Removes the offset for interlacing when upscaling.\n"
+				"Can reduce blurring in some games, where the opposite is true most of the time.\n"
+				"Used for ICO to reduce blur.");
 		case IDC_ACCURATE_DATE:
 			return cvtString("Implement a more accurate algorithm to compute GS destination alpha testing.\n"
 				"It improves shadow and transparency rendering.\n\n"

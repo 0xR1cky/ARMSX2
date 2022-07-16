@@ -322,7 +322,9 @@ RendererTab::RendererTab(wxWindow* parent)
 	auto* pcrtc_checks_box = new wxWrapSizer(wxHORIZONTAL);
 
 	m_ui.addCheckBox(pcrtc_checks_box, "Screen Offsets", "pcrtc_offsets", IDC_PCRTC_OFFSETS);
-
+	m_ui.addCheckBox(pcrtc_checks_box, "Show Overscan", "pcrtc_overscan", IDC_PCRTC_OVERSCAN);
+	m_ui.addCheckBox(pcrtc_checks_box, "Disable Interlace Offset", "disable_interlace_offset", IDC_DISABLE_INTERLACE_OFFSETS);
+	m_ui.addCheckBox(pcrtc_checks_box, "Anti-Blur", "pcrtc_antiblur", IDC_PCRTC_ANTIBLUR);
 	general_box->Add(pcrtc_checks_box, wxSizerFlags().Center());
 
 	tab_box->Add(hardware_box.outer, wxSizerFlags().Expand());
@@ -341,6 +343,8 @@ HacksTab::HacksTab(wxWindow* parent)
 
 	auto hw_prereq = [this]{ return m_is_hardware; };
 	auto* hacks_check_box = m_ui.addCheckBox(tab_box.inner, "Manual HW Hacks (Disables automatic settings if checked)", "UserHacks", -1, hw_prereq);
+	m_ui.addCheckBox(tab_box.inner, "Skip Presenting Duplicate Frames", "SkipDuplicateFrames", -1);
+
 	auto hacks_prereq = [this, hacks_check_box]{ return m_is_hardware && hacks_check_box->GetValue(); };
 	auto upscale_hacks_prereq = [this, hacks_check_box]{ return !m_is_native_res && hacks_check_box->GetValue(); };
 
@@ -391,11 +395,11 @@ HacksTab::HacksTab(wxWindow* parent)
 	auto* tex_off_box = new wxBoxSizer(wxHORIZONTAL);
 	add_label(this, tex_off_box, "X:", IDC_TCOFFSETX, wxSizerFlags().Centre());
 	tex_off_box->AddSpacer(space);
-	m_ui.addSpin(tex_off_box, "UserHacks_TCOffsetX", 0, 10000, 0, IDC_TCOFFSETX, hacks_prereq);
+	m_ui.addSpin(tex_off_box, "UserHacks_TCOffsetX", 0, 10000, 0, IDC_TCOFFSETX, upscale_hacks_prereq);
 	tex_off_box->AddSpacer(space);
 	add_label(this, tex_off_box, "Y:", IDC_TCOFFSETY, wxSizerFlags().Centre());
 	tex_off_box->AddSpacer(space);
-	m_ui.addSpin(tex_off_box, "UserHacks_TCOffsetY", 0, 10000, 0, IDC_TCOFFSETY, hacks_prereq);
+	m_ui.addSpin(tex_off_box, "UserHacks_TCOffsetY", 0, 10000, 0, IDC_TCOFFSETY, upscale_hacks_prereq);
 
 	upscale_hack_choice_grid->Add(tex_off_box, wxSizerFlags().Expand());
 

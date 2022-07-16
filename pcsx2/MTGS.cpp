@@ -110,8 +110,16 @@ void SysMtgsThread::ShutdownThread()
 
 void SysMtgsThread::ThreadEntryPoint()
 {
-	m_thread_handle = Threading::ThreadHandle::GetForCallingThread();
 	Threading::SetNameOfCurrentThread("GS");
+
+	if (GSinit() != 0)
+	{
+		Host::ReportErrorAsync("Error", "GSinit() failed.");
+		m_open_or_close_done.Post();
+		return;
+	}
+
+	m_thread_handle = Threading::ThreadHandle::GetForCallingThread();
 
 	for (;;)
 	{
@@ -154,9 +162,11 @@ void SysMtgsThread::ThreadEntryPoint()
 		// we need to reset sem_event here, because MainLoop() kills it.
 		m_sem_event.Reset();
 	}
+
+	GSshutdown();
 }
 
-void SysMtgsThread::ResetGS()
+void SysMtgsThread::ResetGS(bool hardware_reset)
 {
 	pxAssertDev(!IsOpen() || (m_ReadPos == m_WritePos), "Must close or terminate the GS thread prior to gsReset.");
 
@@ -170,8 +180,7 @@ void SysMtgsThread::ResetGS()
 	m_VsyncSignalListener = 0;
 
 	MTGS_LOG("MTGS: Sending Reset...");
-	SendSimplePacket(GS_RINGTYPE_RESET, 0, 0, 0);
-	SendSimplePacket(GS_RINGTYPE_FRAMESKIP, 0, 0, 0);
+	SendSimplePacket(GS_RINGTYPE_RESET, static_cast<int>(hardware_reset), 0, 0);
 	SetEvent();
 }
 
@@ -233,8 +242,11 @@ void SysMtgsThread::PostVsyncStart(bool registers_written)
 
 void SysMtgsThread::InitAndReadFIFO(u8* mem, u32 qwc)
 {
-	if (GSConfig.HWDisableReadbacks && GSConfig.UseHardwareRenderer())
+	if (EmuConfig.GS.HWDisableReadbacks && GSConfig.UseHardwareRenderer())
+	{
+		GSReadLocalMemoryUnsync(mem, qwc, vif1.BITBLTBUF._u64, vif1.TRXPOS._u64, vif1.TRXREG._u64);
 		return;
+	}
 
 	SendPointerPacket(GS_RINGTYPE_INIT_AND_READ_FIFO, qwc, mem);
 	WaitGS(false, false, false);
@@ -450,7 +462,6 @@ void SysMtgsThread::MainLoop()
 
 							// CSR & 0x2000; is the pageflip id.
 							GSvsync((((u32&)RingBuffer.Regs[0x1000]) & 0x2000) ? 0 : 1, remainder[4] != 0);
-							gsFrameSkip();
 
 							m_QueuedFrameCount.fetch_sub(1);
 							if (m_VsyncSignalListener.exchange(false))
@@ -470,11 +481,6 @@ void SysMtgsThread::MainLoop()
 							}
 							break;
 
-						case GS_RINGTYPE_FRAMESKIP:
-							MTGS_LOG("(MTGS Packet Read) ringtype=Frameskip");
-							_gs_ResetFrameskip();
-							break;
-
 						case GS_RINGTYPE_FREEZE:
 						{
 							MTGS_FreezeData* data = (MTGS_FreezeData*)tag.pointer;
@@ -485,7 +491,7 @@ void SysMtgsThread::MainLoop()
 
 						case GS_RINGTYPE_RESET:
 							MTGS_LOG("(MTGS Packet Read) ringtype=Reset");
-							GSreset();
+							GSreset(tag.data[0] != 0);
 							break;
 
 						case GS_RINGTYPE_SOFTRESET:
@@ -898,6 +904,9 @@ void SysMtgsThread::Freeze(FreezeAction mode, MTGS_FreezeData& data)
 void SysMtgsThread::RunOnGSThread(AsyncCallType func)
 {
 	SendPointerPacket(GS_RINGTYPE_ASYNC_CALL, 0, new AsyncCallType(std::move(func)));
+
+	// wake the gs thread in case it's sleeping
+	SetEvent();
 }
 
 void SysMtgsThread::ApplySettings()
@@ -907,6 +916,13 @@ void SysMtgsThread::ApplySettings()
 	RunOnGSThread([opts = EmuConfig.GS]() {
 		GSUpdateConfig(opts);
 	});
+
+	// We need to synchronize the thread when changing any settings when the download mode
+	// is unsynchronized, because otherwise we might potentially read in the middle of
+	// the GS renderer being reopened.
+	if (EmuConfig.GS.HWDisableReadbacks)
+		WaitGS(false, false, false);
+
 }
 
 void SysMtgsThread::ResizeDisplayWindow(int width, int height, float scale)
@@ -951,6 +967,10 @@ void SysMtgsThread::SwitchRenderer(GSRendererType renderer, bool display_message
 	RunOnGSThread([renderer]() {
 		GSSwitchRenderer(renderer);
 	});
+
+	// See note in ApplySettings() for reasoning here.
+	if (EmuConfig.GS.HWDisableReadbacks)
+		WaitGS(false, false, false);
 }
 
 void SysMtgsThread::SetSoftwareRendering(bool software, bool display_message /* = true */)
@@ -979,4 +999,9 @@ bool SysMtgsThread::SaveMemorySnapshot(u32 width, u32 height, std::vector<u32>* 
 	});
 	WaitGS(false, false, false);
 	return result;
+}
+
+void SysMtgsThread::PresentCurrentFrame()
+{
+	GSPresentCurrentFrame();
 }

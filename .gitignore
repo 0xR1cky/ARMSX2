@@ -68,6 +68,7 @@ oprofile_data/
 /.vscode*
 
 /bin/**/*.dll
+/bin/**/*.dmp
 /bin/**/*.exp
 /bin/**/*.ilk
 /bin/**/*.lib
@@ -92,6 +93,7 @@ oprofile_data/
 /bin/sstates
 /bin/textures
 /bin/translations
+/bin/inputprofiles
 /deps
 /ipch
 

@@ -33,9 +33,12 @@
 #include "common/Path.h"
 #include "common/SettingsWrapper.h"
 #include "common/StringUtil.h"
+#include "common/Timer.h"
 
+#include "pcsx2/DebugTools/Debug.h"
 #include "pcsx2/Frontend/GameList.h"
 #include "pcsx2/Frontend/INISettingsInterface.h"
+#include "pcsx2/Frontend/LogSink.h"
 #include "pcsx2/HostSettings.h"
 #include "pcsx2/PAD/Host/PAD.h"
 
@@ -44,8 +47,6 @@
 #include "MainWindow.h"
 #include "QtHost.h"
 #include "svnrev.h"
-
-#include "pcsx2/DebugTools/Debug.h"
 
 static constexpr u32 SETTINGS_VERSION = 1;
 static constexpr u32 SETTINGS_SAVE_DELAY = 1000;
@@ -56,6 +57,7 @@ static constexpr u32 SETTINGS_SAVE_DELAY = 1000;
 namespace QtHost {
 static bool InitializeConfig();
 static bool ShouldUsePortableMode();
+static void SetAppRoot();
 static void SetResourcesDirectory();
 static void SetDataDirectory();
 static void HookSignals();
@@ -67,6 +69,7 @@ static void SaveSettings();
 //////////////////////////////////////////////////////////////////////////
 // Local variable declarations
 //////////////////////////////////////////////////////////////////////////
+const IConsoleWriter* PatchesCon = &Console;
 static std::unique_ptr<QTimer> s_settings_save_timer;
 static std::unique_ptr<INISettingsInterface> s_base_settings_interface;
 static bool s_batch_mode = false;
@@ -82,18 +85,18 @@ bool QtHost::Initialize()
 	qRegisterMetaType<std::shared_ptr<VMBootParameters>>();
 	qRegisterMetaType<GSRendererType>();
 	qRegisterMetaType<InputBindingKey>();
+	qRegisterMetaType<CDVD_SourceType>();
 	qRegisterMetaType<const GameList::Entry*>();
 
 	if (!InitializeConfig())
 	{
-		Console.WriteLn("Failed to initialize config.");
+		// NOTE: No point translating this, because no config means the language won't be loaded anyway.
+		QMessageBox::critical(nullptr, QStringLiteral("Error"), QStringLiteral("Failed to initialize config."));
 		return false;
 	}
 
-	if (!VMManager::Internal::InitializeGlobals())
-		return false;
-
 	HookSignals();
+	EmuThread::start();
 	return true;
 }
 
@@ -105,13 +108,24 @@ void QtHost::Shutdown()
 		g_main_window->close();
 		delete g_main_window;
 	}
+
+	if (emuLog)
+	{
+		std::fclose(emuLog);
+		emuLog = nullptr;
+	}
 }
 
 bool QtHost::SetCriticalFolders()
 {
-	EmuFolders::AppRoot = Path::Canonicalize(Path::GetDirectory(FileSystem::GetProgramPath()));
+	SetAppRoot();
 	SetResourcesDirectory();
 	SetDataDirectory();
+
+	// logging of directories in case something goes wrong super early
+	Console.WriteLn("AppRoot Directory: %s", EmuFolders::AppRoot.c_str());
+	Console.WriteLn("DataRoot Directory: %s", EmuFolders::DataRoot.c_str());
+	Console.WriteLn("Resources Directory: %s", EmuFolders::Resources.c_str());
 
 	// allow SetDataDirectory() to change settings directory (if we want to split config later on)
 	if (EmuFolders::Settings.empty())
@@ -135,6 +149,14 @@ bool QtHost::ShouldUsePortableMode()
 {
 	// Check whether portable.ini exists in the program directory.
 	return FileSystem::FileExists(Path::Combine(EmuFolders::AppRoot, "portable.ini").c_str());
+}
+
+void QtHost::SetAppRoot()
+{
+	std::string program_path(FileSystem::GetProgramPath());
+	Console.WriteLn("Program Path: %s", program_path.c_str());
+
+	EmuFolders::AppRoot = Path::Canonicalize(Path::GetDirectory(program_path));
 }
 
 void QtHost::SetResourcesDirectory()
@@ -166,25 +188,29 @@ void QtHost::SetDataDirectory()
 		CoTaskMemFree(documents_directory);
 	}
 #elif defined(__linux__)
-	// Check for $HOME/PCSX2 first, for legacy installs.
-	const char* home_dir = getenv("HOME");
-	const std::string legacy_dir(home_dir ? Path::Combine(home_dir, "PCSX2") : std::string());
-	if (!legacy_dir.empty() && FileSystem::DirectoryExists(legacy_dir.c_str()))
+	// Use $XDG_CONFIG_HOME/PCSX2 if it exists.
+	const char* xdg_config_home = getenv("XDG_CONFIG_HOME");
+	if (xdg_config_home && Path::IsAbsolute(xdg_config_home))
 	{
-		EmuFolders::DataRoot = std::move(legacy_dir);
+		EmuFolders::DataRoot = Path::Combine(xdg_config_home, "PCSX2");
 	}
 	else
 	{
-		// otherwise, use $XDG_CONFIG_HOME/PCSX2.
-		const char* xdg_config_home = getenv("XDG_CONFIG_HOME");
-		if (xdg_config_home && xdg_config_home[0] == '/' && FileSystem::DirectoryExists(xdg_config_home))
+		// Use ~/PCSX2 for non-XDG, and ~/.config/PCSX2 for XDG.
+		// Maybe we should drop the former when Qt goes live.
+		const char* home_dir = getenv("HOME");
+		if (home_dir)
 		{
-			EmuFolders::DataRoot = Path::Combine(xdg_config_home, "PCSX2");
-		}
-		else if (!legacy_dir.empty())
-		{
-			// fall back to the legacy PCSX2-in-home.
-			EmuFolders::DataRoot = std::move(legacy_dir);
+#ifndef XDG_STD
+			EmuFolders::DataRoot = Path::Combine(home_dir, "PCSX2");
+#else
+			// ~/.config should exist, but just in case it doesn't and this is a fresh profile..
+			const std::string config_dir(Path::Combine(home_dir, ".config"));
+			if (!FileSystem::DirectoryExists(config_dir.c_str()))
+				FileSystem::CreateDirectoryPath(config_dir.c_str(), false);
+
+			EmuFolders::DataRoot = Path::Combine(config_dir, "PCSX2");
+#endif
 		}
 	}
 #elif defined(__APPLE__)
@@ -207,20 +233,13 @@ void QtHost::SetDataDirectory()
 		EmuFolders::DataRoot = EmuFolders::AppRoot;
 }
 
-void QtHost::UpdateFolders()
-{
-	// TODO: This should happen with the VM thread paused.
-	auto lock = Host::GetSettingsLock();
-	EmuFolders::LoadConfig(*s_base_settings_interface.get());
-	EmuFolders::EnsureFoldersExist();
-}
-
 bool QtHost::InitializeConfig()
 {
 	if (!SetCriticalFolders())
 		return false;
 
 	const std::string path(Path::Combine(EmuFolders::Settings, "PCSX2.ini"));
+	Console.WriteLn("Loading config from %s.", path.c_str());
 	s_base_settings_interface = std::make_unique<INISettingsInterface>(std::move(path));
 	Host::Internal::SetBaseSettingsLayer(s_base_settings_interface.get());
 
@@ -239,7 +258,7 @@ bool QtHost::InitializeConfig()
 	// TODO: Handle reset to defaults if load fails.
 	EmuFolders::LoadConfig(*s_base_settings_interface.get());
 	EmuFolders::EnsureFoldersExist();
-	QtHost::UpdateLogging();
+	Host::UpdateLogging();
 	return true;
 }
 
@@ -247,6 +266,8 @@ void QtHost::SetDefaultConfig()
 {
 	EmuConfig = Pcsx2Config();
 	EmuFolders::SetDefaults();
+	EmuFolders::EnsureFoldersExist();
+	VMManager::SetHardwareDependentDefaultSettings(EmuConfig);
 
 	SettingsInterface& si = *s_base_settings_interface.get();
 	si.SetUIntValue("UI", "SettingsVersion", SETTINGS_VERSION);
@@ -258,41 +279,6 @@ void QtHost::SetDefaultConfig()
 
 	EmuFolders::Save(si);
 	PAD::SetDefaultConfig(si);
-}
-
-SettingsInterface* QtHost::GetBaseSettingsInterface()
-{
-	return s_base_settings_interface.get();
-}
-
-std::string QtHost::GetBaseStringSettingValue(const char* section, const char* key, const char* default_value /*= ""*/)
-{
-	auto lock = Host::GetSettingsLock();
-	return s_base_settings_interface->GetStringValue(section, key, default_value);
-}
-
-bool QtHost::GetBaseBoolSettingValue(const char* section, const char* key, bool default_value /*= false*/)
-{
-	auto lock = Host::GetSettingsLock();
-	return s_base_settings_interface->GetBoolValue(section, key, default_value);
-}
-
-int QtHost::GetBaseIntSettingValue(const char* section, const char* key, int default_value /*= 0*/)
-{
-	auto lock = Host::GetSettingsLock();
-	return s_base_settings_interface->GetIntValue(section, key, default_value);
-}
-
-float QtHost::GetBaseFloatSettingValue(const char* section, const char* key, float default_value /*= 0.0f*/)
-{
-	auto lock = Host::GetSettingsLock();
-	return s_base_settings_interface->GetFloatValue(section, key, default_value);
-}
-
-std::vector<std::string> QtHost::GetBaseStringListSetting(const char* section, const char* key)
-{
-	auto lock = Host::GetSettingsLock();
-	return s_base_settings_interface->GetStringList(section, key);
 }
 
 void QtHost::SetBaseBoolSettingValue(const char* section, const char* key, bool value)
@@ -435,6 +421,11 @@ QString QtHost::GetAppConfigSuffix()
 #endif
 }
 
+QString QtHost::GetResourcesBasePath()
+{
+	return QString::fromStdString(EmuFolders::Resources);
+}
+
 std::optional<std::vector<u8>> Host::ReadResourceFile(const char* filename)
 {
 	const std::string path(Path::Combine(EmuFolders::Resources, filename));
@@ -489,18 +480,6 @@ void Host::OnInputDeviceDisconnected(const std::string_view& identifier)
 // Interface Stuff
 //////////////////////////////////////////////////////////////////////////
 
-const IConsoleWriter* PatchesCon = &Console;
-
-void LoadAllPatchesAndStuff(const Pcsx2Config& cfg)
-{
-	// FIXME
-}
-
-void PatchesVerboseReset()
-{
-	// FIXME
-}
-
 static void SignalHandler(int signal)
 {
 	// First try the normal (graceful) shutdown/exit.
@@ -529,247 +508,4 @@ void QtHost::HookSignals()
 {
 	std::signal(SIGINT, SignalHandler);
 	std::signal(SIGTERM, SignalHandler);
-}
-
-// Replacement for Console so we actually get output to our console window on Windows.
-#ifdef _WIN32
-
-static bool s_debugger_attached = false;
-static bool s_console_handle_set = false;
-static bool s_console_allocated = false;
-static HANDLE s_console_handle = INVALID_HANDLE_VALUE;
-static HANDLE s_old_console_stdin = NULL;
-static HANDLE s_old_console_stdout = NULL;
-static HANDLE s_old_console_stderr = NULL;
-
-static void ConsoleWinQt_SetTitle(const char* title)
-{
-	SetConsoleTitleW(StringUtil::UTF8StringToWideString(title).c_str());
-}
-
-static void ConsoleWinQt_DoSetColor(ConsoleColors color)
-{
-	if (!s_console_handle)
-		return;
-
-	static constexpr wchar_t colors[][ConsoleColors_Count] = {
-		L"\033[0m", // default
-		L"\033[30m\033[1m", // black
-		L"\033[32m", // green
-		L"\033[31m", // red
-		L"\033[34m", // blue
-		L"\033[35m", // magenta
-		L"\033[35m", // orange (FIXME)
-		L"\033[37m", // gray
-		L"\033[36m", // cyan
-		L"\033[33m", // yellow
-		L"\033[37m", // white
-		L"\033[30m\033[1m", // strong black
-		L"\033[31m\033[1m", // strong red
-		L"\033[32m\033[1m", // strong green
-		L"\033[34m\033[1m", // strong blue
-		L"\033[35m\033[1m", // strong magenta
-		L"\033[35m\033[1m", // strong orange (FIXME)
-		L"\033[37m\033[1m", // strong gray
-		L"\033[36m\033[1m", // strong cyan
-		L"\033[33m\033[1m", // strong yellow
-		L"\033[37m\033[1m", // strong white
-	};
-
-	const wchar_t* colortext = colors[static_cast<u32>(color)];
-	DWORD written;
-	WriteConsoleW(s_console_handle, colortext, std::wcslen(colortext), &written, nullptr);
-}
-
-static void ConsoleWinQt_Newline()
-{
-	if (!s_console_handle)
-		return;
-
-	if (s_debugger_attached)
-		OutputDebugStringW(L"\n");
-
-	DWORD written;
-	WriteConsoleW(s_console_handle, L"\n", 1, &written, nullptr);
-}
-
-static void ConsoleWinQt_DoWrite(const char* fmt)
-{
-	if (!s_console_handle)
-		return;
-
-	// TODO: Put this on the stack.
-	std::wstring wfmt(StringUtil::UTF8StringToWideString(fmt));
-
-	if (s_debugger_attached)
-		OutputDebugStringW(wfmt.c_str());
-
-	DWORD written;
-	WriteConsoleW(s_console_handle, wfmt.c_str(), static_cast<DWORD>(wfmt.length()), &written, nullptr);
-}
-
-static void ConsoleWinQt_DoWriteLn(const char* fmt)
-{
-	if (!s_console_handle)
-		return;
-
-	// TODO: Put this on the stack.
-	std::wstring wfmt(StringUtil::UTF8StringToWideString(fmt));
-
-	if (s_debugger_attached)
-	{
-		OutputDebugStringW(wfmt.c_str());
-		OutputDebugStringW(L"\n");
-	}
-
-	DWORD written;
-	WriteConsoleW(s_console_handle, wfmt.c_str(), static_cast<DWORD>(wfmt.length()), &written, nullptr);
-	WriteConsoleW(s_console_handle, L"\n", 1, &written, nullptr);
-}
-
-static const IConsoleWriter ConsoleWriter_WinQt =
-	{
-		ConsoleWinQt_DoWrite,
-		ConsoleWinQt_DoWriteLn,
-		ConsoleWinQt_DoSetColor,
-
-		ConsoleWinQt_DoWrite,
-		ConsoleWinQt_Newline,
-		ConsoleWinQt_SetTitle,
-};
-
-static BOOL WINAPI ConsoleCtrlHandler(DWORD dwCtrlType)
-{
-	Console.WriteLn("Handler %u", dwCtrlType);
-	if (dwCtrlType != CTRL_C_EVENT)
-		return FALSE;
-
-	SignalHandler(SIGTERM);
-	return TRUE;
-}
-
-static bool EnableVirtualTerminalProcessing(HANDLE hConsole)
-{
-	if (hConsole == INVALID_HANDLE_VALUE)
-		return false;
-
-	DWORD old_mode;
-	if (!GetConsoleMode(hConsole, &old_mode))
-		return false;
-
-	// already enabled?
-	if (old_mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING)
-		return true;
-
-	return SetConsoleMode(hConsole, old_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING);
-}
-
-static void SetSystemConsoleEnabled(bool enabled)
-{
-	if (enabled)
-	{
-		s_debugger_attached = IsDebuggerPresent();
-		if (!s_console_handle_set)
-		{
-			s_old_console_stdin = GetStdHandle(STD_INPUT_HANDLE);
-			s_old_console_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
-			s_old_console_stderr = GetStdHandle(STD_ERROR_HANDLE);
-
-			bool handle_valid = (GetConsoleWindow() != NULL);
-			if (!handle_valid)
-			{
-				s_console_allocated = AttachConsole(ATTACH_PARENT_PROCESS) || AllocConsole();
-				handle_valid = (GetConsoleWindow() != NULL);
-			}
-
-			if (handle_valid)
-			{
-				s_console_handle = GetStdHandle(STD_OUTPUT_HANDLE);
-				if (s_console_handle != INVALID_HANDLE_VALUE)
-				{
-					s_console_handle_set = true;
-
-					// This gets us unix-style coloured output.
-					EnableVirtualTerminalProcessing(GetStdHandle(STD_OUTPUT_HANDLE));
-					EnableVirtualTerminalProcessing(GetStdHandle(STD_ERROR_HANDLE));
-
-					// Redirect stdout/stderr.
-					std::FILE* fp;
-					freopen_s(&fp, "CONIN$", "r", stdin);
-					freopen_s(&fp, "CONOUT$", "w", stdout);
-					freopen_s(&fp, "CONOUT$", "w", stderr);
-				}
-			}
-		}
-
-		if (!s_console_handle_set && !s_debugger_attached)
-		{
-			Console_SetActiveHandler(ConsoleWriter_Null);
-			SetConsoleCtrlHandler(ConsoleCtrlHandler, FALSE);
-		}
-		else
-		{
-			Console_SetActiveHandler(ConsoleWriter_WinQt);
-			SetConsoleCtrlHandler(ConsoleCtrlHandler, TRUE);
-		}
-	}
-	else
-	{
-		Console_SetActiveHandler(ConsoleWriter_Null);
-		SetConsoleCtrlHandler(ConsoleCtrlHandler, FALSE);
-
-		if (s_console_handle_set)
-		{
-			s_console_handle_set = false;
-
-			// redirect stdout/stderr back to null.
-			std::FILE* fp;
-			freopen_s(&fp, "NUL:", "w", stderr);
-			freopen_s(&fp, "NUL:", "w", stdout);
-			freopen_s(&fp, "NUL:", "w", stdin);
-
-			// release console and restore state
-			SetStdHandle(STD_INPUT_HANDLE, s_old_console_stdin);
-			SetStdHandle(STD_OUTPUT_HANDLE, s_old_console_stdout);
-			SetStdHandle(STD_ERROR_HANDLE, s_old_console_stderr);
-			s_old_console_stdin = NULL;
-			s_old_console_stdout = NULL;
-			s_old_console_stderr = NULL;
-			if (s_console_allocated)
-			{
-				s_console_allocated = false;
-				FreeConsole();
-			}
-		}
-	}
-}
-
-#else
-
-// Unix doesn't need any special handling for console.
-static void SetSystemConsoleEnabled(bool enabled)
-{
-	if (enabled)
-		Console_SetActiveHandler(ConsoleWriter_Stdout);
-	else
-		Console_SetActiveHandler(ConsoleWriter_Null);
-}
-
-#endif
-
-void QtHost::InitializeEarlyConsole()
-{
-	SetSystemConsoleEnabled(true);
-}
-
-void QtHost::UpdateLogging()
-{
-	const bool system_console_enabled = QtHost::GetBaseBoolSettingValue("Logging", "EnableSystemConsole", false);
-
-	const bool any_logging_sinks = system_console_enabled;
-	DevConWriterEnabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableVerbose", false);
-	SysConsole.eeConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableEEConsole", true);
-	SysConsole.iopConsole.Enabled = any_logging_sinks && QtHost::GetBaseBoolSettingValue("Logging", "EnableIOPConsole", true);
-
-	SetSystemConsoleEnabled(system_console_enabled);
 }

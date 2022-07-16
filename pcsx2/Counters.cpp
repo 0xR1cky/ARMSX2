@@ -31,6 +31,8 @@
 
 #include "ps2/HwInternal.h"
 #include "Sio.h"
+#include "HostDisplay.h"
+#include "SPU2/spu2.h"
 
 #ifndef PCSX2_CORE
 #include "gui/App.h"
@@ -39,15 +41,14 @@
 #include "VMManager.h"
 #endif
 
-#ifndef DISABLE_RECORDING
-#	include "Recording/InputRecordingControls.h"
-#endif
+#include "Recording/InputRecordingControls.h"
 
 using namespace Threading;
 
 extern u8 psxhblankgate;
 static const uint EECNT_FUTURE_TARGET = 0x10000000;
 static int gates = 0;
+static bool s_use_vsync_for_timing = false;
 
 uint g_FrameCount = 0;
 
@@ -73,6 +74,13 @@ static void rcntWhold(int index, u32 value);
 static bool IsInterlacedVideoMode()
 {
 	return (gsVideoMode == GS_VideoMode::PAL || gsVideoMode == GS_VideoMode::NTSC || gsVideoMode == GS_VideoMode::DVD_NTSC || gsVideoMode == GS_VideoMode::DVD_PAL || gsVideoMode == GS_VideoMode::HDTV_1080I);
+}
+
+static bool IsProgressiveVideoMode()
+{
+	// The FIELD register only flips if the CMOD field in SMODE1 is set to anything but 0 and Front Porch bottom bit in SYNCV is set.
+	// Also see "isReallyInterlaced()" in GSState.cpp
+	return !(*(u32*)PS2GS_BASE(GS_SYNCV) & 0x1) || !(*(u32*)PS2GS_BASE(GS_SMODE1) & 0x6000);
 }
 
 void rcntReset(int index) {
@@ -225,9 +233,9 @@ static void vSyncInfoCalc(vSyncTimingInfo* info, double framesPerSecond, u32 sca
 	// Jak II - random speedups
 	// Shadow of Rome - FMV audio issues
 	const u64 HalfFrame = Frame / 2;
-	const u64 Blank = Scanline * (gsVideoMode == GS_VideoMode::NTSC ? 22 : 26);
+	const u64 Blank = Scanline * ((gsVideoMode == GS_VideoMode::NTSC ? 22 : 25) + static_cast<int>(gsIsInterlaced));
 	const u64 Render = HalfFrame - Blank;
-	const u64 GSBlank = Scanline * 3.5; // GS VBlank/CSR Swap happens roughly 3.5 Scanlines after VBlank Start
+	const u64 GSBlank = Scanline * (gsVideoMode == GS_VideoMode::NTSC ? 3.5 : 3); // GS VBlank/CSR Swap happens roughly 3.5(NTSC) and 3(PAL) Scanlines after VBlank Start
 
 	// Important!  The hRender/hBlank timers should be 50/50 for best results.
 	//  (this appears to be what the real EE's timing crystal does anyway)
@@ -343,6 +351,39 @@ double GetVerticalFrequency()
 	}
 }
 
+static double AdjustToHostRefreshRate(double vertical_frequency, double frame_limit)
+{
+	if (!EmuConfig.GS.SyncToHostRefreshRate || EmuConfig.GS.LimitScalar != 1.0)
+	{
+		SPU2SetDeviceSampleRateMultiplier(1.0);
+		s_use_vsync_for_timing = false;
+		return frame_limit;
+	}
+
+	float host_refresh_rate;
+	if (!Host::GetHostDisplay()->GetHostRefreshRate(&host_refresh_rate))
+	{
+		Console.Warning("Cannot sync to host refresh since the query failed.");
+		SPU2SetDeviceSampleRateMultiplier(1.0);
+		s_use_vsync_for_timing = false;
+		return frame_limit;
+	}
+
+	const double ratio = host_refresh_rate / vertical_frequency;
+	const bool syncing_to_host = (ratio >= 0.95f && ratio <= 1.05f);
+	s_use_vsync_for_timing = (syncing_to_host && !EmuConfig.GS.SkipDuplicateFrames && EmuConfig.GS.VsyncEnable != VsyncMode::Off);
+	Console.WriteLn("Refresh rate: Host=%fhz Guest=%fhz Ratio=%f - %s %s", host_refresh_rate,
+		vertical_frequency, ratio, syncing_to_host ? "can sync" : "can't sync",
+		s_use_vsync_for_timing ? "and using vsync for pacing" : "and using sleep for pacing");
+
+	if (!syncing_to_host)
+		return frame_limit;
+
+	frame_limit *= ratio;
+	SPU2SetDeviceSampleRateMultiplier(ratio);
+	return frame_limit;
+}
+
 u32 UpdateVSyncRate()
 {
 	// Notice:  (and I probably repeat this elsewhere, but it's worth repeating)
@@ -354,7 +395,7 @@ u32 UpdateVSyncRate()
 	const double vertical_frequency = GetVerticalFrequency();
 
 	const double frames_per_second = vertical_frequency / 2.0;
-	const double frame_limit = frames_per_second * EmuConfig.GS.LimitScalar;
+	const double frame_limit = AdjustToHostRefreshRate(vertical_frequency, frames_per_second * EmuConfig.GS.LimitScalar);
 
 	const double tick_rate = GetTickFrequency() / 2.0;
 	const s64 ticks = static_cast<s64>(tick_rate / std::max(frame_limit, 1.0));
@@ -365,23 +406,32 @@ u32 UpdateVSyncRate()
 	switch (gsVideoMode)
 	{
 	case GS_VideoMode::Uninitialized: // SYSCALL instruction hasn't executed yet, give some temporary values.
-		total_scanlines = SCANLINES_TOTAL_NTSC;
+		if(gsIsInterlaced)
+			total_scanlines = SCANLINES_TOTAL_NTSC_I;
+		else
+			total_scanlines = SCANLINES_TOTAL_NTSC_NI;
 		break;
 	case GS_VideoMode::PAL:
 	case GS_VideoMode::DVD_PAL:
 		custom = (EmuConfig.GS.FrameratePAL != 50.0);
-		total_scanlines = SCANLINES_TOTAL_PAL;
+		if (gsIsInterlaced)
+			total_scanlines = SCANLINES_TOTAL_PAL_I;
+		else
+			total_scanlines = SCANLINES_TOTAL_PAL_NI;
 		break;
 	case GS_VideoMode::NTSC:
 	case GS_VideoMode::DVD_NTSC:
 		custom = (EmuConfig.GS.FramerateNTSC != 59.94);
-		total_scanlines = SCANLINES_TOTAL_NTSC;
+		if (gsIsInterlaced)
+			total_scanlines = SCANLINES_TOTAL_NTSC_I;
+		else
+			total_scanlines = SCANLINES_TOTAL_NTSC_NI;
 		break;
 	case GS_VideoMode::SDTV_480P:
 	case GS_VideoMode::SDTV_576P:
 	case GS_VideoMode::HDTV_720P:
 	case GS_VideoMode::VESA:
-		total_scanlines = SCANLINES_TOTAL_NTSC;
+		total_scanlines = SCANLINES_TOTAL_NTSC_I;
 		break;
 	case GS_VideoMode::HDTV_1080P:
 	case GS_VideoMode::HDTV_1080I:
@@ -389,7 +439,10 @@ u32 UpdateVSyncRate()
 		break;
 	case GS_VideoMode::Unknown:
 	default:
-		total_scanlines = SCANLINES_TOTAL_NTSC;
+		if (gsIsInterlaced)
+			total_scanlines = SCANLINES_TOTAL_NTSC_I;
+		else
+			total_scanlines = SCANLINES_TOTAL_NTSC_NI;
 		Console.Error("PCSX2-Counters: Unknown video mode detected");
 		pxAssertDev(false , "Unknown video mode detected via SetGsCrt");
 	}
@@ -508,11 +561,10 @@ static __fi void frameLimitUpdateCore()
 
 // Framelimiter - Measures the delta time between calls and stalls until a
 // certain amount of time passes if such time hasn't passed yet.
-// See the GS FrameSkip function for details on why this is here and not in the GS.
 static __fi void frameLimit()
 {
 	// Framelimiter off in settings? Framelimiter go brrr.
-	if (EmuConfig.GS.LimitScalar == 0.0)
+	if (EmuConfig.GS.LimitScalar == 0.0 || s_use_vsync_for_timing)
 	{
 		frameLimitUpdateCore();
 		return;
@@ -556,14 +608,12 @@ static __fi void frameLimit()
 
 static __fi void VSyncStart(u32 sCycle)
 {
-#ifndef DISABLE_RECORDING
-	if (g_Conf->EmuOptions.EnableRecordingTools)
+	if (EmuConfig.EnableRecordingTools)
 	{
 		// It is imperative that any frame locking that must happen occurs before Vsync is started
 		// Not doing so would sacrifice a frame of a savestate-based recording when loading any savestate
 		g_InputRecordingControls.HandlePausingAndLocking();
 	}
-#endif
 
 #ifdef PCSX2_CORE
 	// Update vibration at the end of a frame.
@@ -608,7 +658,11 @@ static __fi void VSyncStart(u32 sCycle)
 static __fi void GSVSync()
 {
 	// CSR is swapped and GS vBlank IRQ is triggered roughly 3.5 hblanks after VSync Start
-	CSRreg.SwapField();
+
+	if (IsProgressiveVideoMode())
+		CSRreg.SetField();
+	else
+		CSRreg.SwapField();
 
 	if (!CSRreg.VSINT)
 	{
@@ -620,12 +674,10 @@ static __fi void GSVSync()
 
 static __fi void VSyncEnd(u32 sCycle)
 {
-#ifndef DISABLE_RECORDING
-	if (g_Conf->EmuOptions.EnableRecordingTools)
+	if (EmuConfig.EnableRecordingTools)
 	{
 		g_InputRecordingControls.CheckPauseStatus();
 	}
-#endif
 
 	if(EmuConfig.Trace.Enabled && EmuConfig.Trace.EE.m_EnableAll)
 		SysTrace.EE.Counters.Write( "    ================  EE COUNTER VSYNC END (frame: %d)  ================", g_FrameCount );
@@ -689,8 +741,7 @@ __fi void rcntUpdate_hScanline()
 
 __fi void rcntUpdate_vSync()
 {
-	s32 diff = (cpuRegs.cycle - vsyncCounter.sCycle);
-	if( diff < vsyncCounter.CycleT ) return;
+	if (!cpuTestCycle(vsyncCounter.sCycle, vsyncCounter.CycleT)) return;
 
 	if (vsyncCounter.Mode == MODE_VSYNC)
 	{

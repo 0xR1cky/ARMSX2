@@ -18,10 +18,16 @@
 #include "GSTextureCache.h"
 #include "GS/Renderers/Common/GSFunctionMap.h"
 #include "GS/Renderers/Common/GSRenderer.h"
+#include "GS/Renderers/SW/GSTextureCacheSW.h"
 #include "GS/GSState.h"
+
+class GSRasterizer;
 
 class GSRendererHW : public GSRenderer
 {
+public:
+	static constexpr int MAX_FRAMEBUFFER_HEIGHT = 1280;
+
 private:
 	int m_width;
 	int m_height;
@@ -53,8 +59,6 @@ private:
 	bool OI_BurnoutGames(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 
 	void OO_BurnoutGames();
-
-	bool CU_TalesOfAbyss();
 
 	class Hacks
 	{
@@ -129,6 +133,9 @@ private:
 	void SwSpriteRender();
 	bool CanUseSwSpriteRender();
 
+	bool CanUseSwPrimRender(bool no_rt, bool no_ds, bool draw_sprite_tex);
+	bool SwPrimRender();
+
 	template <bool linear>
 	void RoundSpriteOffset();
 
@@ -159,6 +166,11 @@ private:
 
 	GSHWDrawConfig m_conf;
 
+	// software sprite renderer state
+	std::vector<GSVertexSW> m_sw_vertex_buffer;
+	std::unique_ptr<GSTextureCacheSW::Texture> m_sw_texture;
+	std::unique_ptr<GSRasterizer> m_sw_rasterizer;
+
 public:
 	GSRendererHW();
 	virtual ~GSRendererHW() override;
@@ -182,7 +194,7 @@ public:
 	GSVector2 GetTextureScaleFactor() override;
 	GSVector2i GetTargetSize();
 
-	void Reset() override;
+	void Reset(bool hardware_reset) override;
 	void UpdateSettings(const Pcsx2Config::GSOptions& old_config) override;
 	void VSync(u32 field, bool registers_written) override;
 

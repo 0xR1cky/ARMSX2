@@ -30,6 +30,8 @@ class GSRenderer : public GSState
 private:
 	bool Merge(int field);
 
+	u64 m_shader_time_start = 0;
+
 #ifndef PCSX2_CORE
 	GSCapture m_capture;
 	std::mutex m_snapshot_mutex;
@@ -38,6 +40,7 @@ private:
 #endif
 	std::string m_snapshot;
 	u32 m_dump_frames = 0;
+	u32 m_skipped_duplicate_frames;
 
 protected:
 	GSVector2i m_real_size{0, 0};
@@ -49,6 +52,8 @@ protected:
 public:
 	GSRenderer();
 	virtual ~GSRenderer();
+
+	virtual void Reset(bool hardware_reset) override;
 
 	virtual void Destroy();
 
@@ -65,6 +70,7 @@ public:
 
 	void QueueSnapshot(const std::string& path, u32 gsdump_frames);
 	void StopGSDump();
+	void PresentCurrentFrame();
 
 #ifndef PCSX2_CORE
 	bool BeginCapture(std::string& filename);

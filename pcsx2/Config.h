@@ -44,6 +44,7 @@ enum GamefixId
 	Fix_VUSync,
 	Fix_VUOverflow,
 	Fix_XGKick,
+	Fix_BlitInternalFPS,
 
 	GamefixId_COUNT
 };
@@ -399,6 +400,8 @@ struct Pcsx2Config
 		SSE_MXCSR sseMXCSR;
 		SSE_MXCSR sseVUMXCSR;
 
+		u32 AffinityControlMode;
+
 		CpuOptions();
 		void LoadSave(SettingsWrapper& wrap);
 		void ApplySanityCheck();
@@ -407,7 +410,7 @@ struct Pcsx2Config
 
 		bool operator==(const CpuOptions& right) const
 		{
-			return OpEqu(sseMXCSR) && OpEqu(sseVUMXCSR) && OpEqu(Recompiler);
+			return OpEqu(sseMXCSR) && OpEqu(sseVUMXCSR) && OpEqu(AffinityControlMode) && OpEqu(Recompiler);
 		}
 
 		bool operator!=(const CpuOptions& right) const
@@ -431,15 +434,20 @@ struct Pcsx2Config
 			struct
 			{
 				bool
+					PCRTCAntiBlur : 1,
+					DisableInterlaceOffset : 1,
 					PCRTCOffsets : 1,
+					PCRTCOverscan : 1,
 					IntegerScaling : 1,
 					LinearPresent : 1,
+					SyncToHostRefreshRate : 1,
 					UseDebugDevice : 1,
 					UseBlitSwapChain : 1,
 					DisableShaderCache : 1,
 					DisableDualSourceBlend : 1,
 					DisableFramebufferFetch : 1,
 					ThreadedPresentation : 1,
+					SkipDuplicateFrames : 1,
 					OsdShowMessages : 1,
 					OsdShowSpeed : 1,
 					OsdShowFPS : 1,
@@ -495,12 +503,8 @@ struct Pcsx2Config
 		// style. Useful for debugging potential bugs in the MTGS pipeline.
 		bool SynchronousMTGS{false};
 		bool FrameLimitEnable{true};
-		bool FrameSkipEnable{false};
 
 		VsyncMode VsyncEnable{VsyncMode::Off};
-
-		int FramesToDraw{2}; // number of consecutive frames (fields) to render
-		int FramesToSkip{2}; // number of consecutive frames (fields) to skip
 
 		double LimitScalar{1.0};
 		double FramerateNTSC{59.94};
@@ -524,7 +528,7 @@ struct Pcsx2Config
 		AccBlendLevel AccurateBlendingUnit{AccBlendLevel::Basic};
 		CRCHackLevel CRCHack{CRCHackLevel::Automatic};
 		BiFiltering TextureFiltering{BiFiltering::PS2};
-		TexturePreloadingLevel TexturePreloading{TexturePreloadingLevel::Off};
+		TexturePreloadingLevel TexturePreloading{TexturePreloadingLevel::Full};
 		GSDumpCompressionMethod GSDumpCompression{GSDumpCompressionMethod::Uncompressed};
 		int Dithering{2};
 		int MaxAnisotropy{0};
@@ -539,6 +543,7 @@ struct Pcsx2Config
 		int UserHacks_RoundSprite{0};
 		int UserHacks_TCOffsetX{0};
 		int UserHacks_TCOffsetY{0};
+		int UserHacks_CPUSpriteRenderBW{0};
 		TriFiltering UserHacks_TriFilter{TriFiltering::Automatic};
 		int OverrideTextureBarriers{-1};
 		int OverrideGeometryShaders{-1};
@@ -794,7 +799,8 @@ struct Pcsx2Config
 			IbitHack : 1, // I bit hack. Needed to stop constant VU recompilation in some games
 			VUSyncHack : 1, // Makes microVU run behind the EE to avoid VU register reading/writing sync issues. Useful for M-Bit games
 			VUOverflowHack : 1, // Tries to simulate overflow flag checks (not really possible on x86 without soft floats)
-			XgKickHack : 1; // Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace games and others.
+			XgKickHack : 1, // Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace games and others.
+			BlitInternalFPSHack : 1; // Disables privileged register write-based FPS detection.
 		BITFIELD_END
 
 		GamefixOptions();
@@ -881,9 +887,6 @@ struct Pcsx2Config
 	// ------------------------------------------------------------------------
 	struct FramerateOptions
 	{
-		bool SkipOnLimit{false};
-		bool SkipOnTurbo{false};
-
 		double NominalScalar{1.0};
 		double TurboScalar{2.0};
 		double SlomoScalar{0.5};
@@ -893,7 +896,7 @@ struct Pcsx2Config
 
 		bool operator==(const FramerateOptions& right) const
 		{
-			return OpEqu(SkipOnLimit) && OpEqu(SkipOnTurbo) && OpEqu(NominalScalar) && OpEqu(TurboScalar) && OpEqu(SlomoScalar);
+			return OpEqu(NominalScalar) && OpEqu(TurboScalar) && OpEqu(SlomoScalar);
 		}
 
 		bool operator!=(const FramerateOptions& right) const
@@ -940,9 +943,9 @@ struct Pcsx2Config
 		EnableCheats : 1, // enables cheat detection and application
 		EnablePINE : 1, // enables inter-process communication
 		EnableWideScreenPatches : 1,
-#ifndef DISABLE_RECORDING
+		EnableNoInterlacingPatches : 1,
+		// TODO - Vaser - where are these settings exposed in the Qt UI?
 		EnableRecordingTools : 1,
-#endif
 #ifdef PCSX2_CORE
 		EnableGameFixes : 1, // enables automatic game fixes
 		SaveStateOnShutdown : 1, // default value for saving state on shutdown
@@ -1033,11 +1036,13 @@ namespace EmuFolders
 	extern std::string Logs;
 	extern std::string Cheats;
 	extern std::string CheatsWS;
+	extern std::string CheatsNI;
 	extern std::string Resources;
 	extern std::string Cache;
 	extern std::string Covers;
 	extern std::string GameSettings;
 	extern std::string Textures;
+	extern std::string InputProfiles;
 
 	// Assumes that AppRoot and DataRoot have been initialized.
 	void SetDefaults();
@@ -1077,7 +1082,6 @@ namespace EmuFolders
 #define CHECK_VU_EXTRA_OVERFLOW (EmuConfig.Cpu.Recompiler.vuExtraOverflow) // If enabled, Operands are clamped before being used in the VU recs
 #define CHECK_VU_SIGN_OVERFLOW (EmuConfig.Cpu.Recompiler.vuSignOverflow)
 #define CHECK_VU_UNDERFLOW (EmuConfig.Cpu.Recompiler.vuUnderflow)
-#define CHECK_VU_EXTRA_FLAGS 0 // Always disabled now // Sets correct flags in the sVU recs
 
 #define CHECK_FPU_OVERFLOW (EmuConfig.Cpu.Recompiler.fpuOverflow)
 #define CHECK_FPU_EXTRA_OVERFLOW (EmuConfig.Cpu.Recompiler.fpuExtraOverflow) // If enabled, Operands are checked for infinities before being used in the FPU recs

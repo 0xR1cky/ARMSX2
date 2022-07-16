@@ -20,11 +20,6 @@ if (WIN32)
 	add_subdirectory(3rdparty/xz EXCLUDE_FROM_ALL)
 	add_subdirectory(3rdparty/D3D12MemAlloc EXCLUDE_FROM_ALL)
 else()
-	## Use cmake package to find module
-	if (Linux)
-		find_package(ALSA REQUIRED)
-		make_imported_target_if_missing(ALSA::ALSA ALSA)
-	endif()
 	find_package(PCAP REQUIRED)
 	find_package(Gettext) # translation tool
 	find_package(LibLZMA REQUIRED)
@@ -229,6 +224,14 @@ if(QT_BUILD)
 	# Find the Qt components that we need.
 	find_package(Qt6 COMPONENTS CoreTools Core GuiTools Gui WidgetsTools Widgets Network LinguistTools REQUIRED)
 
+	if (APPLE AND CMAKE_OSX_DEPLOYMENT_TARGET AND "${CMAKE_OSX_DEPLOYMENT_TARGET}" VERSION_LESS 10.15)
+		get_target_property(QT_FEATURES Qt6::Core QT_ENABLED_PUBLIC_FEATURES)
+		if (cxx17_filesystem IN_LIST QT_FEATURES)
+			message("Qt compiled with std::filesystem support, requires macOS 10.15")
+			set(CMAKE_OSX_DEPLOYMENT_TARGET 10.15)
+		endif()
+	endif()
+
 	# We use the bundled (latest) SDL version for Qt.
 	find_optional_system_library(SDL2 3rdparty/sdl2 2.0.22)
 endif()
@@ -247,6 +250,7 @@ endif()
 
 add_subdirectory(3rdparty/simpleini EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/imgui EXCLUDE_FROM_ALL)
+add_subdirectory(3rdparty/cpuinfo EXCLUDE_FROM_ALL)
 
 if(USE_OPENGL)
 	add_subdirectory(3rdparty/glad EXCLUDE_FROM_ALL)

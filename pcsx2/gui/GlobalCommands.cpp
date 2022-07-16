@@ -23,10 +23,8 @@
 #include "AppAccelerators.h"
 #include "AppSaveStates.h"
 
-#ifndef DISABLE_RECORDING
 #include "Recording/InputRecordingControls.h"
 #include "Recording/InputRecording.h"
-#endif
 
 // Various includes needed for dumping...
 #include "GS.h"
@@ -67,21 +65,6 @@ wxString KeyAcceleratorCode::ToString() const
 
 namespace Implementations
 {
-	void Frameskip_Toggle()
-	{
-		g_Conf->EmuOptions.GS.FrameSkipEnable = !g_Conf->EmuOptions.GS.FrameSkipEnable;
-		EmuConfig.GS.FrameSkipEnable = g_Conf->EmuOptions.GS.FrameSkipEnable;
-
-		if (EmuConfig.GS.FrameSkipEnable)
-		{
-			Host::AddKeyedFormattedOSDMessage("FrameSkipping", 2.0f, "Frameskip ENABLED. FrameDraws=%d, FrameSkips=%d", g_Conf->EmuOptions.GS.FramesToDraw, g_Conf->EmuOptions.GS.FramesToSkip);
-		}
-		else
-		{
-			Host::AddKeyedOSDMessage("FrameSkipping", "Frameskip DISABLED.");
-		}
-	}
-
 	void Framelimiter_TurboToggle()
 	{
 		ScopedCoreThreadPause pauser;
@@ -91,39 +74,16 @@ namespace Implementations
 			g_Conf->EmuOptions.GS.FrameLimitEnable = true;
 			g_Conf->EmuOptions.LimiterMode = LimiterModeType::Turbo;
 			Host::AddKeyedOSDMessage("FrameLimiter", "Turbo + Frame limiter ENABLED.");
-			g_Conf->EmuOptions.GS.FrameSkipEnable = !!EmuConfig.Framerate.SkipOnTurbo;
 		}
 		else if (g_Conf->EmuOptions.LimiterMode == LimiterModeType::Turbo)
 		{
 			g_Conf->EmuOptions.LimiterMode = LimiterModeType::Nominal;
-
-			if (g_Conf->EmuOptions.Framerate.SkipOnLimit)
-			{
-				Host::AddKeyedOSDMessage("FrameLimiter", "Turbo DISABLED.");
-				Host::AddKeyedOSDMessage("FrameSkipping", "Frameskip ENABLED.");
-				g_Conf->EmuOptions.GS.FrameSkipEnable = true;
-			}
-			else
-			{
-				Host::AddKeyedOSDMessage("FrameLimiter", "Turbo DISABLED.");
-				g_Conf->EmuOptions.GS.FrameSkipEnable = false;
-			}
+			Host::AddKeyedOSDMessage("FrameLimiter", "Turbo DISABLED.");
 		}
 		else
 		{
 			g_Conf->EmuOptions.LimiterMode = LimiterModeType::Turbo;
-
-			if (g_Conf->EmuOptions.Framerate.SkipOnTurbo)
-			{
-				Host::AddKeyedOSDMessage("FrameLimiter", "Turbo ENABLED.");
-				Host::AddKeyedOSDMessage("FrameSkipping", "Frameskip ENABLED.");
-				g_Conf->EmuOptions.GS.FrameSkipEnable = true;
-			}
-			else
-			{
-				Host::AddKeyedOSDMessage("FrameLimiter", "Turbo ENABLED.");
-				g_Conf->EmuOptions.GS.FrameSkipEnable = false;
-			}
+			Host::AddKeyedOSDMessage("FrameLimiter", "Turbo ENABLED.");
 		}
 
 		pauser.AllowResume();
@@ -345,12 +305,10 @@ namespace Implementations
 		if (g_Conf->GSWindow.CloseOnEsc)
 		{
 			sMainFrame.SetFocus();
-#ifndef DISABLE_RECORDING
 			// Disable recording controls that only make sense if the game is running
 			sMainFrame.enableRecordingMenuItem(MenuId_Recording_FrameAdvance, false);
 			sMainFrame.enableRecordingMenuItem(MenuId_Recording_TogglePause, false);
 			sMainFrame.enableRecordingMenuItem(MenuId_Recording_ToggleRecordingMode, false);
-#endif
 		}
 	}
 
@@ -462,7 +420,6 @@ namespace Implementations
 		if (GSFrame* gsframe = wxGetApp().GetGsFramePtr())
 			gsframe->ShowFullScreen(!gsframe->IsFullScreen());
 	}
-#ifndef DISABLE_RECORDING
 	void FrameAdvance()
 	{
 		if (g_Conf->EmuOptions.EnableRecordingTools)
@@ -607,7 +564,6 @@ namespace Implementations
 	{
 		States_LoadSlot(9);
 	}
-#endif
 } // namespace Implementations
 
 // --------------------------------------------------------------------------------------
@@ -657,14 +613,6 @@ static const GlobalCommandDescriptor CommandDeclarations[] =
 			States_CycleSlotBackward,
 			pxL("Cycle to prev slot"),
 			pxL("Cycles the current save slot in -1 fashion!"),
-			false,
-		},
-
-		{
-			"Frameskip_Toggle",
-			Implementations::Frameskip_Toggle,
-			NULL,
-			NULL,
 			false,
 		},
 
@@ -782,7 +730,6 @@ static const GlobalCommandDescriptor CommandDeclarations[] =
 			false,
 		},
 
-#ifndef DISABLE_RECORDING
 		{"FrameAdvance", Implementations::FrameAdvance, NULL, NULL, false},
 		{"TogglePause", Implementations::TogglePause, NULL, NULL, false},
 		{"InputRecordingModeToggle", Implementations::InputRecordingModeToggle, NULL, NULL, false},
@@ -809,7 +756,6 @@ static const GlobalCommandDescriptor CommandDeclarations[] =
 		{"States_LoadSlot7", Implementations::States_LoadSlot7, NULL, NULL, false},
 		{"States_LoadSlot8", Implementations::States_LoadSlot8, NULL, NULL, false},
 		{"States_LoadSlot9", Implementations::States_LoadSlot9, NULL, NULL, false},
-#endif
 		// Command Declarations terminator:
 		// (must always be last in list!!)
 		{NULL}};
@@ -965,7 +911,6 @@ void Pcsx2App::InitDefaultGlobalAccelerators()
 	GlobalAccels->Map(AAC(WXK_F2).Shift(), "States_CycleSlotBackward");
 
 	GlobalAccels->Map(AAC(WXK_F4), "Framelimiter_MasterToggle");
-	GlobalAccels->Map(AAC(WXK_F4).Shift(), "Frameskip_Toggle");
 
 	// At this early stage of startup, the application assumes installed mode, so portable mode custom keybindings may present issues.
 	// Relevant - https://github.com/PCSX2/pcsx2/blob/678829a5b2b8ca7a3e42d8edc9ab201bf00b0fe9/pcsx2/gui/AppInit.cpp#L479

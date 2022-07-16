@@ -52,6 +52,9 @@ struct VMBootParameters
 
 namespace VMManager
 {
+	/// Makes sure that AVX2 is available if we were compiled with it.
+	bool PerformEarlyHardwareChecks(const char** error);
+
 	/// Returns the current state of the VM.
 	VMState GetState();
 
@@ -95,7 +98,7 @@ namespace VMManager
 	bool ReloadGameSettings();
 
 	/// Reloads cheats/patches. If verbose is set, the number of patches loaded will be shown in the OSD.
-	void ReloadPatches(bool verbose);
+	void ReloadPatches(bool verbose, bool show_messages_when_disabled);
 
 	/// Returns the save state filename for the given game serial/crc.
 	std::string GetSaveStateFileName(const char* game_serial, u32 game_crc, s32 slot);
@@ -132,26 +135,48 @@ namespace VMManager
 
 	/// Changes the disc in the virtual CD/DVD drive. Passing an empty will remove any current disc.
 	/// Returns false if the new disc can't be opened.
-	bool ChangeDisc(std::string path);
+	bool ChangeDisc(CDVD_SourceType source, std::string path);
 
 	/// Returns true if the specified path is an ELF.
-	bool IsElfFileName(const std::string& path);
+	bool IsElfFileName(const std::string_view& path);
+
+	/// Returns true if the specified path is a blockdump.
+	bool IsBlockDumpFileName(const std::string_view& path);
 
 	/// Returns true if the specified path is a GS Dump.
-	bool IsGSDumpFileName(const std::string& path);
+	bool IsGSDumpFileName(const std::string_view& path);
+
+	/// Returns true if the specified path is a save state.
+	bool IsSaveStateFileName(const std::string_view& path);
+
+	/// Returns true if the specified path is a disc/elf/etc.
+	bool IsLoadableFileName(const std::string_view& path);
 
 	/// Returns the path for the game settings ini file for the specified CRC.
-	std::string GetGameSettingsPath(u32 game_crc);
+	std::string GetGameSettingsPath(const std::string_view& game_serial, u32 game_crc);
+
+	/// Returns the path for the input profile ini file with the specified name (may not exist).
+	std::string GetInputProfilePath(const std::string_view& name);
 
 	/// Resizes the render window to the display size, with an optional scale.
 	/// If the scale is set to 0, the internal resolution will be used, otherwise it is treated as a multiplier to 1x.
 	void RequestDisplaySize(float scale = 0.0f);
+
+	/// Sets default settings based on hardware configuration.
+	void SetHardwareDependentDefaultSettings(Pcsx2Config& config);
+
+	/// Returns a list of processors in the system, and their corresponding affinity mask.
+	/// This list is ordered by most performant to least performant for pinning threads to.
+	const std::vector<u32>& GetSortedProcessorList();
 
 	/// Internal callbacks, implemented in the emu core.
 	namespace Internal
 	{
 		/// Performs early global initialization.
 		bool InitializeGlobals();
+
+		/// Releases resources allocated in InitializeGlobals().
+		void ReleaseGlobals();
 
 		/// Reserves memory for the virtual machines.
 		bool InitializeMemory();
@@ -161,6 +186,7 @@ namespace VMManager
 
 		const std::string& GetElfOverride();
 		bool IsExecutionInterrupted();
+		void EntryPointCompilingOnCPUThread();
 		void GameStartingOnCPUThread();
 		void VSyncOnCPUThread();
 	}
@@ -211,4 +237,23 @@ namespace Host
 
 	/// Safely executes a function on the VM thread.
 	void RunOnCPUThread(std::function<void()> function, bool block = false);
+
+	/// Asynchronously starts refreshing the game list.
+	void RefreshGameListAsync(bool invalidate_cache);
+
+	/// Cancels game list refresh, if there is one in progress.
+	void CancelGameListRefresh();
+
+	/// Requests shut down and exit of the hosting application. This may not actually exit,
+	/// if the user cancels the shutdown confirmation.
+	void RequestExit(bool save_state_if_running);
+
+	/// Requests shut down of the current virtual machine.
+	void RequestVMShutdown(bool save_state);
+
+	/// Returns true if the hosting application is currently fullscreen.
+	bool IsFullscreen();
+
+	/// Alters fullscreen state of hosting application.
+	void SetFullscreen(bool enabled);
 }

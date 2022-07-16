@@ -97,18 +97,17 @@ int InputIsoFile::FinishRead3(u8* dst, uint mode)
 	if (m_current_lsn >= m_blocks)
 		return 0;
 
-	int _offset = 0;
-	int length = 0;
-	int ret = 0;
-
 	if (m_read_inprogress)
 	{
-		ret = m_reader->FinishRead();
+		const int ret = m_reader->FinishRead();
 		m_read_inprogress = false;
 
 		if (ret < 0)
 			return ret;
 	}
+
+	int _offset = 0;
+	int length = 0;
 
 	switch (mode)
 	{
@@ -262,10 +261,7 @@ bool InputIsoFile::Open(std::string srcfile, bool testOnly)
 		m_reader->SetBlockSize(m_blocksize);
 
 		// Returns the original reader if single-part or a Multipart reader otherwise
-		AsyncFileReader* m_reader_old = m_reader;
 		m_reader = MultipartFileReader::DetectMultipart(m_reader);
-		if (m_reader != m_reader_old) // Not the same object the old one need to be deleted
-			delete m_reader_old;
 	}
 
 	m_blocks = m_reader->GetBlockCount();

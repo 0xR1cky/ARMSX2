@@ -16,6 +16,7 @@
 #include "PrecompiledHeader.h"
 
 #include <QtWidgets/QApplication>
+#include <QtWidgets/QMessageBox>
 #include <cstdlib>
 #include <csignal>
 
@@ -25,12 +26,13 @@
 
 #include "CDVD/CDVD.h"
 #include "Frontend/GameList.h"
+#include "Frontend/LogSink.h"
 
 #include "common/CrashHandler.h"
 
 static void PrintCommandLineVersion()
 {
-	QtHost::InitializeEarlyConsole();
+	Host::InitializeEarlyConsole();
 	std::fprintf(stderr, "%s\n", (QtHost::GetAppNameAndVersion() + QtHost::GetAppConfigSuffix()).toUtf8().constData());
 	std::fprintf(stderr, "https://pcsx2.net/\n");
 	std::fprintf(stderr, "\n");
@@ -53,6 +55,7 @@ static void PrintCommandLineHelp(const char* progname)
 	std::fprintf(stderr, "  -statefile <filename>: Loads state from the specified filename.\n");
 	std::fprintf(stderr, "  -fullscreen: Enters fullscreen mode immediately after starting.\n");
 	std::fprintf(stderr, "  -nofullscreen: Prevents fullscreen mode from triggering if enabled.\n");
+	std::fprintf(stderr, "  -earlyconsolelog: Forces logging of early console messages to console.\n");
 	std::fprintf(stderr, "  --: Signals that no more arguments will follow and the remaining\n"
 						 "    parameters make up the filename. Use when the filename contains\n"
 						 "    spaces or starts with a dash.\n");
@@ -139,6 +142,11 @@ static bool ParseCommandLineOptions(int argc, char* argv[], std::shared_ptr<VMBo
 				AutoBoot(autoboot)->fullscreen = false;
 				continue;
 			}
+			else if (CHECK_ARG("-earlyconsolelog"))
+			{
+				Host::InitializeEarlyConsole();
+				continue;
+			}
 			else if (CHECK_ARG("--"))
 			{
 				no_more_args = true;
@@ -146,7 +154,7 @@ static bool ParseCommandLineOptions(int argc, char* argv[], std::shared_ptr<VMBo
 			}
 			else if (argv[i][0] == '-')
 			{
-				QtHost::InitializeEarlyConsole();
+				Host::InitializeEarlyConsole();
 				std::fprintf(stderr, "Unknown parameter: '%s'", argv[i]);
 				return false;
 			}
@@ -165,7 +173,7 @@ static bool ParseCommandLineOptions(int argc, char* argv[], std::shared_ptr<VMBo
 	// or disc, we don't want to actually start.
 	if (autoboot && !autoboot->source_type.has_value() && autoboot->filename.empty() && autoboot->elf_override.empty())
 	{
-		QtHost::InitializeEarlyConsole();
+		Host::InitializeEarlyConsole();
 		Console.Warning("Skipping autoboot due to no boot parameters.");
 		autoboot.reset();
 	}
@@ -174,13 +182,30 @@ static bool ParseCommandLineOptions(int argc, char* argv[], std::shared_ptr<VMBo
 	// scanning the game list).
 	if (QtHost::InBatchMode() && !autoboot)
 	{
-		QtHost::InitializeEarlyConsole();
+		Host::InitializeEarlyConsole();
 		Console.Warning("Disabling batch mode, because we have no autoboot.");
 		QtHost::SetBatchMode(false);
 	}
 
 	return true;
 }
+
+#ifndef _WIN32
+
+// See note at the end of the file as to why we don't do this on Windows.
+static bool PerformEarlyHardwareChecks()
+{
+	// NOTE: No point translating this message, because the configuration isn't loaded yet, so we
+	// won't know which language to use, and loading the configuration uses float instructions.
+	const char* error;
+	if (VMManager::PerformEarlyHardwareChecks(&error))
+		return true;
+
+	QMessageBox::critical(nullptr, QStringLiteral("Hardware Check Failed"), QString::fromUtf8(error));
+	return false;
+}
+
+#endif
 
 int main(int argc, char* argv[])
 {
@@ -191,6 +216,12 @@ int main(int argc, char* argv[])
 	QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
 	QApplication app(argc, argv);
+
+#ifndef _WIN32
+	if (!PerformEarlyHardwareChecks())
+		return EXIT_FAILURE;
+#endif
+
 	std::shared_ptr<VMBootParameters> autoboot;
 	if (!ParseCommandLineOptions(argc, argv, autoboot))
 		return EXIT_FAILURE;
@@ -203,8 +234,8 @@ int main(int argc, char* argv[])
 		return EXIT_FAILURE;
 	}
 
+	// actually show the window, the emuthread might still be starting up at this point
 	main_window->initialize();
-	EmuThread::start();
 
 	// skip scanning the game list when running in batch mode
 	if (!QtHost::InBatchMode())
