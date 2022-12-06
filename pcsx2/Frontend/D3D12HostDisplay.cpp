@@ -54,37 +54,37 @@ D3D12HostDisplay::~D3D12HostDisplay()
 	if (g_d3d12_context)
 	{
 		g_d3d12_context->WaitForGPUIdle();
-		D3D12HostDisplay::DestroyRenderSurface();
+		D3D12HostDisplay::DestroySurface();
 		g_d3d12_context->Destroy();
 	}
 }
 
-HostDisplay::RenderAPI D3D12HostDisplay::GetRenderAPI() const
+RenderAPI D3D12HostDisplay::GetRenderAPI() const
 {
-	return HostDisplay::RenderAPI::D3D12;
+	return RenderAPI::D3D12;
 }
 
-void* D3D12HostDisplay::GetRenderDevice() const
+void* D3D12HostDisplay::GetDevice() const
 {
 	return g_d3d12_context->GetDevice();
 }
 
-void* D3D12HostDisplay::GetRenderContext() const
+void* D3D12HostDisplay::GetContext() const
 {
 	return g_d3d12_context.get();
 }
 
-void* D3D12HostDisplay::GetRenderSurface() const
+void* D3D12HostDisplay::GetSurface() const
 {
 	return m_swap_chain.get();
 }
 
-bool D3D12HostDisplay::HasRenderDevice() const
+bool D3D12HostDisplay::HasDevice() const
 {
 	return static_cast<bool>(g_d3d12_context);
 }
 
-bool D3D12HostDisplay::HasRenderSurface() const
+bool D3D12HostDisplay::HasSurface() const
 {
 	return static_cast<bool>(m_swap_chain);
 }
@@ -136,15 +136,10 @@ void D3D12HostDisplay::SetVSync(VsyncMode mode)
 	m_vsync_mode = mode;
 }
 
-bool D3D12HostDisplay::CreateRenderDevice(const WindowInfo& wi, std::string_view adapter_name, VsyncMode vsync, bool threaded_presentation, bool debug_device)
+bool D3D12HostDisplay::CreateDevice(const WindowInfo& wi)
 {
 	ComPtr<IDXGIFactory> temp_dxgi_factory;
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 	HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(temp_dxgi_factory.put()));
-#else
-	HRESULT hr = CreateDXGIFactory2(0, IID_PPV_ARGS(temp_dxgi_factory.put()));
-#endif
-
 	if (FAILED(hr))
 	{
 		Console.Error("Failed to create DXGI factory: 0x%08X", hr);
@@ -152,18 +147,17 @@ bool D3D12HostDisplay::CreateRenderDevice(const WindowInfo& wi, std::string_view
 	}
 
 	u32 adapter_index;
-	if (!adapter_name.empty())
+	if (!EmuConfig.GS.Adapter.empty())
 	{
 		AdapterAndModeList adapter_info(GetAdapterAndModeList(temp_dxgi_factory.get()));
 		for (adapter_index = 0; adapter_index < static_cast<u32>(adapter_info.adapter_names.size()); adapter_index++)
 		{
-			if (adapter_name == adapter_info.adapter_names[adapter_index])
+			if (EmuConfig.GS.Adapter == adapter_info.adapter_names[adapter_index])
 				break;
 		}
 		if (adapter_index == static_cast<u32>(adapter_info.adapter_names.size()))
 		{
-			Console.Warning("Could not find adapter '%*s', using first (%s)", static_cast<int>(adapter_name.size()),
-				adapter_name.data(), adapter_info.adapter_names[0].c_str());
+			Console.Warning("Could not find adapter '%s', using first (%s)", EmuConfig.GS.Adapter.c_str(), adapter_info.adapter_names[0].c_str());
 			adapter_index = 0;
 		}
 	}
@@ -173,7 +167,7 @@ bool D3D12HostDisplay::CreateRenderDevice(const WindowInfo& wi, std::string_view
 		adapter_index = 0;
 	}
 
-	if (!D3D12::Context::Create(temp_dxgi_factory.get(), adapter_index, debug_device))
+	if (!D3D12::Context::Create(temp_dxgi_factory.get(), adapter_index, EmuConfig.GS.UseDebugDevice))
 		return false;
 
 	if (FAILED(hr))
@@ -196,6 +190,7 @@ bool D3D12HostDisplay::CreateRenderDevice(const WindowInfo& wi, std::string_view
 	}
 
 	m_window_info = wi;
+	m_vsync_mode = Host::GetEffectiveVSyncMode();
 
 	if (m_window_info.type != WindowInfo::Type::Surfaceless && !CreateSwapChain(nullptr))
 		return false;
@@ -203,26 +198,23 @@ bool D3D12HostDisplay::CreateRenderDevice(const WindowInfo& wi, std::string_view
 	return true;
 }
 
-bool D3D12HostDisplay::InitializeRenderDevice(std::string_view shader_cache_directory, bool debug_device)
+bool D3D12HostDisplay::SetupDevice()
 {
 	return true;
 }
 
-bool D3D12HostDisplay::MakeRenderContextCurrent()
+bool D3D12HostDisplay::MakeCurrent()
 {
 	return true;
 }
 
-bool D3D12HostDisplay::DoneRenderContextCurrent()
+bool D3D12HostDisplay::DoneCurrent()
 {
 	return true;
 }
 
 bool D3D12HostDisplay::CreateSwapChain(const DXGI_MODE_DESC* fullscreen_mode)
 {
-	HRESULT hr;
-
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 	if (m_window_info.type != WindowInfo::Type::Win32)
 		return false;
 
@@ -257,7 +249,7 @@ bool D3D12HostDisplay::CreateSwapChain(const DXGI_MODE_DESC* fullscreen_mode)
 	DevCon.WriteLn("Creating a %dx%d %s swap chain", swap_chain_desc.BufferDesc.Width, swap_chain_desc.BufferDesc.Height,
 		swap_chain_desc.Windowed ? "windowed" : "full-screen");
 
-	hr =
+	HRESULT hr =
 		m_dxgi_factory->CreateSwapChain(g_d3d12_context->GetCommandQueue(), &swap_chain_desc, m_swap_chain.put());
 	if (FAILED(hr))
 	{
@@ -268,43 +260,6 @@ bool D3D12HostDisplay::CreateSwapChain(const DXGI_MODE_DESC* fullscreen_mode)
 	hr = m_dxgi_factory->MakeWindowAssociation(swap_chain_desc.OutputWindow, DXGI_MWA_NO_WINDOW_CHANGES);
 	if (FAILED(hr))
 		Console.Warning("MakeWindowAssociation() to disable ALT+ENTER failed");
-#else
-	if (m_window_info.type != WindowInfo::Type::WinRT)
-		return false;
-
-	ComPtr<IDXGIFactory2> factory2;
-	hr = m_dxgi_factory.As(&factory2);
-	if (FAILED(hr))
-	{
-		Console.Error("Failed to get DXGI factory: %08X", hr);
-		return false;
-	}
-
-	DXGI_SWAP_CHAIN_DESC1 swap_chain_desc = {};
-	swap_chain_desc.Width = m_window_info.surface_width;
-	swap_chain_desc.Height = m_window_info.surface_height;
-	swap_chain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-	swap_chain_desc.SampleDesc.Count = 1;
-	swap_chain_desc.BufferCount = 3;
-	swap_chain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-	swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-
-	m_using_allow_tearing = (m_allow_tearing_supported && !fullscreen_mode);
-	if (m_using_allow_tearing)
-		swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
-
-	ComPtr<IDXGISwapChain1> swap_chain1;
-	hr = factory2->CreateSwapChainForCoreWindow(g_d3d12_context->GetCommandQueue(),
-		static_cast<IUnknown*>(m_window_info.window_handle), &swap_chain_desc,
-		nullptr, swap_chain1.GetAddressOf());
-	if (FAILED(hr))
-	{
-		Console.Error("CreateSwapChainForCoreWindow failed: 0x%08X", hr);
-		return false;
-	}
-
-	m_swap_chain = swap_chain1;
-#endif
 
 	return CreateSwapChainRTV();
 }
@@ -368,18 +323,18 @@ void D3D12HostDisplay::DestroySwapChainRTVs()
 	m_current_swap_chain_buffer = 0;
 }
 
-bool D3D12HostDisplay::ChangeRenderWindow(const WindowInfo& new_wi)
+bool D3D12HostDisplay::ChangeWindow(const WindowInfo& new_wi)
 {
-	DestroyRenderSurface();
+	DestroySurface();
 
 	m_window_info = new_wi;
 	return CreateSwapChain(nullptr);
 }
 
-void D3D12HostDisplay::DestroyRenderSurface()
+void D3D12HostDisplay::DestroySurface()
 {
 	// For some reason if we don't execute the command list here, the swap chain is in use.. not sure where.
-	g_d3d12_context->ExecuteCommandList(true);
+	g_d3d12_context->ExecuteCommandList(D3D12::Context::WaitType::Sleep);
 
 	if (IsFullscreen())
 		SetFullscreen(false, 0, 0, 0.0f);
@@ -393,7 +348,7 @@ static std::string GetDriverVersionFromLUID(const LUID& luid)
 	std::string ret;
 
 	HKEY hKey;
-	if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, _T("SOFTWARE\\Microsoft\\DirectX"), 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+	if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\Microsoft\\DirectX", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
 	{
 		DWORD max_key_len = 0, adapter_count = 0;
 		if (RegQueryInfoKey(hKey, nullptr, nullptr, nullptr, &adapter_count, &max_key_len,
@@ -403,16 +358,16 @@ static std::string GetDriverVersionFromLUID(const LUID& luid)
 			for (DWORD i = 0; i < adapter_count; ++i)
 			{
 				DWORD subKeyLength = static_cast<DWORD>(current_name.size());
-				if (RegEnumKeyEx(hKey, i, current_name.data(), &subKeyLength, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
+				if (RegEnumKeyExW(hKey, i, current_name.data(), &subKeyLength, nullptr, nullptr, nullptr, nullptr) == ERROR_SUCCESS)
 				{
 					LUID current_luid = {};
 					DWORD current_luid_size = sizeof(uint64_t);
-					if (RegGetValue(hKey, current_name.data(), _T("AdapterLuid"), RRF_RT_QWORD, nullptr, &current_luid, &current_luid_size) == ERROR_SUCCESS &&
+					if (RegGetValueW(hKey, current_name.data(), L"AdapterLuid", RRF_RT_QWORD, nullptr, &current_luid, &current_luid_size) == ERROR_SUCCESS &&
 						current_luid.HighPart == luid.HighPart && current_luid.LowPart == luid.LowPart)
 					{
 						LARGE_INTEGER driver_version = {};
 						DWORD driver_version_size = sizeof(driver_version);
-						if (RegGetValue(hKey, current_name.data(), _T("DriverVersion"), RRF_RT_QWORD, nullptr, &driver_version, &driver_version_size) == ERROR_SUCCESS)
+						if (RegGetValueW(hKey, current_name.data(), L"DriverVersion", RRF_RT_QWORD, nullptr, &driver_version, &driver_version_size) == ERROR_SUCCESS)
 						{
 							WORD nProduct = HIWORD(driver_version.HighPart);
 							WORD nVersion = LOWORD(driver_version.HighPart);
@@ -473,7 +428,7 @@ std::string D3D12HostDisplay::GetDriverInfo() const
 	return ret;
 }
 
-void D3D12HostDisplay::ResizeRenderWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
+void D3D12HostDisplay::ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
 {
 	if (!m_swap_chain)
 		return;
@@ -484,7 +439,7 @@ void D3D12HostDisplay::ResizeRenderWindow(s32 new_window_width, s32 new_window_h
 		return;
 
 	// For some reason if we don't execute the command list here, the swap chain is in use.. not sure where.
-	g_d3d12_context->ExecuteCommandList(true);
+	g_d3d12_context->ExecuteCommandList(D3D12::Context::WaitType::Sleep);
 
 	DestroySwapChainRTVs();
 
@@ -555,7 +510,7 @@ bool D3D12HostDisplay::SetFullscreen(bool fullscreen, u32 width, u32 height, flo
 		return true;
 	}
 
-	g_d3d12_context->ExecuteCommandList(true);
+	g_d3d12_context->ExecuteCommandList(D3D12::Context::WaitType::Sleep);
 	DestroySwapChainRTVs();
 	m_swap_chain.reset();
 
@@ -612,8 +567,8 @@ bool D3D12HostDisplay::BeginPresent(bool frame_skip)
 
 	ID3D12GraphicsCommandList* cmdlist = g_d3d12_context->GetCommandList();
 	swap_chain_buf.TransitionToState(cmdlist, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	cmdlist->ClearRenderTargetView(swap_chain_buf.GetRTVOrDSVDescriptor(), clear_color.data(), 0, nullptr);
-	cmdlist->OMSetRenderTargets(1, &swap_chain_buf.GetRTVOrDSVDescriptor().cpu_handle, FALSE, nullptr);
+	cmdlist->ClearRenderTargetView(swap_chain_buf.GetWriteDescriptor(), clear_color.data(), 0, nullptr);
+	cmdlist->OMSetRenderTargets(1, &swap_chain_buf.GetWriteDescriptor().cpu_handle, FALSE, nullptr);
 
 	const D3D12_VIEWPORT vp{0.0f, 0.0f, static_cast<float>(m_window_info.surface_width), static_cast<float>(m_window_info.surface_height), 0.0f, 1.0f};
 	const D3D12_RECT scissor{0, 0, static_cast<LONG>(m_window_info.surface_width), static_cast<LONG>(m_window_info.surface_height)};
@@ -631,7 +586,7 @@ void D3D12HostDisplay::EndPresent()
 	m_current_swap_chain_buffer = ((m_current_swap_chain_buffer + 1) % static_cast<u32>(m_swap_chain_buffers.size()));
 
 	swap_chain_buf.TransitionToState(g_d3d12_context->GetCommandList(), D3D12_RESOURCE_STATE_PRESENT);
-	g_d3d12_context->ExecuteCommandList(false);
+	g_d3d12_context->ExecuteCommandList(D3D12::Context::WaitType::None);
 
 	const bool vsync = static_cast<UINT>(m_vsync_mode != VsyncMode::Off);
 	if (!vsync && m_using_allow_tearing)
@@ -654,11 +609,7 @@ float D3D12HostDisplay::GetAndResetAccumulatedGPUTime()
 HostDisplay::AdapterAndModeList D3D12HostDisplay::StaticGetAdapterAndModeList()
 {
 	ComPtr<IDXGIFactory> dxgi_factory;
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
-	HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(dxgi_factory.put()));
-#else
-	HRESULT hr = CreateDXGIFactory2(0, IID_PPV_ARGS(dxgi_factory.put()));
-#endif
+	const HRESULT hr = CreateDXGIFactory(IID_PPV_ARGS(dxgi_factory.put()));
 	if (FAILED(hr))
 		return {};
 

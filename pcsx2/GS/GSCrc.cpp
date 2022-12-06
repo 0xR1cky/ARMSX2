@@ -26,6 +26,10 @@ const CRC::Game CRC::m_games[] =
 	{0xF95F37EE, ArTonelico2, US, 0},
 	{0x68CE6801, ArTonelico2, JP, 0},
 	{0xCE2C1DBF, ArTonelico2, EU, 0},
+	{0x5C891FF1, Black, US, 0},
+	{0xCAA04879, Black, EU, 0},
+	{0xADDFF505, Black, EU, 0},
+	{0xB3A9F9ED, Black, JP, 0},
 	{0x2113EA2E, MetalSlug6, JP, 0},
 	{0xA6167B59, Lamune, JP, 0},
 	{0xA39517AB, FFX, EU, 0},
@@ -162,7 +166,6 @@ const CRC::Game CRC::m_games[] =
 	{0x1F88BECD, Tekken5, EU, 0}, // language selector...
 	{0x652050D2, Tekken5, US, 0},
 	{0xEA64EF39, Tekken5, KO, 0},
-	{0x9E98B8AE, IkkiTousen, JP, 0},
 	{0x95CC86EF, GiTS, US, 0}, // same CRC also reported as EU
 	{0x2C5BF134, GiTS, US, 0}, // Demo
 	{0xA5768F53, GiTS, JP, 0},
@@ -174,18 +177,6 @@ const CRC::Game CRC::m_games[] =
 	{0xAA5EC3A3, TalesOfAbyss, JP, 0},
 	{0xFB236A46, SonicUnleashed, US, 0},
 	{0x8C913264, SonicUnleashed, EU, 0},
-	{0xE04EA200, TriAceGames, EU, 0}, // StarOcean3
-	{0x23A97857, TriAceGames, US, 0}, // StarOcean3
-	{0xBEC32D49, TriAceGames, JP, 0}, // StarOcean3
-	{0x8192A241, TriAceGames, JP, 0}, // StarOcean3 directors cut
-	{0xCC96CE93, TriAceGames, US, 0}, // ValkyrieProfile2
-	{0x774DE8E2, TriAceGames, JP, 0}, // ValkyrieProfile2
-	{0x04CCB600, TriAceGames, EU, 0}, // ValkyrieProfile2
-	{0xB65E141B, TriAceGames, DE, 0}, // ValkyrieProfile2
-	{0x8510854E, TriAceGames, FR, 0}, // ValkyrieProfile2
-	{0xC70FC973, TriAceGames, IT, 0}, // ValkyrieProfile2
-	{0x47B9B2FD, TriAceGames, US, 0}, // RadiataStories
-	{0xAC73005E, TriAceGames, JP, 0}, // RadiataStories
 	{0xE8FCF8EC, SMTNocturne, US, 0},
 	{0xF0A31EE3, SMTNocturne, EU, 0}, // SMTNocturne (Lucifers Call in EU)
 	{0xAE0DE7B7, SMTNocturne, EU, 0}, // SMTNocturne (Lucifers Call in EU)
@@ -208,11 +199,6 @@ const CRC::Game CRC::m_games[] =
 	{0xA707236E, XenosagaE3, JP, 0}, // Demo
 	{0xA4E88698, XenosagaE3, CH, 0},
 	{0x2088950A, XenosagaE3, US, 0},
-	{0xB1995E29, ShadowofRome, EU, 0},
-	{0x958DCA28, ShadowofRome, EU, 0},
-	{0x57818AF6, ShadowofRome, US, 0},
-	{0x1E210E60, ShadowofRome, US, 0}, // Demo
-	{0x36393CD3, ShadowofRome, JP, 0},
 	{0x694A998E, TombRaiderUnderworld, JP, 0},
 	{0x8E214549, TombRaiderUnderworld, EU, 0},
 	{0x618769D6, TombRaiderUnderworld, US, 0},
@@ -258,12 +244,6 @@ const CRC::Game CRC::m_games[] =
 	{0x97E9C87E, YakuzaGames, US, 0}, // Yakuza2
 	{0xB1EBD841, YakuzaGames, US, 0}, // Yakuza2
 	{0xC6B95C48, YakuzaGames, JP, 0}, // Yakuza2
-	{0x9000252A, SkyGunner, JP, 0},
-	{0x93092623, SkyGunner, JP, 0},
-	{0xA9461CB2, SkyGunner, US, 0},
-	{0xC71DE999, SkyGunner, US, 0}, // Regular Demo
-	{0xAADF3287, SkyGunner, US, 0}, // Trade Demo
-	{0xB799A60C, SkyGunner, NoRegion, 0},
 	{0x2905C5C6, ZettaiZetsumeiToshi2, US, 0}, // Raw Danger!
 	{0xC988ECBB, ZettaiZetsumeiToshi2, JP, 0},
 	{0x90F4B057, ZettaiZetsumeiToshi2, CH, 0},

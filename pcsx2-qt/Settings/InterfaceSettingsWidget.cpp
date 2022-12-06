@@ -30,6 +30,8 @@ static const char* THEME_NAMES[] = {
 	QT_TRANSLATE_NOOP("InterfaceSettingsWidget", "Baby Pastel (Pink) [Light]"),
 	QT_TRANSLATE_NOOP("InterfaceSettingsWidget", "PCSX2 (White/Blue) [Light]"),
 	QT_TRANSLATE_NOOP("InterfaceSettingsWidget", "Scarlet Devil (Red/Purple) [Dark]"),
+	QT_TRANSLATE_NOOP("InterfaceSettingsWidget", "Ruby (Black/Red) [Dark]"),
+	QT_TRANSLATE_NOOP("InterfaceSettingsWidget", "Custom.qss [Drop in PCSX2 Folder]"),
 	nullptr};
 
 static const char* THEME_VALUES[] = {
@@ -41,6 +43,8 @@ static const char* THEME_VALUES[] = {
 	"BabyPastel",
 	"PCSX2Blue",
 	"ScarletDevilRed",
+	"Ruby",
+	"Custom",
 	nullptr};
 
 InterfaceSettingsWidget::InterfaceSettingsWidget(SettingsDialog* dialog, QWidget* parent)
@@ -50,11 +54,11 @@ InterfaceSettingsWidget::InterfaceSettingsWidget(SettingsDialog* dialog, QWidget
 
 	m_ui.setupUi(this);
 
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.inhibitScreensaver, "UI", "InhibitScreensaver", true);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.inhibitScreensaver, "EmuCore", "InhibitScreensaver", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.confirmShutdown, "UI", "ConfirmShutdown", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.saveStateOnShutdown, "EmuCore", "SaveStateOnShutdown", false);
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.pauseOnStart, "UI", "StartPaused", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.pauseOnFocusLoss, "UI", "PauseOnFocusLoss", false);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.backupSaveStates, "EmuCore", "BackupSavestate", false);
 
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.startFullscreen, "UI", "StartFullscreen", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.doubleClickTogglesFullscreen, "UI", "DoubleClickTogglesFullscreen",
@@ -69,11 +73,16 @@ InterfaceSettingsWidget::InterfaceSettingsWidget(SettingsDialog* dialog, QWidget
 		MainWindow::DEFAULT_THEME_NAME);
 	connect(m_ui.theme, QOverload<int>::of(&QComboBox::currentIndexChanged), [this]() { emit themeChanged(); });
 
-	dialog->registerWidgetHelp(
-		m_ui.inhibitScreensaver, tr("Inhibit Screensaver"), tr("Checked"),
-		tr("Prevents the screen saver from activating and the host from sleeping while emulation is running."));
+	// Per-game settings is special, we don't want to bind it if we're editing per-game settings.
+	m_ui.perGameSettings->setEnabled(!dialog->isPerGameSettings());
+	if (!dialog->isPerGameSettings())
+	{
+		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.pauseOnStart, "UI", "StartPaused", false);
+		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.perGameSettings, "EmuCore", "EnablePerGameSettings", true);
+		connect(m_ui.perGameSettings, &QCheckBox::stateChanged, g_emu_thread, &EmuThread::reloadGameSettings);
+	}
 
-	if (AutoUpdaterDialog::isSupported())
+	if (!dialog->isPerGameSettings() && AutoUpdaterDialog::isSupported())
 	{
 		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.autoUpdateEnabled, "AutoUpdater", "CheckAtStartup", true);
 		dialog->registerWidgetHelp(m_ui.autoUpdateEnabled, tr("Enable Automatic Update Check"), tr("Checked"),
@@ -93,6 +102,25 @@ InterfaceSettingsWidget::InterfaceSettingsWidget(SettingsDialog* dialog, QWidget
 		m_ui.automaticUpdaterGroup->hide();
 	}
 
+#ifdef ENABLE_DISCORD_PRESENCE
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.discordPresence, "EmuCore", "EnableDiscordPresence", false);
+#else
+	m_ui.discordPresence->setEnabled(false);
+#endif
+
+	if (dialog->isPerGameSettings())
+	{
+		// language/theme doesn't make sense to have in per-game settings
+		m_ui.verticalLayout->removeWidget(m_ui.preferencesGroup);
+		m_ui.preferencesGroup->hide();
+
+		// start paused doesn't make sense, because settings are applied after ELF load.
+		m_ui.pauseOnStart->setEnabled(false);
+	}
+
+	dialog->registerWidgetHelp(
+		m_ui.inhibitScreensaver, tr("Inhibit Screensaver"), tr("Checked"),
+		tr("Prevents the screen saver from activating and the host from sleeping while emulation is running."));
 	dialog->registerWidgetHelp(
 		m_ui.confirmShutdown, tr("Confirm Shutdown"), tr("Checked"),
 		tr("Determines whether a prompt will be displayed to confirm shutting down the virtual machine "
@@ -105,6 +133,8 @@ InterfaceSettingsWidget::InterfaceSettingsWidget(SettingsDialog* dialog, QWidget
 	dialog->registerWidgetHelp(m_ui.pauseOnFocusLoss, tr("Pause On Focus Loss"), tr("Unchecked"),
 		tr("Pauses the emulator when you minimize the window or switch to another application, "
 		   "and unpauses when you switch back."));
+	dialog->registerWidgetHelp(m_ui.backupSaveStates, tr("Create Save State Backups"), tr("Unchecked"),
+		tr("Creates a backup copy of a save state if it already exists when the save is created. The backup copy has a .backup suffix."));
 	dialog->registerWidgetHelp(m_ui.startFullscreen, tr("Start Fullscreen"), tr("Unchecked"),
 		tr("Automatically switches to fullscreen mode when a game is started."));
 	dialog->registerWidgetHelp(m_ui.hideMouseCursor, tr("Hide Cursor In Fullscreen"), tr("Checked"),
@@ -115,6 +145,11 @@ InterfaceSettingsWidget::InterfaceSettingsWidget(SettingsDialog* dialog, QWidget
 	dialog->registerWidgetHelp(
 		m_ui.hideMainWindow, tr("Hide Main Window When Running"), tr("Unchecked"),
 		tr("Hides the main window (with the game list) when a game is running, requires Render To Separate Window to be enabled."));
+	dialog->registerWidgetHelp(m_ui.perGameSettings, tr("Enable Per-Game Settings"), tr("Checked"),
+		tr("When enabled, custom per-game settings will be appled. Disable to always use the global configuration."));
+	dialog->registerWidgetHelp(
+		m_ui.discordPresence, tr("Enable Discord Presence"), tr("Unchecked"),
+		tr("Shows the game you are currently playing as part of your profile in Discord."));
 
 	// Not yet used, disable the options
 	m_ui.language->setDisabled(true);

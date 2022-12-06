@@ -21,11 +21,13 @@
 #include <map>
 #include <mutex>
 
-static std::map<u64, bool> s_use_c_draw_scanline;
-static std::mutex s_use_c_draw_scanline_mutex;
+MULTI_ISA_UNSHARED_IMPL;
 
 static bool shouldUseCDrawScanline(u64 key)
 {
+	static std::map<u64, bool> s_use_c_draw_scanline;
+	static std::mutex s_use_c_draw_scanline_mutex;
+
 	static const char* const fname = getenv("USE_C_DRAW_SCANLINE");
 	if (!fname)
 		return false;
@@ -80,7 +82,7 @@ static bool shouldUseCDrawScanline(u64 key)
 }
 
 GSDrawScanlineCodeGenerator::GSDrawScanlineCodeGenerator(void* param, u64 key, void* code, size_t maxsize)
-	: GSCodeGenerator(code, maxsize)
+	: Xbyak::CodeGenerator(maxsize, code)
 	, m_local(*(GSScanlineLocalData*)param)
 	, m_rip(false)
 {
@@ -106,5 +108,5 @@ GSDrawScanlineCodeGenerator::GSDrawScanlineCodeGenerator(void* param, u64 key, v
 		return;
 	}
 
-	GSDrawScanlineCodeGenerator2(this, CPUInfo(m_cpu), (void*)&m_local, m_sel.key).Generate();
+	GSDrawScanlineCodeGenerator2(this, g_cpu, (void*)&m_local, m_sel.key).Generate();
 }

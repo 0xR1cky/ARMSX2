@@ -17,8 +17,9 @@
 
 #include "common/Assertions.h"
 
+#include "pcsx2/Frontend/ImGuiManager.h"
+
 #include "DisplayWidget.h"
-#include "EmuThread.h"
 #include "MainWindow.h"
 #include "QtHost.h"
 #include "QtUtils.h"
@@ -61,62 +62,26 @@ DisplayWidget::~DisplayWidget()
 #endif
 }
 
-qreal DisplayWidget::devicePixelRatioFromScreen() const
-{
-	const QScreen* screen_for_ratio = screen();
-	if (!screen_for_ratio)
-		screen_for_ratio = QGuiApplication::primaryScreen();
-
-	return screen_for_ratio ? screen_for_ratio->devicePixelRatio() : static_cast<qreal>(1);
-}
-
 int DisplayWidget::scaledWindowWidth() const
 {
-	return std::max(static_cast<int>(std::ceil(static_cast<qreal>(width()) * devicePixelRatioFromScreen())), 1);
+	return std::max(static_cast<int>(std::ceil(static_cast<qreal>(width()) * QtUtils::GetDevicePixelRatioForWidget(this))), 1);
 }
 
 int DisplayWidget::scaledWindowHeight() const
 {
-	return std::max(static_cast<int>(std::ceil(static_cast<qreal>(height()) * devicePixelRatioFromScreen())), 1);
+	return std::max(static_cast<int>(std::ceil(static_cast<qreal>(height()) * QtUtils::GetDevicePixelRatioForWidget(this))), 1);
 }
 
 std::optional<WindowInfo> DisplayWidget::getWindowInfo()
 {
-	WindowInfo wi;
-
-	// Windows and Apple are easy here since there's no display connection.
-#if defined(_WIN32)
-	wi.type = WindowInfo::Type::Win32;
-	wi.window_handle = reinterpret_cast<void*>(winId());
-#elif defined(__APPLE__)
-	wi.type = WindowInfo::Type::MacOS;
-	wi.window_handle = reinterpret_cast<void*>(winId());
-#else
-	QPlatformNativeInterface* pni = QGuiApplication::platformNativeInterface();
-	const QString platform_name = QGuiApplication::platformName();
-	if (platform_name == QStringLiteral("xcb"))
+	std::optional<WindowInfo> ret(QtUtils::GetWindowInfoForWidget(this));
+	if (ret.has_value())
 	{
-		wi.type = WindowInfo::Type::X11;
-		wi.display_connection = pni->nativeResourceForWindow("display", windowHandle());
-		wi.window_handle = reinterpret_cast<void*>(winId());
+		m_last_window_width = ret->surface_width;
+		m_last_window_height = ret->surface_height;
+		m_last_window_scale = ret->surface_scale;
 	}
-	else if (platform_name == QStringLiteral("wayland"))
-	{
-		wi.type = WindowInfo::Type::Wayland;
-		wi.display_connection = pni->nativeResourceForWindow("display", windowHandle());
-		wi.window_handle = pni->nativeResourceForWindow("surface", windowHandle());
-	}
-	else
-	{
-		qCritical() << "Unknown PNI platform " << platform_name;
-		return std::nullopt;
-	}
-#endif
-
-	m_last_window_width = wi.surface_width = static_cast<u32>(scaledWindowWidth());
-	m_last_window_height = wi.surface_height = static_cast<u32>(scaledWindowHeight());
-	m_last_window_scale = wi.surface_scale = static_cast<float>(devicePixelRatioFromScreen());
-	return wi;
+	return ret;
 }
 
 void DisplayWidget::updateRelativeMode(bool master_enable)
@@ -181,6 +146,24 @@ void DisplayWidget::updateCursor(bool master_enable)
 		unsetCursor();
 }
 
+void DisplayWidget::handleCloseEvent(QCloseEvent* event)
+{
+	// Closing the separate widget will either cancel the close, or trigger shutdown.
+	// In the latter case, it's going to destroy us, so don't let Qt do it first.
+	if (QtHost::IsVMValid())
+	{
+		QMetaObject::invokeMethod(g_main_window, "requestShutdown", Q_ARG(bool, true),
+			Q_ARG(bool, true), Q_ARG(bool, false));
+	}
+	else
+	{
+		QMetaObject::invokeMethod(g_main_window, &MainWindow::requestExit);
+	}
+
+	// Cancel the event from closing the window.
+	event->ignore();
+}
+
 void DisplayWidget::updateCenterPos()
 {
 #ifdef _WIN32
@@ -224,6 +207,18 @@ bool DisplayWidget::event(QEvent* event)
 		case QEvent::KeyRelease:
 		{
 			const QKeyEvent* key_event = static_cast<QKeyEvent*>(event);
+			
+			// Forward text input to imgui.
+			if (ImGuiManager::WantsTextInput() && key_event->type() == QEvent::KeyPress)
+			{
+				// Don't forward backspace characters. We send the backspace as a normal key event,
+				// so if we send the character too, it double-deletes.
+				QString text(key_event->text());
+				text.remove(QChar('\b'));
+				if (!text.isEmpty())
+					ImGuiManager::AddTextInput(text.toStdString());
+			}
+
 			if (key_event->isAutoRepeat())
 				return true;
 
@@ -264,7 +259,7 @@ bool DisplayWidget::event(QEvent* event)
 
 			if (!m_relative_mouse_enabled)
 			{
-				const qreal dpr = devicePixelRatioFromScreen();
+				const qreal dpr = QtUtils::GetDevicePixelRatioForWidget(this);
 				const QPoint mouse_pos = mouse_event->pos();
 
 				const float scaled_x = static_cast<float>(static_cast<qreal>(mouse_pos.x()) * dpr);
@@ -319,6 +314,7 @@ bool DisplayWidget::event(QEvent* event)
 			// don't toggle fullscreen when we're bound.. that wouldn't end well.
 			if (event->type() == QEvent::MouseButtonDblClick &&
 				static_cast<const QMouseEvent*>(event)->button() == Qt::LeftButton &&
+				QtHost::IsVMValid() && !QtHost::IsVMPaused() &&
 				!InputManager::HasAnyBindingsForKey(InputManager::MakePointerButtonKey(0, 0)) &&
 				Host::GetBoolSettingValue("UI", "DoubleClickTogglesFullscreen", true))
 			{
@@ -348,7 +344,7 @@ bool DisplayWidget::event(QEvent* event)
 		{
 			QWidget::event(event);
 
-			const float dpr = devicePixelRatioFromScreen();
+			const float dpr = QtUtils::GetDevicePixelRatioForWidget(this);
 			const u32 scaled_width = static_cast<u32>(std::max(static_cast<int>(std::ceil(static_cast<qreal>(width()) * dpr)), 1));
 			const u32 scaled_height = static_cast<u32>(std::max(static_cast<int>(std::ceil(static_cast<qreal>(height()) * dpr)), 1));
 
@@ -373,10 +369,7 @@ bool DisplayWidget::event(QEvent* event)
 
 		case QEvent::Close:
 		{
-			// Closing the separate widget will either cancel the close, or trigger shutdown.
-			// In the latter case, it's going to destroy us, so don't let Qt do it first.
-			QMetaObject::invokeMethod(g_main_window, "requestShutdown", Q_ARG(bool, true), Q_ARG(bool, false), Q_ARG(bool, false));
-			event->ignore();
+			handleCloseEvent(static_cast<QCloseEvent*>(event));
 			return true;
 		}
 
@@ -402,15 +395,24 @@ DisplayContainer::DisplayContainer()
 
 DisplayContainer::~DisplayContainer() = default;
 
-bool DisplayContainer::IsNeeded(bool fullscreen, bool render_to_main)
+bool DisplayContainer::isNeeded(bool fullscreen, bool render_to_main)
 {
 #if defined(_WIN32) || defined(__APPLE__)
 	return false;
 #else
-	if (!fullscreen && render_to_main)
+	if (!isRunningOnWayland())
 		return false;
 
 	// We only need this on Wayland because of client-side decorations...
+	return (fullscreen || !render_to_main);
+#endif
+}
+
+bool DisplayContainer::isRunningOnWayland()
+{
+#if defined(_WIN32) || defined(__APPLE__)
+	return false;
+#else
 	const QString platform_name = QGuiApplication::platformName();
 	return (platform_name == QStringLiteral("wayland"));
 #endif
@@ -434,12 +436,9 @@ DisplayWidget* DisplayContainer::removeDisplayWidget()
 
 bool DisplayContainer::event(QEvent* event)
 {
-	if (event->type() == QEvent::Close)
+	if (event->type() == QEvent::Close && m_display_widget)
 	{
-		// Closing the separate widget will either cancel the close, or trigger shutdown.
-		// In the latter case, it's going to destroy us, so don't let Qt do it first.
-		QMetaObject::invokeMethod(g_main_window, "requestShutdown", Q_ARG(bool, true), Q_ARG(bool, false), Q_ARG(bool, false));
-		event->ignore();
+		m_display_widget->handleCloseEvent(static_cast<QCloseEvent*>(event));
 		return true;
 	}
 

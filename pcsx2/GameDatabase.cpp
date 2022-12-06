@@ -159,7 +159,7 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 			if (StringUtil::EndsWith(fix, "Hack"))
 			{
 				fix.erase(fix.size() - 4);
-				for (GamefixId id = GamefixId_FIRST; id < pxEnumEnd; id++)
+				for (GamefixId id = GamefixId_FIRST; id < pxEnumEnd; ++id)
 				{
 					if (fix.compare(EnumToString(id)) == 0 &&
 						std::find(gameEntry.gameFixes.begin(), gameEntry.gameFixes.end(), id) == gameEntry.gameFixes.end())
@@ -190,7 +190,7 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 			if (StringUtil::EndsWith(speedHack, "SpeedHack"))
 			{
 				speedHack.erase(speedHack.size() - 9);
-				for (SpeedhackId id = SpeedhackId_FIRST; id < pxEnumEnd; id++)
+				for (SpeedhackId id = SpeedhackId_FIRST; id < pxEnumEnd; ++id)
 				{
 					if (speedHack.compare(EnumToString(id)) == 0 &&
 						std::none_of(gameEntry.speedHacks.begin(), gameEntry.speedHacks.end(), [id](const auto& it) { return it.first == id; }))
@@ -270,7 +270,6 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 
 static const char* s_gs_hw_fix_names[] = {
 	"autoFlush",
-	"conservativeFramebuffer",
 	"cpuFramebufferConversion",
 	"disableDepthSupport",
 	"wrapGSMem",
@@ -291,6 +290,8 @@ static const char* s_gs_hw_fix_names[] = {
 	"texturePreloading",
 	"deinterlace",
 	"cpuSpriteRenderBW",
+	"cpuCLUTRender",
+	"gpuPaletteConversion",
 };
 static_assert(std::size(s_gs_hw_fix_names) == static_cast<u32>(GameDatabaseSchema::GSHWFixId::Count), "HW fix name lookup is correct size");
 
@@ -317,16 +318,9 @@ bool GameDatabaseSchema::isUserHackHWFix(GSHWFixId id)
 		case GSHWFixId::Deinterlace:
 		case GSHWFixId::Mipmap:
 		case GSHWFixId::TexturePreloading:
-		case GSHWFixId::ConservativeFramebuffer:
 		case GSHWFixId::PointListPalette:
-			return false;
-
-#ifdef PCSX2_CORE
-			// Trifiltering isn't a hack in Qt.
 		case GSHWFixId::TrilinearFiltering:
 			return false;
-#endif
-
 		default:
 			return true;
 	}
@@ -439,15 +433,12 @@ u32 GameDatabaseSchema::GameEntry::applyGameFixes(Pcsx2Config& config, bool appl
 	return num_applied_fixes;
 }
 
-bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOptions& config, GSHWFixId id, int value) const
+bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOptions& config, GSHWFixId id, int value)
 {
 	switch (id)
 	{
 		case GSHWFixId::AutoFlush:
 			return (static_cast<int>(config.UserHacks_AutoFlush) == value);
-
-		case GSHWFixId::ConservativeFramebuffer:
-			return (static_cast<int>(config.ConservativeFramebuffer) == value);
 
 		case GSHWFixId::CPUFramebufferConversion:
 			return (static_cast<int>(config.UserHacks_CPUFBConversion) == value);
@@ -468,13 +459,13 @@ bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOpti
 			return (static_cast<int>(config.UserHacks_TextureInsideRt) == value);
 
 		case GSHWFixId::AlignSprite:
-			return (config.UpscaleMultiplier == 1 || static_cast<int>(config.UserHacks_AlignSpriteX) == value);
+			return (config.UpscaleMultiplier <= 1.0f || static_cast<int>(config.UserHacks_AlignSpriteX) == value);
 
 		case GSHWFixId::MergeSprite:
-			return (config.UpscaleMultiplier == 1 || static_cast<int>(config.UserHacks_MergePPSprite) == value);
+			return (config.UpscaleMultiplier <= 1.0f || static_cast<int>(config.UserHacks_MergePPSprite) == value);
 
 		case GSHWFixId::WildArmsHack:
-			return (config.UpscaleMultiplier == 1 || static_cast<int>(config.UserHacks_WildHack) == value);
+			return (config.UpscaleMultiplier <= 1.0f || static_cast<int>(config.UserHacks_WildHack) == value);
 
 		case GSHWFixId::PointListPalette:
 			return (static_cast<int>(config.PointListPalette) == value);
@@ -483,7 +474,7 @@ bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOpti
 			return (config.HWMipmap == HWMipmapLevel::Automatic || static_cast<int>(config.HWMipmap) == value);
 
 		case GSHWFixId::TrilinearFiltering:
-			return (config.UserHacks_TriFilter == TriFiltering::Automatic || static_cast<int>(config.UserHacks_TriFilter) == value);
+			return (config.TriFilter == TriFiltering::Automatic || static_cast<int>(config.TriFilter) == value);
 
 		case GSHWFixId::SkipDrawStart:
 			return (config.SkipDrawStart == value);
@@ -495,10 +486,10 @@ bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOpti
 			return (config.UserHacks_HalfBottomOverride == value);
 
 		case GSHWFixId::HalfPixelOffset:
-			return (config.UpscaleMultiplier == 1 || config.UserHacks_HalfPixelOffset == value);
+			return (config.UpscaleMultiplier <= 1.0f || config.UserHacks_HalfPixelOffset == value);
 
 		case GSHWFixId::RoundSprite:
-			return (config.UpscaleMultiplier == 1 || config.UserHacks_RoundSprite == value);
+			return (config.UpscaleMultiplier <= 1.0f || config.UserHacks_RoundSprite == value);
 
 		case GSHWFixId::TexturePreloading:
 			return (static_cast<int>(config.TexturePreloading) <= value);
@@ -508,6 +499,12 @@ bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOpti
 
 		case GSHWFixId::CPUSpriteRenderBW:
 			return (config.UserHacks_CPUSpriteRenderBW == value);
+
+		case GSHWFixId::CPUCLUTRender:
+			return (config.UserHacks_CPUCLUTRender == value);
+
+		case GSHWFixId::GPUPaletteConversion:
+			return (config.GPUPaletteConversion == ((value > 1) ? (config.TexturePreloading == TexturePreloadingLevel::Full) : (value != 0)));
 
 		default:
 			return false;
@@ -540,10 +537,6 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 		{
 			case GSHWFixId::AutoFlush:
 				config.UserHacks_AutoFlush = (value > 0);
-				break;
-
-			case GSHWFixId::ConservativeFramebuffer:
-				config.ConservativeFramebuffer = (value > 0);
 				break;
 
 			case GSHWFixId::CPUFramebufferConversion:
@@ -602,9 +595,9 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 			{
 				if (value >= 0 && value <= static_cast<int>(TriFiltering::Forced))
 				{
-					if (config.UserHacks_TriFilter == TriFiltering::Automatic)
-						config.UserHacks_TriFilter = static_cast<TriFiltering>(value);
-					else if (config.UserHacks_TriFilter == TriFiltering::Off)
+					if (config.TriFilter == TriFiltering::Automatic)
+						config.TriFilter = static_cast<TriFiltering>(value);
+					else if (config.TriFilter == TriFiltering::Off)
 						Console.Warning("[GameDB] Game requires trilinear filtering but it has been force disabled.");
 				}
 			}
@@ -639,7 +632,7 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 
 			case GSHWFixId::Deinterlace:
 			{
-				if (value >= 0 && value <= static_cast<int>(GSInterlaceMode::Automatic))
+				if (value >= static_cast<int>(GSInterlaceMode::Automatic) && value < static_cast<int>(GSInterlaceMode::Count))
 				{
 					if (config.InterlaceMode == GSInterlaceMode::Automatic)
 						config.InterlaceMode = static_cast<GSInterlaceMode>(value);
@@ -652,6 +645,20 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 			case GSHWFixId::CPUSpriteRenderBW:
 				config.UserHacks_CPUSpriteRenderBW = value;
 				break;
+
+			case GSHWFixId::CPUCLUTRender:
+				config.UserHacks_CPUCLUTRender = value;
+				break;
+
+			case GSHWFixId::GPUPaletteConversion:
+			{
+				// if 2, enable paltex when preloading is full, otherwise leave as-is
+				if (value > 1)
+					config.GPUPaletteConversion = (config.TexturePreloading == TexturePreloadingLevel::Full) ? true : config.GPUPaletteConversion;
+				else
+					config.GPUPaletteConversion = (value != 0);
+			}
+			break;
 
 			default:
 				break;
@@ -670,7 +677,7 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 		Host::AddKeyedOSDMessage("HWFixesWarning",
 			fmt::format("Manual GS hardware renderer fixes are enabled, automatic fixes were not applied:\n{}",
 				disabled_fixes),
-			10.0f);
+			Host::OSD_ERROR_DURATION);
 	}
 	else
 	{

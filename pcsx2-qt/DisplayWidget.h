@@ -20,6 +20,8 @@
 #include <optional>
 #include <vector>
 
+class QCloseEvent;
+
 class DisplayWidget final : public QWidget
 {
 	Q_OBJECT
@@ -34,12 +36,13 @@ public:
 
 	int scaledWindowWidth() const;
 	int scaledWindowHeight() const;
-	qreal devicePixelRatioFromScreen() const;
 
 	std::optional<WindowInfo> getWindowInfo();
 
 	void updateRelativeMode(bool master_enable);
 	void updateCursor(bool master_enable);
+
+	void handleCloseEvent(QCloseEvent* event);
 
 Q_SIGNALS:
 	void windowResizedEvent(int width, int height, float scale);
@@ -75,7 +78,10 @@ public:
 	DisplayContainer();
 	~DisplayContainer();
 
-	static bool IsNeeded(bool fullscreen, bool render_to_main);
+	// Wayland is broken in lots of ways, so we need to check for it.
+	static bool isRunningOnWayland();
+
+	static bool isNeeded(bool fullscreen, bool render_to_main);
 
 	void setDisplayWidget(DisplayWidget* widget);
 	DisplayWidget* removeDisplayWidget();

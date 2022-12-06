@@ -126,6 +126,24 @@ std::unique_ptr<GSTextureVK> GSTextureVK::Create(Type type, u32 width, u32 heigh
 			return std::make_unique<GSTextureVK>(type, format, std::move(texture));
 		}
 
+		case Type::RWTexture:
+		{
+			pxAssert(levels == 1);
+
+			Vulkan::Texture texture;
+			if (!texture.Create(width, height, levels, 1, vk_format, VK_SAMPLE_COUNT_1_BIT,
+					VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_TILING_OPTIMAL,
+					VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+						VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT))
+			{
+				return {};
+			}
+
+			Vulkan::Util::SetObjectName(
+				g_vulkan_context->GetDevice(), texture.GetImage(), "%ux%u RW texture", width, height);
+			return std::make_unique<GSTextureVK>(type, format, std::move(texture));
+		}
+
 		default:
 			return {};
 	}
@@ -244,6 +262,7 @@ bool GSTextureVK::Update(const GSVector4i& r, const void* data, int pitch, int l
 	}
 
 	m_texture.UpdateFromBuffer(cmdbuf, layer, 0, r.x, r.y, width, height,
+		Common::AlignUpPow2(height, GetCompressedBlockSize()),
 		CalcUploadRowLengthFromPitch(upload_pitch), buffer, buffer_offset);
 	m_texture.TransitionToLayout(cmdbuf, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -285,7 +304,8 @@ bool GSTextureVK::Map(GSMap& m, const GSVector4i* r, int layer)
 
 void GSTextureVK::Unmap()
 {
-	pxAssert(m_map_level < m_texture.GetLevels());
+	// this can't handle blocks/compressed formats at the moment.
+	pxAssert(m_map_level < m_texture.GetLevels() && !IsCompressedFormat());
 	g_perfmon.Put(GSPerfMon::TextureUploads, 1);
 
 	// TODO: non-tightly-packed formats
@@ -316,6 +336,7 @@ void GSTextureVK::Unmap()
 	}
 
 	m_texture.UpdateFromBuffer(cmdbuf, m_map_level, 0, m_map_area.x, m_map_area.y, width, height,
+		Common::AlignUpPow2(height, GetCompressedBlockSize()),
 		CalcUploadRowLengthFromPitch(pitch), buffer.GetBuffer(), buffer_offset);
 	m_texture.TransitionToLayout(cmdbuf, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
@@ -401,7 +422,7 @@ void GSTextureVK::CommitClear(VkCommandBuffer cmdbuf)
 		vkCmdClearColorImage(cmdbuf, m_texture.GetImage(), m_texture.GetLayout(), &cv, 1, &srr);
 	}
 
-	SetState(GSTexture::State::Dirty);	
+	SetState(GSTexture::State::Dirty);
 }
 
 VkFramebuffer GSTextureVK::GetFramebuffer(bool feedback_loop) { return GetLinkedFramebuffer(nullptr, feedback_loop); }

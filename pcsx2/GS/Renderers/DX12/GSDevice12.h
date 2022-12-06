@@ -102,6 +102,7 @@ public:
 	public:
 		ShaderMacro(D3D_FEATURE_LEVEL fl);
 		void AddMacro(const char* n, int d);
+		void AddMacro(const char* n, std::string d);
 		D3D_SHADER_MACRO* GetPtr(void);
 	};
 
@@ -130,11 +131,13 @@ public:
 		UTILITY_ROOT_SIGNATURE_PARAM_PUSH_CONSTANTS = 0,
 		UTILITY_ROOT_SIGNATURE_PARAM_PS_TEXTURES = 1,
 		UTILITY_ROOT_SIGNATURE_PARAM_PS_SAMPLERS = 2,
+
+		CAS_ROOT_SIGNATURE_PARAM_PUSH_CONSTANTS = 0,
+		CAS_ROOT_SIGNATURE_PARAM_SRC_TEXTURE = 1,
+		CAS_ROOT_SIGNATURE_PARAM_DST_TEXTURE = 2
 	};
 
 private:
-	static constexpr u32 SHADER_VERSION = 1;
-
 	ComPtr<ID3D12RootSignature> m_tfx_root_signature;
 	ComPtr<ID3D12RootSignature> m_utility_root_signature;
 
@@ -157,7 +160,7 @@ private:
 	std::array<ComPtr<ID3D12PipelineState>, static_cast<int>(PresentShader::Count)> m_present{};
 	std::array<ComPtr<ID3D12PipelineState>, 16> m_color_copy{};
 	std::array<ComPtr<ID3D12PipelineState>, 2> m_merge{};
-	std::array<ComPtr<ID3D12PipelineState>, 4> m_interlace{};
+	std::array<ComPtr<ID3D12PipelineState>, NUM_INTERLACE_SHADERS> m_interlace{};
 	std::array<ComPtr<ID3D12PipelineState>, 2> m_hdr_setup_pipelines{}; // [depth]
 	std::array<ComPtr<ID3D12PipelineState>, 2> m_hdr_finish_pipelines{}; // [depth]
 	std::array<std::array<ComPtr<ID3D12PipelineState>, 2>, 2> m_date_image_setup_pipelines{}; // [depth][datm]
@@ -168,6 +171,10 @@ private:
 	std::unordered_map<u32, ComPtr<ID3DBlob>> m_tfx_geometry_shaders;
 	std::unordered_map<GSHWDrawConfig::PSSelector, ComPtr<ID3DBlob>, GSHWDrawConfig::PSSelectorHash> m_tfx_pixel_shaders;
 	std::unordered_map<PipelineSelector, ComPtr<ID3D12PipelineState>, PipelineSelectorHash> m_tfx_pipelines;
+
+	ComPtr<ID3D12RootSignature> m_cas_root_signature;
+	ComPtr<ID3D12PipelineState> m_cas_upscale_pipeline;
+	ComPtr<ID3D12PipelineState> m_cas_sharpen_pipeline;
 
 	GSHWDrawConfig::VSConstantBuffer m_vs_cb_cache;
 	GSHWDrawConfig::PSConstantBuffer m_ps_cb_cache;
@@ -182,9 +189,11 @@ private:
 
 	void DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE,
 		const GSRegEXTBUF& EXTBUF, const GSVector4& c) final;
-	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0) final;
+	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0, int bufIdx = 0) final;
 	void DoShadeBoost(GSTexture* sTex, GSTexture* dTex, const float params[4]) final;
 	void DoFXAA(GSTexture* sTex, GSTexture* dTex) final;
+
+	bool DoCAS(GSTexture* sTex, GSTexture* dTex, bool sharpen_only, const std::array<u32, NUM_CAS_CONSTANTS>& constants) final;
 
 	bool GetSampler(D3D12::DescriptorHandle* cpu_handle, GSHWDrawConfig::SamplerSelector ss);
 	void ClearSamplerCache() final;
@@ -209,6 +218,7 @@ private:
 	bool CompileInterlacePipelines();
 	bool CompileMergePipelines();
 	bool CompilePostProcessingPipelines();
+	bool CompileCASPipelines();
 
 	bool CheckStagingBufferSize(u32 required_size);
 	bool MapStagingBuffer(u32 size_to_read);
@@ -223,7 +233,7 @@ public:
 
 	__fi static GSDevice12* GetInstance() { return static_cast<GSDevice12*>(g_gs_device.get()); }
 
-	bool Create(HostDisplay* display) override;
+	bool Create() override;
 	void Destroy() override;
 
 	void ResetAPIState() override;
@@ -287,7 +297,7 @@ public:
 	/// Ends any render pass, executes the command buffer, and invalidates cached state.
 	void ExecuteCommandList(bool wait_for_completion);
 	void ExecuteCommandList(bool wait_for_completion, const char* reason, ...);
-	void ExecuteCommandListAndRestartRenderPass(const char* reason);
+	void ExecuteCommandListAndRestartRenderPass(bool wait_for_completion, const char* reason);
 
 	/// Set dirty flags on everything to force re-bind at next draw time.
 	void InvalidateCachedState();

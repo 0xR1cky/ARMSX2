@@ -44,7 +44,7 @@ const char* dialog_message(int ID, bool* updateText)
 		case IDC_TRI_FILTER:
 			return cvtString("Control the texture tri-filtering of the emulation.\n\n"
 				"None:\nNo extra trilinear filtering.\n\n"
-				"Trilinear:\nUse OpenGL/Vulkan trilinear interpolation when PS2 uses mipmaps.\n\n"
+				"Trilinear:\nUse trilinear interpolation when PS2 uses mipmaps.\n\n"
 				"Trilinear Forced:\nAlways enable full trilinear interpolation. Warning Slow!\n\n");
 		case IDC_CRC_LEVEL:
 			return cvtString("Control the number of Auto-CRC fixes and hacks applied to games.\n\n"
@@ -54,7 +54,7 @@ const char* dialog_message(int ID, bool* updateText)
 				"Minimum:\nEnables CRC lookup for special post processing effects.\n\n"
 				"Aggressive:\nUse more aggressive CRC hacks.\n"
 				"Removes effects in some games which make the image appear sharper/clearer.\n"
-				"Affected games: AC4, BleachBB, Bully, DBZBT 2 & 3, DeathByDegrees, Evangelion, FF games, FightingBeautyWulong, GOW 1 & 2, Kunoichi, IkkiTousen, Okami, Oneechanbara2, OnimushaDoD, RDRevolver, Simple2000Vol114, SoTC, SteambotChronicles, Tekken5, Ultraman, XenosagaE3, Yakuza 1 & 2.\n");
+				"Affected games: AC4, DBZBT 2 & 3, DeathByDegrees, Evangelion, FF games, FightingBeautyWulong, Kunoichi, Okami, Oneechanbara2, OnimushaDoD, RDRevolver, Simple2000Vol114, SteambotChronicles, Tekken5, Ultraman, XenosagaE3, Yakuza 1 & 2.\n");
 		case IDC_SKIPDRAWEND:
 		case IDC_SKIPDRAWHACKEDIT:
 		case IDC_SKIPDRAWSTART:
@@ -104,10 +104,6 @@ const char* dialog_message(int ID, bool* updateText)
 			return cvtString("Enable: Removes the offset for interlacing when upscaling.\n"
 				"Can reduce blurring in some games, where the opposite is true most of the time.\n"
 				"Used for ICO to reduce blur.");
-		case IDC_ACCURATE_DATE:
-			return cvtString("Implement a more accurate algorithm to compute GS destination alpha testing.\n"
-				"It improves shadow and transparency rendering.\n\n"
-				"Note: Direct3D 11 is less accurate.");
 		case IDC_ACCURATE_BLEND_UNIT:
 			return cvtString("Control the accuracy level of the GS blending unit emulation.\n\n"
 				"Minimum:\nFast but introduces various rendering issues.\n"
@@ -119,7 +115,7 @@ const char* dialog_message(int ID, bool* updateText)
 				"A good CPU is required.\n\n"
 				"Full:\nExcept few cases, the blending unit will be fully emulated by the shader. It is slow!\n\n"
 				"Maximum:\nThe blending unit will be completely emulated by the shader. It is very slow!\n\n"
-				"Note: Direct3D11's blending is capped at High and is reduced in capability compared to OpenGL/Vulkan");
+				"Note: Direct3D's blending is capped at High and is reduced in capability compared to OpenGL/Vulkan");
 		case IDC_TC_DEPTH:
 			return cvtString("Disable the support of Depth buffer in the texture cache.\n"
 				"It can help to increase speed but it will likely create various glitches.");
@@ -130,8 +126,6 @@ const char* dialog_message(int ID, bool* updateText)
 				"Note: This hack has an impact on performance.\n");
 		case IDC_AFCOMBO:
 			return cvtString("Reduces texture aliasing at extreme viewing angles.");
-		case IDC_AA1:
-			return cvtString("Internal GS feature. Reduces edge aliasing of lines and triangles when the game requests it.");
 		case IDC_SWTHREADS:
 		case IDC_SWTHREADS_EDIT:
 			return cvtString("Number of rendering threads: 0 for single thread, 2 or more for multithread (1 is for debugging)\n"
@@ -170,13 +164,12 @@ const char* dialog_message(int ID, bool* updateText)
 		case IDC_GEOMETRY_SHADER_OVERRIDE:
 			return cvtString("Allows the GPU instead of just the CPU to transform lines into sprites. This reduces CPU load and bandwidth requirement, but it is heavier on the GPU.\n"
 				"Automatic detection is recommended.");
-		case IDC_IMAGE_LOAD_STORE:
-			return cvtString("Allows advanced atomic operations to speed up Accurate DATE.\n"
-				"Only disable this if using Accurate DATE causes (GPU driver) issues.\n\n"
-				"Note: This option is only supported by GPUs which support at least Direct3D 11.");
-		case IDC_SPARSE_TEXTURE:
-			return cvtString("Allows to reduce VRAM usage on the GPU.\n\n"
-				"Note: Feature is currently experimental and works only on Nvidia GPUs.");
+		case IDC_SPIN_GPU:
+			return cvtString("Submits useless work to the GPU during readbacks to prevent it from going into powersave modes.\n"
+				"May improve performance but with a significant increase in power usage.");
+		case IDC_SPIN_CPU:
+			return cvtString("Does useless work on the CPU during readbacks to prevent it from going to into powersave modes.\n"
+				"May improve performance but with a significant increase in power usage.");
 		case IDC_LINEAR_PRESENT:
 			return cvtString("Use bilinear filtering when Upscaling/Downscaling the image to the screen. Disable it if you want a sharper/pixelated output.");
 		// Exclusive for Hardware Renderer
@@ -193,12 +186,6 @@ const char* dialog_message(int ID, bool* updateText)
 		case IDC_DISABLE_PARTIAL_TC_INV:
 			return cvtString("By default, the texture cache handles partial invalidations. Unfortunately it is very costly to compute CPU wise."
 				   "\n\nThis hack replaces the partial invalidation with a complete deletion of the texture to reduce the CPU load.\n\nIt helps snowblind engine games.");
-		case IDC_CONSERVATIVE_FB:
-			return cvtString("Disabled: Reserves a larger framebuffer to prevent FMV flickers.\n"
-				   "Increases GPU/memory requirements.\n"
-				   "Disabling this can amplify stuttering due to low RAM/VRAM.\n\n"
-				   "Note: It should be enabled for Armored Core, Destroy All Humans, Gran Turismo and possibly others.\n"
-				   "This option does not improve the graphics or the FPS.");
 		case IDC_DITHERING:
 			return cvtString("In the PS2's case, it reduces banding between colors and improves the perceived color depth.\n"
 				   "In the PS1's case, it was used more aggressively due to 16-bit colour.\n"

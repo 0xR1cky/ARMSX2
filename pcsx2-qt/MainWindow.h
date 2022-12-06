@@ -15,11 +15,14 @@
 
 #pragma once
 
+#include "common/WindowInfo.h"
+
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QMainWindow>
 #include <functional>
 #include <optional>
 
+#include "Tools/InputRecording/InputRecordingViewer.h"
 #include "Settings/ControllerSettingsDialog.h"
 #include "Settings/SettingsDialog.h"
 #include "ui_MainWindow.h"
@@ -76,12 +79,16 @@ public:
 	static const char* DEFAULT_THEME_NAME;
 
 public:
-	explicit MainWindow(const QString& unthemed_style_name);
+	MainWindow();
 	~MainWindow();
+
+	/// Sets application theme according to settings.
+	static void updateApplicationTheme();
 
 	void initialize();
 	void connectVMThreadSignals(EmuThread* thread);
 	void startupUpdateCheck();
+	void resetSettings(bool ui);
 
 	/// Locks the VM by pausing it, while a popup dialog is displayed.
 	VMLock pauseAndLockVM();
@@ -99,10 +106,12 @@ public Q_SLOTS:
 	void cancelGameListRefresh();
 	void invalidateSaveStateCache();
 	void reportError(const QString& title, const QString& message);
+	bool confirmMessage(const QString& title, const QString& message);
 	void runOnUIThread(const std::function<void()>& func);
-	bool requestShutdown(bool allow_confirm = true, bool allow_save_to_state = true, bool block_until_done = false);
+	bool requestShutdown(bool allow_confirm = true, bool allow_save_to_state = true, bool default_save_to_state = true, bool block_until_done = false);
 	void requestExit();
 	void checkForSettingChanges();
+	std::optional<WindowInfo> getWindowInfo();
 
 private Q_SLOTS:
 	void onUpdateCheckComplete();
@@ -143,18 +152,19 @@ private Q_SLOTS:
 	void onAboutActionTriggered();
 	void onCheckForUpdatesActionTriggered();
 	void onToolsOpenDataDirectoryTriggered();
-	void onThemeChanged();
-	void onThemeChangedFromSettings();
-	void onLoggingOptionChanged();
+	void onToolsCoverDownloaderTriggered();
+	void updateTheme();
 	void onScreenshotActionTriggered();
 	void onSaveGSDumpActionTriggered();
 	void onBlockDumpActionToggled(bool checked);
+	void onShowAdvancedSettingsToggled(bool checked);
 
 	// Input Recording
 	void onInputRecNewActionTriggered();
 	void onInputRecPlayActionTriggered();
 	void onInputRecStopActionTriggered();
 	void onInputRecOpenSettingsTriggered();
+	void onInputRecOpenViewer();
 
 	void onVMStarting();
 	void onVMStarted();
@@ -164,29 +174,33 @@ private Q_SLOTS:
 
 	void onGameChanged(const QString& path, const QString& serial, const QString& name, quint32 crc);
 
-	void recreate();
-
 protected:
 	void showEvent(QShowEvent* event) override;
 	void closeEvent(QCloseEvent* event) override;
 	void dragEnterEvent(QDragEnterEvent* event) override;
 	void dropEvent(QDropEvent* event) override;
 
+#ifdef _WIN32
+	bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
+#endif
+
 private:
-	enum : s32
-	{
-		NUM_SAVE_STATE_SLOTS = 10,
-	};
+	static void setStyleFromSettings();
+	static void setIconThemeFromStyle();
 
 	void setupAdditionalUi();
 	void connectSignals();
-	void setStyleFromSettings();
-	void setIconThemeFromStyle();
+	void recreate();
+	void recreateSettings();
+
+	void registerForDeviceNotifications();
+	void unregisterForDeviceNotifications();
 
 	void saveStateToConfig();
 	void restoreStateFromConfig();
 
 	void updateEmulationActions(bool starting, bool running);
+	void updateDisplayRelatedActions(bool has_surface, bool render_to_main, bool fullscreen);
 	void updateStatusBarWidgetVisibility();
 	void updateWindowTitle();
 	void updateWindowState(bool force_visible = false);
@@ -197,17 +211,23 @@ private:
 	bool isRenderingFullscreen() const;
 	bool isRenderingToMain() const;
 	bool shouldHideMouseCursor() const;
+	bool shouldHideMainWindow() const;
 	void switchToGameListView();
 	void switchToEmulationView();
 
+	QWidget* getContentParent();
 	QWidget* getDisplayContainer() const;
 	void saveDisplayWindowGeometryToConfig();
 	void restoreDisplayWindowGeometryFromConfig();
-	void destroyDisplayWidget();
+	void createDisplayWidget(bool fullscreen, bool render_to_main, bool is_exclusive_fullscreen);
+	void destroyDisplayWidget(bool show_game_list);
 	void setDisplayFullscreen(const std::string& fullscreen_mode);
 
 	SettingsDialog* getSettingsDialog();
 	void doSettings(const char* category = nullptr);
+
+	InputRecordingViewer* getInputRecordingViewer();
+	void updateInputRecordingActions(bool started);
 
 	ControllerSettingsDialog* getControllerSettingsDialog();
 	void doControllerSettings(ControllerSettingsDialog::Category category = ControllerSettingsDialog::Category::Count);
@@ -217,6 +237,7 @@ private:
 	void startGameListEntry(const GameList::Entry* entry, std::optional<s32> save_slot = std::nullopt,
 		std::optional<bool> fast_boot = std::nullopt);
 	void setGameListEntryCoverImage(const GameList::Entry* entry);
+	void clearGameListEntryPlayTime(const GameList::Entry* entry);
 
 	std::optional<bool> promptForResumeState(const QString& save_state_path);
 	void loadSaveStateSlot(s32 slot);
@@ -229,13 +250,12 @@ private:
 
 	Ui::MainWindow m_ui;
 
-	QString m_unthemed_style_name;
-
 	GameListWidget* m_game_list_widget = nullptr;
 	DisplayWidget* m_display_widget = nullptr;
 	DisplayContainer* m_display_container = nullptr;
 
 	SettingsDialog* m_settings_dialog = nullptr;
+	InputRecordingViewer* m_input_recording_viewer = nullptr;
 	ControllerSettingsDialog* m_controller_settings_dialog = nullptr;
 	AutoUpdaterDialog* m_auto_updater_dialog = nullptr;
 
@@ -251,12 +271,17 @@ private:
 	QString m_current_game_name;
 	quint32 m_current_game_crc;
 
+	bool m_display_created = false;
 	bool m_save_states_invalidated = false;
 	bool m_was_paused_on_surface_loss = false;
 	bool m_was_disc_change_request = false;
 	bool m_is_closing = false;
 
 	QString m_last_fps_status;
+
+#ifdef _WIN32
+	void* m_device_notification_handle = nullptr;
+#endif
 };
 
 extern MainWindow* g_main_window;

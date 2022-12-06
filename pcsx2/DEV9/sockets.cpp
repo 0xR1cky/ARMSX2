@@ -390,6 +390,7 @@ bool SocketAdapter::send(NetPacket* pkt)
 						memcpy(arpRet->senderProtocolAddress.get(), arpPkt.targetProtocolAddress.get(), 4);
 						arpRet->op = 2,
 						arpRet->protocol = arpPkt.protocol;
+						arpRet->hardwareType = arpPkt.hardwareType;
 
 						EthernetFrame* retARP = new EthernetFrame(arpRet);
 						memcpy(retARP->destinationMAC, ps2MAC, 6);
@@ -590,7 +591,7 @@ bool SocketAdapter::SendUDP(ConnectionKey Key, IP_Packet* ipPkt)
 				fKey.ps2Port = udp.sourcePort;
 				fKey.srvPort = 0;
 
-				Console.WriteLn("DEV9: Socket: Creating New UDPFixedPort with port %d", udp.sourcePort);
+				Console.WriteLn("DEV9: Socket: Creating New UDPFixedPort with port %d", udp.destinationPort);
 
 				fPort = new UDP_FixedPort(fKey, adapterIP, udp.sourcePort);
 				fPort->AddConnectionClosedHandler([&](BaseSession* session) { HandleFixedPortClosed(session); });
@@ -602,14 +603,14 @@ bool SocketAdapter::SendUDP(ConnectionKey Key, IP_Packet* ipPkt)
 				fixedUDPPorts.Add(udp.sourcePort, fPort);
 			}
 
-			Console.WriteLn("DEV9: Socket: Creating New UDP Connection from FixedPort %d", udp.sourcePort);
+			Console.WriteLn("DEV9: Socket: Creating New UDP Connection from FixedPort %d", udp.destinationPort);
 			s = fPort->NewClientSession(Key,
 				ipPkt->destinationIP == dhcpServer.broadcastIP || ipPkt->destinationIP == IP_Address{255, 255, 255, 255},
 				(ipPkt->destinationIP.bytes[0] & 0xF0) == 0xE0);
 		}
 		else
 		{
-			Console.WriteLn("DEV9: Socket: Creating New UDP Connection to %d", udp.sourcePort);
+			Console.WriteLn("DEV9: Socket: Creating New UDP Connection to %d", udp.destinationPort);
 			s = new UDP_Session(Key, adapterIP);
 		}
 

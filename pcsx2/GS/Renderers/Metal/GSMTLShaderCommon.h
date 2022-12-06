@@ -19,7 +19,7 @@
 
 using namespace metal;
 
-constant uchar2 SCALING_FACTOR [[function_constant(GSMTLConstantIndex_SCALING_FACTOR)]];
+constant float2 SCALING_FACTOR [[function_constant(GSMTLConstantIndex_SCALING_FACTOR)]];
 
 struct ConvertShaderData
 {
@@ -58,3 +58,7 @@ static inline float4 convert_depth16_rgba8(float value)
 	uint val = uint(value * 0x1p32);
 	return float4(uint4(val << 3, val >> 2, val >> 7, val >> 8) & uint4(0xf8, 0xf8, 0xf8, 0x80));
 }
+
+#ifndef __HAVE_MUL24__
+template <typename T> T mul24(T a, T b) { return a * b; }
+#endif

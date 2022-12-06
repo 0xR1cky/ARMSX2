@@ -28,6 +28,7 @@
 #include "System.h"
 #include "Config.h"
 #include "Host.h"
+#include "IconsFontAwesome5.h"
 
 #include "svnrev.h"
 
@@ -265,9 +266,9 @@ std::string FileMcd_GetDefaultName(uint slot)
 }
 
 FileMemoryCard::FileMemoryCard()
+	: m_chkaddr(0)
 {
 	memset8<0xff>(m_effeffs);
-	m_chkaddr = 0;
 }
 
 void FileMemoryCard::Open()
@@ -354,8 +355,14 @@ void FileMemoryCard::Open()
 			// Translation note: detailed description should mention that the memory card will be disabled
 			// for the duration of this session.
 			Host::ReportFormattedErrorAsync("Memory Card", "Access denied to memory card: \n\n%s\n\n"
-				"The PS2-slot %d has been automatically disabled.  You can correct the problem\nand re-enable it at any time using Config:Memory cards from the main menu.",
-				fname.c_str(), slot);
+				"Another instance of PCSX2 may be using this memory card. Close any other instances of PCSX2, or restart your computer.%s",
+				fname.c_str(),
+#ifdef WIN32
+				"\n\nIf your memory card is in a write-protected folder such as \"Program Files\" or \"Program Files (x86)\", move it to another folder, such as \"Documents\" or \"Desktop\"."
+#else
+				""
+#endif
+				);
 		}
 		else // Load checksum
 		{
@@ -364,7 +371,11 @@ void FileMemoryCard::Open()
 			m_chkaddr = 0x210;
 
 			if (!m_ispsx[slot] && FileSystem::FSeek64(m_file[slot], m_chkaddr, SEEK_SET) == 0)
-				std::fread(&m_chksum[slot], sizeof(m_chksum[slot]), 1, m_file[slot]);
+			{
+				const size_t read_result = std::fread(&m_chksum[slot], sizeof(m_chksum[slot]), 1, m_file[slot]);
+				if (read_result == 0)
+					Host::ReportFormattedErrorAsync("Memory Card", "Error reading memcard.\n");
+			}
 		}
 	}
 }
@@ -496,8 +507,10 @@ s32 FileMemoryCard::Save(uint slot, const u8* src, u32 adr, int size)
 		if (!Seek(mcfp, adr))
 			return 0;
 		m_currentdata.MakeRoomFor(size);
-		std::fread(m_currentdata.GetPtr(), size, 1, mcfp);
 
+		const size_t read_result = std::fread(m_currentdata.GetPtr(), size, 1, mcfp);
+		if (read_result == 0)
+			Host::ReportFormattedErrorAsync("Memory Card", "Error reading memcard.\n");
 
 		for (int i = 0; i < size; i++)
 		{
@@ -529,9 +542,9 @@ s32 FileMemoryCard::Save(uint slot, const u8* src, u32 adr, int size)
 		std::chrono::duration<float> elapsed = std::chrono::system_clock::now() - last;
 		if (elapsed > std::chrono::seconds(5))
 		{
-			const std::string_view filename(Path::GetFileName(m_filenames[slot]));
-			Host::AddKeyedFormattedOSDMessage(StringUtil::StdStringFromFormat("MemoryCardSave%u", slot), 10.0f,
-				"Memory Card %.*s written.", static_cast<int>(filename.size()), static_cast<const char*>(filename.data()));
+			Host::AddIconOSDMessage(fmt::format("MemoryCardSave{}", slot), ICON_FA_SD_CARD,
+				fmt::format("Memory card '{}' was saved to storage.", Path::GetFileName(m_filenames[slot])),
+				Host::OSD_INFO_DURATION);
 			last = std::chrono::system_clock::now();
 		}
 		return 1;

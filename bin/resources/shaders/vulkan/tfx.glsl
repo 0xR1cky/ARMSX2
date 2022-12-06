@@ -97,7 +97,7 @@ layout(location = 0) in VSOutput
 		vec4 c;
 	#else
 		flat vec4 c;
-	#endif		
+	#endif
 } gsIn[];
 
 layout(location = 0) out GSOutput
@@ -113,6 +113,9 @@ layout(location = 0) out GSOutput
 
 void WriteVertex(vec4 pos, vec4 t, vec4 ti, vec4 c)
 {
+#if GS_FORWARD_PRIMID
+	gl_PrimitiveID = gl_PrimitiveIDIn;
+#endif
 	gl_Position = pos;
 	gsOut.t = t;
 	gsOut.ti = ti;
@@ -330,13 +333,14 @@ void main()
 #define PS_TALES_OF_ABYSS_HLE 0
 #define PS_URBAN_CHAOS_HLE 0
 #define PS_INVALID_TEX0 0
-#define PS_SCALE_FACTOR 1
+#define PS_SCALE_FACTOR 1.0
 #define PS_HDR 0
 #define PS_COLCLIP 0
 #define PS_BLEND_A 0
 #define PS_BLEND_B 0
 #define PS_BLEND_C 0
 #define PS_BLEND_D 0
+#define PS_FIXED_ONE_A 0
 #define PS_PABE 0
 #define PS_DITHER 0
 #define PS_ZCLAMP 0
@@ -347,7 +351,7 @@ void main()
 #define SW_BLEND (PS_BLEND_A || PS_BLEND_B || PS_BLEND_D)
 #define SW_BLEND_NEEDS_RT (PS_BLEND_A == 1 || PS_BLEND_B == 1 || PS_BLEND_C == 1 || PS_BLEND_D == 1)
 
-#define PS_FEEDBACK_LOOP_IS_NEEDED (PS_TEX_IS_FB == 1 || PS_FBMASK || SW_BLEND_NEEDS_RT || (PS_DATE < 10 && (((PS_DATE & 3) == 1 || (PS_DATE & 3) == 2))))
+#define PS_FEEDBACK_LOOP_IS_NEEDED (PS_TEX_IS_FB == 1 || PS_FBMASK || SW_BLEND_NEEDS_RT || (PS_DATE >= 5))
 
 layout(std140, set = 0, binding = 1) uniform cb1
 {
@@ -902,7 +906,7 @@ vec4 ps_color()
 #if PS_FST == 0 && PS_INVALID_TEX0 == 1
 	// Re-normalize coordinate from invalid GS to corrected texture size
 	vec2 st = (vsIn.t.xy * WH.xy) / (vsIn.t.w * WH.zw);
-	// no st_int yet
+	vec2 st_int = (vsIn.ti.zw * WH.xy) / (vsIn.t.w * WH.zw);
 #elif PS_FST == 0
 	vec2 st = vsIn.t.xy / vsIn.t.w;
 	vec2 st_int = vsIn.ti.zw / vsIn.t.w;
@@ -979,17 +983,17 @@ void ps_color_clamp_wrap(inout vec3 C)
     // Warning: normally blending equation is mult(A, B) = A * B >> 7. GPU have the full accuracy
     // GS: Color = 1, Alpha = 255 => output 1
     // GPU: Color = 1/255, Alpha = 255/255 * 255/128 => output 1.9921875
-#if PS_DFMT == FMT_16 && (PS_HDR == 1 || PS_BLEND_MIX == 0)
+#if PS_DFMT == FMT_16 && PS_BLEND_MIX == 0
     // In 16 bits format, only 5 bits of colors are used. It impacts shadows computation of Castlevania
     C = vec3(ivec3(C) & ivec3(0xF8));
-#elif PS_COLCLIP == 1 && PS_HDR == 0
+#elif PS_COLCLIP == 1 || PS_HDR == 1
     C = vec3(ivec3(C) & ivec3(0xFF));
 #endif
 
 #endif
 }
 
-void ps_blend(inout vec4 Color, float As)
+void ps_blend(inout vec4 Color, inout float As)
 {
 	#if SW_BLEND
 
@@ -1007,13 +1011,9 @@ void ps_blend(inout vec4 Color, float As)
 				vec4 RT = vec4(0.0f);
 		#endif
 
-		#if PS_DFMT == FMT_24
-				float Ad = 1.0f;
-		#else
 				// FIXME FMT_16 case
 				// FIXME Ad or Ad * 2?
 				float Ad = RT.a / 128.0f;
-		#endif
 
 				// Let the compiler do its jobs !
 				vec3 Cd = RT.rgb;
@@ -1052,14 +1052,50 @@ void ps_blend(inout vec4 Color, float As)
 		#endif
 
 		// As/Af clamp alpha for Blend mix
-		#if PS_BLEND_MIX
-				C = min(C, 1.0f);
+		// We shouldn't clamp blend mix with clr1 as we want alpha higher
+		float C_clamped = C;
+		#if PS_BLEND_MIX > 0 && PS_CLR_HW != 1
+				C_clamped = min(C_clamped, 1.0f);
 		#endif
 
 		#if PS_BLEND_A == PS_BLEND_B
 				Color.rgb = D;
+		// In blend_mix, HW adds on some alpha factor * dst.
+		// Truncating here wouldn't quite get the right result because it prevents the <1 bit here from combining with a <1 bit in dst to form a ≥1 amount that pushes over the truncation.
+		// Instead, apply an offset to convert HW's round to a floor.
+		// Since alpha is in 1/128 increments, subtracting (0.5 - 0.5/128 == 127/256) would get us what we want if GPUs blended in full precision.
+		// But they don't.  Details here: https://github.com/PCSX2/pcsx2/pull/6809#issuecomment-1211473399
+		// Based on the scripts at the above link, the ideal choice for Intel GPUs is 126/256, AMD 120/256.  Nvidia is a lost cause.
+		// 124/256 seems like a reasonable compromise, providing the correct answer 99.3% of the time on Intel (vs 99.6% for 126/256), and 97% of the time on AMD (vs 97.4% for 120/256).
+		#elif PS_BLEND_MIX == 2
+			Color.rgb = ((A - B) * C_clamped + D) + (124.0f/256.0f);
+		#elif PS_BLEND_MIX == 1
+			Color.rgb = ((A - B) * C_clamped + D) - (124.0f/256.0f);
 		#else
 				Color.rgb = trunc((A - B) * C + D);
+		#endif
+
+		#if PS_CLR_HW == 1
+				// Replace Af with As so we can do proper compensation for Alpha.
+				#if PS_BLEND_C == 2
+					As = Af;
+				#endif
+				// Subtract 1 for alpha to compensate for the changed equation,
+				// if c.rgb > 255.0f then we further need to adjust alpha accordingly,
+				// we pick the lowest overflow from all colors because it's the safest,
+				// we divide by 255 the color because we don't know Cd value,
+				// changed alpha should only be done for hw blend.
+				float min_color = min(min(Color.r, Color.g), Color.b);
+				float alpha_compensate = max(1.0f, min_color / 255.0f);
+				As -= alpha_compensate;
+		#elif PS_CLR_HW == 2
+				// Compensate slightly for Cd*(As + 1) - Cs*As.
+				// The initial factor we chose is 1 (0.00392)
+				// as that is the minimum color Cd can be,
+				// then we multiply by alpha to get the minimum
+				// blended value it can be.
+				float color_compensate = 1.0f * (C + 1.0f);
+				Color.rgb -= vec3(color_compensate);
 		#endif
 
 	#else
@@ -1086,10 +1122,6 @@ void ps_blend(inout vec4 Color, float As)
 	#endif
 }
 
-#if PS_DATE == 1 || PS_DATE == 2 || PS_DATE == 11 || PS_DATE == 12
-layout(early_fragment_tests) in;
-#endif
-
 void main()
 {
 #if PS_SCANMSK & 2
@@ -1097,7 +1129,7 @@ void main()
  	if ((int(gl_FragCoord.y) & 1) == (PS_SCANMSK & 1))
 		discard;
 #endif
-#if PS_DATE < 10 && (((PS_DATE & 3) == 1 || (PS_DATE & 3) == 2))
+#if PS_DATE >= 5
 
 #if PS_WRITE_RG == 1
   // Pseudo 16 bits access.
@@ -1115,15 +1147,10 @@ void main()
 #endif
 
   if (bad) {
-#if PS_DATE >= 5
     discard;
-#else
-    // imageStore(img_prim_min, ivec2(gl_FragCoord.xy), ivec4(-1));
-    return;
-#endif
   }
 
-#endif		// PS_DATE < 10 && (((PS_DATE & 3) == 1 || (PS_DATE & 3) == 2))
+#endif		// PS_DATE >= 5
 
 #if PS_DATE == 3
   int stencil_ceil = int(texelFetch(PrimMinTexture, ivec2(gl_FragCoord.xy), 0).r);
@@ -1162,9 +1189,15 @@ void main()
 	#endif
 
   // Must be done before alpha correction
+
+  // AA (Fixed one) will output a coverage of 1.0 as alpha
+#if PS_FIXED_ONE_A
+   C.a = 128.0f;
+#endif
+
 #if (PS_BLEND_C == 1 && PS_CLR_HW > 3)
   vec4 RT = trunc(subpassLoad(RtSampler) * 255.0f + 0.1f);
-  float alpha_blend = (PS_DFMT == FMT_24) ? 1.0f : RT.a / 128.0f;
+  float alpha_blend = RT.a / 128.0f;
 #else
   float alpha_blend = C.a / 128.0f;
 #endif
@@ -1178,13 +1211,13 @@ void main()
 #endif
 
   // Get first primitive that will write a failling alpha value
-#if PS_DATE == 1 || PS_DATE == 11
+#if PS_DATE == 1
 
   // DATM == 0
   // Pixel with alpha equal to 1 will failed (128-255)
 	o_col0 = (C.a > 127.5f) ? vec4(gl_PrimitiveID) : vec4(0x7FFFFFFF);
 
-#elif PS_DATE == 2 || PS_DATE == 12
+#elif PS_DATE == 2
 
   // DATM == 1
   // Pixel with alpha equal to 0 will failed (0-127)
@@ -1202,7 +1235,11 @@ void main()
   ps_fbmask(C);
 
 #if !PS_NO_COLOR
+#if PS_HDR == 1
+	o_col0 = vec4(C.rgb / 65535.0f, C.a / 255.0f);
+#else
 	o_col0 = C / 255.0f;
+#endif
 #if !defined(DISABLE_DUAL_SOURCE) && !PS_NO_COLOR1
 	o_col1 = vec4(alpha_blend);
 #endif

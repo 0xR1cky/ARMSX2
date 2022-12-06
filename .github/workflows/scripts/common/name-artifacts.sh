@@ -21,7 +21,7 @@ NAME=""
 
 if [ "${OS}" == "macos" ]; then
   NAME="PCSX2-${OS}-${GUI_FRAMEWORK}"
-elif [[ "${OS}" == "windows" || ("$OS" == "linux" && "$GUI_FRAMEWORK" == "QT") ]]; then
+elif [[ ("${OS}" == "windows" && "$BUILD_SYSTEM" != "cmake") || ("$OS" == "linux" && "$GUI_FRAMEWORK" == "QT") ]]; then
   NAME="PCSX2-${OS}-${GUI_FRAMEWORK}-${ARCH}-${SIMD}"
 else
   NAME="PCSX2-${OS}-${GUI_FRAMEWORK}-${ARCH}"
@@ -54,4 +54,4 @@ fi
 # Trim the Name
 NAME=$(printf "%.199s]" "$NAME")
 echo "${NAME}"
-echo "##[set-output name=artifact-name;]${NAME}"
+echo "artifact-name=${NAME}" >> "$GITHUB_OUTPUT"

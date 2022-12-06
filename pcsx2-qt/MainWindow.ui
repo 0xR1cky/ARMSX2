@@ -16,6 +16,7 @@
   <property name="windowTitle">
    <string>PCSX2</string>
   </property>
+  <widget class="QStackedWidget" name="mainContainer"/>
   <widget class="QMenuBar" name="menuBar">
    <property name="geometry">
     <rect>
@@ -65,6 +66,7 @@
     <addaction name="actionStartFile"/>
     <addaction name="actionStartDisc"/>
     <addaction name="actionStartBios"/>
+    <addaction name="actionStartFullscreenUI"/>
     <addaction name="separator"/>
     <addaction name="actionPowerOff"/>
     <addaction name="actionPowerOffWithoutSaving"/>
@@ -88,7 +90,6 @@
     <addaction name="actionGameListSettings"/>
     <addaction name="actionBIOSSettings"/>
     <addaction name="actionEmulationSettings"/>
-    <addaction name="actionSystemSettings"/>
     <addaction name="actionGraphicsSettings"/>
     <addaction name="actionAudioSettings"/>
     <addaction name="actionMemoryCardSettings"/>
@@ -96,6 +97,7 @@
     <addaction name="actionFolderSettings"/>
     <addaction name="actionControllerSettings"/>
     <addaction name="actionHotkeySettings"/>
+    <addaction name="actionAchievementSettings"/>
     <addaction name="separator"/>
     <addaction name="actionAddGameDirectory"/>
     <addaction name="actionScanForNewGames"/>
@@ -123,18 +125,8 @@
       <string>Switch Renderer</string>
      </property>
     </widget>
-    <addaction name="separator"/>
     <addaction name="menuDebugSwitchRenderer"/>
-    <addaction name="actionToggleSoftwareRendering"/>
     <addaction name="separator"/>
-    <addaction name="actionSaveBlockDump"/>
-    <addaction name="actionSaveGSDump"/>
-    <addaction name="separator"/>
-    <addaction name="actionReloadPatches"/>
-    <addaction name="separator"/>
-    <addaction name="actionEnableSystemConsole"/>
-    <addaction name="actionEnableFileLogging"/>
-    <addaction name="actionEnableVerboseLogging"/>
     <addaction name="actionEnableLogTimestamps"/>
     <addaction name="separator"/>
     <addaction name="actionEnableEEConsoleLogging"/>
@@ -184,13 +176,26 @@
      <addaction name="actionInputRecPlay"/>
      <addaction name="actionInputRecStop"/>
      <addaction name="separator"/>
+     <addaction name="actionInputRecOpenViewer"/>
      <addaction name="actionInputRecOpenSettings"/>
      <addaction name="separator"/>
      <addaction name="actionInputRecConsoleLogs"/>
      <addaction name="actionInputRecControllerLogs"/>
     </widget>
     <addaction name="actionOpenDataDirectory"/>
+    <addaction name="actionCoverDownloader"/>
+    <addaction name="separator"/>
+    <addaction name="actionToggleSoftwareRendering"/>
+    <addaction name="actionReloadPatches"/>
     <addaction name="menuInput_Recording"/>
+    <addaction name="separator"/>
+    <addaction name="actionEnableSystemConsole"/>
+    <addaction name="actionEnableFileLogging"/>
+    <addaction name="actionEnableVerboseLogging"/>
+    <addaction name="separator"/>
+    <addaction name="actionShowAdvancedSettings"/>
+    <addaction name="actionSaveBlockDump"/>
+    <addaction name="actionSaveGSDump"/>
    </widget>
    <addaction name="menuSystem"/>
    <addaction name="menuSettings"/>
@@ -224,6 +229,7 @@
    <addaction name="actionStartFile"/>
    <addaction name="actionStartDisc"/>
    <addaction name="actionStartBios"/>
+   <addaction name="actionStartFullscreenUI2"/>
    <addaction name="separator"/>
    <addaction name="actionPowerOff"/>
    <addaction name="actionReset"/>
@@ -360,15 +366,6 @@
     <string>&amp;BIOS</string>
    </property>
   </action>
-  <action name="actionSystemSettings">
-   <property name="icon">
-    <iconset theme="artboard-2-line">
-     <normaloff>.</normaloff>.</iconset>
-   </property>
-   <property name="text">
-    <string>System</string>
-   </property>
-  </action>
   <action name="actionEmulationSettings">
    <property name="icon">
     <iconset theme="dashboard-line">
@@ -403,6 +400,15 @@
    </property>
    <property name="text">
     <string>&amp;Graphics</string>
+   </property>
+  </action>
+  <action name="actionAchievementSettings">
+   <property name="icon">
+    <iconset theme="trophy-line">
+     <normaloff>.</normaloff>.</iconset>
+   </property>
+   <property name="text">
+    <string>A&amp;chievements</string>
    </property>
   </action>
   <action name="actionPostProcessingSettings">
@@ -756,21 +762,33 @@
    </property>
   </action>
   <action name="actionInputRecNew">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>New</string>
    </property>
   </action>
   <action name="actionInputRecPlay">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>Play</string>
    </property>
   </action>
   <action name="actionInputRecStop">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>Stop</string>
    </property>
   </action>
   <action name="actionInputRecOpenSettings">
+   <property name="enabled">
+    <bool>false</bool>
+   </property>
    <property name="text">
     <string>Settings</string>
    </property>
@@ -826,6 +844,42 @@
    </property>
    <property name="text">
     <string>Enable Log Timestamps</string>
+   </property>
+  </action>
+  <action name="actionStartFullscreenUI">
+   <property name="icon">
+    <iconset theme="tv-2-line">
+     <normaloff>.</normaloff>.</iconset>
+   </property>
+   <property name="text">
+    <string>Start Big Picture Mode</string>
+   </property>
+  </action>
+  <action name="actionStartFullscreenUI2">
+   <property name="icon">
+    <iconset theme="tv-2-line">
+     <normaloff>.</normaloff>.</iconset>
+   </property>
+   <property name="text">
+    <string>Big Picture</string>
+   </property>
+  </action>
+  <action name="actionCoverDownloader">
+   <property name="text">
+    <string>Cover Downloader...</string>
+   </property>
+  </action>
+  <action name="actionShowAdvancedSettings">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Show Advanced Settings</string>
+   </property>
+  </action>
+  <action name="actionInputRecOpenViewer">
+   <property name="text">
+    <string>Recording Viewer</string>
    </property>
   </action>
  </widget>

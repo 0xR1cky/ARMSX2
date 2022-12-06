@@ -81,7 +81,7 @@ static void _vu1Exec(VURegs* VU)
 	VU1regs_UPPER_OPCODE[VU->code & 0x3f](&uregs);
 
 	u32 cyclesBeforeOp = VU1.cycle-1;
-	
+
 	_vuTestUpperStalls(VU, &uregs);
 
 	/* check upper flags */
@@ -217,7 +217,7 @@ static void _vu1Exec(VURegs* VU)
 				VU1.xgkicklastcycle = cpuRegs.cycle;
 		}
 	}
-	
+
 	// Progress the write position of the FMAC pipeline by one place
 	if (uregs.pipe == VUPIPE_FMAC || lregs.pipe == VUPIPE_FMAC)
 		VU->fmacwritepos = (VU->fmacwritepos + 1) & 3;
@@ -240,6 +240,8 @@ void vu1Exec(VURegs* VU)
 		DbgCon.Error("VF[0].w != 1.0!!!!\n");
 }
 
+InterpVU1 CpuIntVU1;
+
 InterpVU1::InterpVU1()
 {
 	m_Idx = 1;
@@ -255,12 +257,6 @@ void InterpVU1::Reset()
 	VU1.ialuwritepos = 0;
 	VU1.ialureadpos = 0;
 	VU1.ialucount = 0;
-	vu1Thread.WaitVU();
-}
-
-void InterpVU1::Shutdown() noexcept
-{
-	vu1Thread.WaitVU();
 }
 
 void InterpVU1::SetStartPC(u32 startPC)

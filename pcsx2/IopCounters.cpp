@@ -433,7 +433,7 @@ void psxRcntUpdate()
 {
 	int i;
 
-	g_iopNextEventCycle = psxRegs.cycle + 32;
+	psxRegs.iopNextEventCycle = psxRegs.cycle + 32;
 
 	psxNextCounter = 0x7fffffff;
 	psxNextsCounter = psxRegs.cycle;
@@ -577,9 +577,9 @@ void psxRcntWcount32(int index, u32 value)
 	}
 
 	psxCounters[index].count = value;
-	
+
 	if (psxCounters[index].count > psxCounters[index].target)
-	{	
+	{
 		// Count already higher than Target
 		//DevCon.Warning("32bit Count already higher than target");
 		psxCounters[index].target |= IOPCNT_FUTURE_TARGET;

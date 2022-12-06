@@ -137,11 +137,14 @@ public:
 	std::vector<GSSetting> m_gs_texture_preloading;
 	std::vector<GSSetting> m_gs_hack;
 	std::vector<GSSetting> m_gs_generic_list;
+	std::vector<GSSetting> m_gs_tex_display_list;
 	std::vector<GSSetting> m_gs_offset_hack;
 	std::vector<GSSetting> m_gs_hw_mipmapping;
 	std::vector<GSSetting> m_gs_crc_level;
 	std::vector<GSSetting> m_gs_acc_blend_level;
 	std::vector<GSSetting> m_gs_tv_shaders;
+	std::vector<GSSetting> m_gs_casmode;
+	std::vector<GSSetting> m_gs_hw_download_mode;
 	std::vector<GSSetting> m_gs_dump_compression;
 };
 

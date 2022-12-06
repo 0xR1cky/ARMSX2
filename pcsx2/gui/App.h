@@ -30,8 +30,6 @@
 #include "RecentIsoList.h"
 #include "DriveList.h"
 
-#include "Recording/NewRecordingFrame.h"
-
 class DisassemblyDialog;
 struct HostKeyEvent;
 
@@ -200,25 +198,6 @@ enum MenuIdentifiers
 	MenuId_PINE_Settings,
 
 };
-
-namespace Exception
-{
-	// --------------------------------------------------------------------------
-	// Exception used to perform an "errorless" termination of the app during OnInit
-	// procedures.  This happens when a user cancels out of startup prompts/wizards.
-	//
-	class StartupAborted : public CancelEvent
-	{
-		DEFINE_RUNTIME_EXCEPTION(StartupAborted, CancelEvent, "Startup initialization was aborted by the user.")
-
-	public:
-		StartupAborted(std::string reason)
-		{
-			m_message_diag = "Startup aborted: " + reason;
-		}
-	};
-
-} // namespace Exception
 
 // --------------------------------------------------------------------------------------
 //  AppImageIds  - Config and Toolbar Images and Icons
@@ -500,13 +479,6 @@ public:
 	GSFrame* GetGsFramePtr() const { return (GSFrame*)wxWindow::FindWindowById(m_id_GsFrame); }
 	MainEmuFrame* GetMainFramePtr() const { return (MainEmuFrame*)wxWindow::FindWindowById(m_id_MainFrame); }
 	DisassemblyDialog* GetDisassemblyPtr() const { return (DisassemblyDialog*)wxWindow::FindWindowById(m_id_Disassembler); }
-
-#ifndef PCSX2_CORE
-	NewRecordingFrame* GetNewRecordingFramePtr() const
-	{
-		return (NewRecordingFrame*)wxWindow::FindWindowById(m_id_NewRecordingFrame);
-	}
-#endif
 
 	void enterDebugMode();
 	void leaveDebugMode();

@@ -9,7 +9,7 @@ on:
       os:
         required: false
         type: string
-        default: ubuntu-18.04
+        default: ubuntu-20.04
       platform:
         required: false
         type: string
@@ -28,6 +28,10 @@ on:
         required: false
         type: string
         default: ""
+      cheats_url:
+        required: false
+        type: string
+        default: https://github.com/PCSX2/pcsx2_patches/releases/latest/download
 
 jobs:
   build_linux:
@@ -41,7 +45,7 @@ jobs:
       CCACHE_COMPRESS: true
       CCACHE_COMPRESSLEVEL: 9
       CCACHE_MAXSIZE: 100M
-      SDL: SDL2-2.0.22
+      SDL: SDL2-2.26.0
       PATCHELF_VERSION: 0.12
 
     steps:
@@ -67,10 +71,7 @@ jobs:
       # -- SETUP CCACHE - https://cristianadam.eu/20200113/speeding-up-c-plus-plus-github-actions-using-ccache/
       - name: Prepare ccache timestamp
         id: ccache_cache_timestamp
-        shell: cmake -P {0}
-        run: |
-          string(TIMESTAMP current_date "%Y-%m-%d-%H;%M;%S" UTC)
-          message("::set-output name=timestamp::${current_date}")
+        run: echo "timestamp=$(date -u "+%Y-%m-%d-%H;%M;%S")" >> $GITHUB_OUTPUT
 
       - name: ccache cache files
         uses: actions/cache@v3
@@ -114,6 +115,11 @@ jobs:
             make -j $(getconf _NPROCESSORS_ONLN) && cd ../../
           fi
           sudo make -C 3rdparty/${{ env.SDL }} install
+
+      - name: Download cheats
+        run: |
+          cd bin/resources
+          aria2c -Z "${{ inputs.cheats_url }}/cheats_ni.zip" "${{ inputs.cheats_url }}/cheats_ws.zip"
 
       - name: Generate CMake
         env:

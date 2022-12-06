@@ -33,14 +33,14 @@ class InterfaceSettingsWidget;
 class GameListSettingsWidget;
 class EmulationSettingsWidget;
 class BIOSSettingsWidget;
-class SystemSettingsWidget;
-class AdvancedSystemSettingsWidget;
 class GameFixSettingsWidget;
 class GraphicsSettingsWidget;
 class AudioSettingsWidget;
 class MemoryCardSettingsWidget;
 class FolderSettingsWidget;
 class DEV9SettingsWidget;
+class AchievementSettingsWidget;
+class AdvancedSettingsWidget;
 
 class SettingsDialog final : public QDialog
 {
@@ -60,18 +60,19 @@ public:
 	__fi GameListSettingsWidget* getGameListSettingsWidget() const { return m_game_list_settings; }
 	__fi BIOSSettingsWidget* getBIOSSettingsWidget() const { return m_bios_settings; }
 	__fi EmulationSettingsWidget* getEmulationSettingsWidget() const { return m_emulation_settings; }
-	__fi SystemSettingsWidget* getSystemSettingsWidget() const { return m_system_settings; }
-	__fi AdvancedSystemSettingsWidget* getAdvancedSystemSettingsWidget() const { return m_advanced_system_settings; }
 	__fi GameFixSettingsWidget* getGameFixSettingsWidget() const { return m_game_fix_settings_widget; }
 	__fi GraphicsSettingsWidget* getGraphicsSettingsWidget() const { return m_graphics_settings; }
 	__fi AudioSettingsWidget* getAudioSettingsWidget() const { return m_audio_settings; }
 	__fi MemoryCardSettingsWidget* getMemoryCardSettingsWidget() const { return m_memory_card_settings; }
 	__fi FolderSettingsWidget* getFolderSettingsWidget() const { return m_folder_settings; }
 	__fi DEV9SettingsWidget* getDEV9SettingsWidget() const { return m_dev9_settings; }
+	__fi AchievementSettingsWidget* getAchievementSettingsWidget() const { return m_achievement_settings; }
+	__fi AdvancedSettingsWidget* getAdvancedSettingsWidget() const { return m_advanced_settings; }
 
 	void registerWidgetHelp(QObject* object, QString title, QString recommended_value, QString text);
 	bool eventFilter(QObject* object, QEvent* event) override;
 
+	QString getCategory() const;
 	void setCategory(const char* category);
 
 	// Helper functions for reading effective setting values (from game -> global settings).
@@ -103,7 +104,7 @@ protected:
 private:
 	enum : u32
 	{
-		MAX_SETTINGS_WIDGETS = 11
+		MAX_SETTINGS_WIDGETS = 12
 	};
 
 	void setupUi(const GameList::Entry* game);
@@ -118,14 +119,14 @@ private:
 	GameListSettingsWidget* m_game_list_settings = nullptr;
 	BIOSSettingsWidget* m_bios_settings = nullptr;
 	EmulationSettingsWidget* m_emulation_settings = nullptr;
-	SystemSettingsWidget* m_system_settings = nullptr;
-	AdvancedSystemSettingsWidget* m_advanced_system_settings = nullptr;
 	GameFixSettingsWidget* m_game_fix_settings_widget = nullptr;
 	GraphicsSettingsWidget* m_graphics_settings = nullptr;
 	AudioSettingsWidget* m_audio_settings = nullptr;
 	MemoryCardSettingsWidget* m_memory_card_settings = nullptr;
 	FolderSettingsWidget* m_folder_settings = nullptr;
 	DEV9SettingsWidget* m_dev9_settings = nullptr;
+	AchievementSettingsWidget* m_achievement_settings = nullptr;
+	AdvancedSettingsWidget* m_advanced_settings = nullptr;
 
 	std::array<QString, MAX_SETTINGS_WIDGETS> m_category_help_text;
 

@@ -92,6 +92,9 @@ public:
 		void UpdateAge();
 		bool Inside(u32 bp, u32 bw, u32 psm, const GSVector4i& rect);
 		bool Overlaps(u32 bp, u32 bw, u32 psm, const GSVector4i& rect);
+
+		bool ResizeTexture(int new_width, int new_height, bool recycle_old = true);
+		bool ResizeTexture(int new_width, int new_height, GSVector2 new_scale, bool recycle_old = true);
 	};
 
 	struct PaletteKey
@@ -156,6 +159,7 @@ public:
 		std::unique_ptr<u32[]> m_valid;// each u32 bits map to the 32 blocks of that page
 		GSTexture* m_palette;
 		GSVector4i m_valid_rect;
+		GSVector2i m_lod;
 		u8 m_valid_hashes = 0;
 		u8 m_complete_layers = 0;
 		bool m_target;
@@ -199,7 +203,7 @@ public:
 
 		void UpdateValidity(const GSVector4i& rect);
 
-		void Update();
+		void Update(bool reset_age);
 
 		/// Updates the target, if the dirty area intersects with the specified rectangle.
 		void UpdateIfDirtyIntersects(const GSVector4i& rc);
@@ -243,6 +247,25 @@ public:
 		void RemoveAt(Source* s);
 	};
 
+	struct TargetHeightElem
+	{
+		union
+		{
+			u32 bits;
+
+			struct
+			{
+				u32 fbp : 9;
+				u32 fbw : 6;
+				u32 psm : 6;
+				u32 pad : 11;
+			};
+		};
+
+		u32 height;
+		u32 age;
+	};
+
 	struct SurfaceOffsetKeyElem
 	{
 		u32 psm;
@@ -278,6 +301,7 @@ protected:
 	std::unordered_map<HashCacheKey, HashCacheEntry, HashCacheKeyHash> m_hash_cache;
 	u64 m_hash_cache_memory_usage = 0;
 	FastList<Target*> m_dst[2];
+	FastList<TargetHeightElem> m_target_heights;
 	static u8* m_temp;
 	constexpr static size_t S_SURFACE_OFFSET_CACHE_MAX_SIZE = std::numeric_limits<u16>::max();
 	std::unordered_map<SurfaceOffsetKey, SurfaceOffset, SurfaceOffsetKeyHash, SurfaceOffsetKeyEqual> m_surface_offset_cache;
@@ -285,6 +309,10 @@ protected:
 
 	Source* CreateSource(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, Target* t = NULL, bool half_right = false, int x_offset = 0, int y_offset = 0, const GSVector2i* lod = nullptr, const GSVector4i* src_range = nullptr);
 	Target* CreateTarget(const GIFRegTEX0& TEX0, int w, int h, int type, const bool clear);
+
+	/// Expands a target when the block pointer for a display framebuffer is within another target, but the read offset
+	/// plus the height is larger than the current size of the target.
+	void ScaleTargetForDisplay(Target* t, const GIFRegTEX0& dispfb, int real_w, int real_h);
 
 	HashCacheEntry* LookupHashCache(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, bool& paltex, const u32* clut, const GSVector2i* lod);
 
@@ -304,22 +332,27 @@ public:
 	void Read(Source* t, const GSVector4i& r);
 	void RemoveAll();
 	void RemovePartial();
+	void AddDirtyRectTarget(Target* target, GSVector4i rect, u32 psm, u32 bw);
 
 	Source* LookupSource(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, const GSVector4i& r, const GSVector2i* lod);
 	Source* LookupDepthSource(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, const GSVector4i& r, bool palette = false);
 
-	Target* LookupTarget(const GIFRegTEX0& TEX0, const GSVector2i& size, int type, bool used, u32 fbmask = 0, const bool is_frame = false, const int real_h = 0);
-	Target* LookupTarget(const GIFRegTEX0& TEX0, const GSVector2i& size, const int real_h);
+	Target* LookupTarget(const GIFRegTEX0& TEX0, const GSVector2i& size, int type, bool used, u32 fbmask = 0, const bool is_frame = false, const int real_w = 0, const int real_h = 0);
+	Target* LookupDisplayTarget(const GIFRegTEX0& TEX0, const GSVector2i& size, const int real_w, const int real_h);
 
 	/// Looks up a target in the cache, and only returns it if the BP/BW/PSM match exactly.
 	Target* GetExactTarget(u32 BP, u32 BW, u32 PSM) const;
 	Target* GetTargetWithSharedBits(u32 BP, u32 PSM) const;
 
+	u32 GetTargetHeight(u32 fbp, u32 fbw, u32 psm, u32 min_height);
+
+	void ExpandTarget(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r);
 	void InvalidateVideoMemType(int type, u32 bp);
 	void InvalidateVideoMemSubTarget(GSTextureCache::Target* rt);
-	void InvalidateVideoMem(const GSOffset& off, const GSVector4i& r, bool target = true);
+	void InvalidateVideoMem(const GSOffset& off, const GSVector4i& r, bool eewrite = false, bool target = true);
 	void InvalidateLocalMem(const GSOffset& off, const GSVector4i& r);
 	bool Move(u32 SBP, u32 SBW, u32 SPSM, int sx, int sy, u32 DBP, u32 DBW, u32 DPSM, int dx, int dy, int w, int h);
+	bool ShuffleMove(u32 BP, u32 BW, u32 PSM, int sx, int sy, int dx, int dy, int w, int h);
 
 	void IncAge();
 
@@ -334,10 +367,6 @@ public:
 	SurfaceOffset ComputeSurfaceOffset(const GSOffset& off, const GSVector4i& r, const Target* t);
 	SurfaceOffset ComputeSurfaceOffset(const uint32_t bp, const uint32_t bw, const uint32_t psm, const GSVector4i& r, const Target* t);
 	SurfaceOffset ComputeSurfaceOffset(const SurfaceOffsetKey& sok);
-
-	/// Expands a target when the block pointer for a display framebuffer is within another target, but the read offset
-	/// plus the height is larger than the current size of the target.
-	static void ScaleTargetForDisplay(Target* t, const GIFRegTEX0& dispfb, int real_h);
 
 	/// Invalidates a temporary source, a partial copy only created from the current RT/DS for the current draw.
 	void InvalidateTemporarySource();

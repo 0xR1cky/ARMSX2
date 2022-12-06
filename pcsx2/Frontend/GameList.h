@@ -17,6 +17,7 @@
 #include "GameDatabase.h"
 #include "common/Pcsx2Defs.h"
 #include <ctime>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -36,7 +37,6 @@ namespace GameList
 		PS2Disc,
 		PS1Disc,
 		ELF,
-		Playlist,
 		Count
 	};
 
@@ -87,6 +87,8 @@ namespace GameList
 		std::string title;
 		u64 total_size = 0;
 		std::time_t last_modified_time = 0;
+		std::time_t last_played_time = 0;
+		std::time_t total_played_time = 0;
 
 		u32 crc = 0;
 
@@ -96,10 +98,9 @@ namespace GameList
 	};
 
 	const char* EntryTypeToString(EntryType type);
+	const char* EntryTypeToDisplayString(EntryType type);
 	const char* RegionToString(Region region);
 	const char* EntryCompatibilityRatingToString(CompatibilityRating rating);
-
-	bool IsScannableFilename(const std::string_view& path);
 
 	/// Fills in boot parameters (iso or elf) based on the game list entry.
 	void FillBootParametersForEntry(VMBootParameters* params, const Entry* entry);
@@ -116,10 +117,30 @@ namespace GameList
 	const Entry* GetEntryBySerialAndCRC(const std::string_view& serial, u32 crc);
 	u32 GetEntryCount();
 
-	bool IsGameListLoaded();
-	void Refresh(bool invalidate_cache, ProgressCallback* progress = nullptr);
+	/// Populates the game list with files in the configured directories.
+	/// If invalidate_cache is set, all files will be re-scanned.
+	/// If only_cache is set, no new files will be scanned, only those present in the cache.
+	void Refresh(bool invalidate_cache, bool only_cache = false, ProgressCallback* progress = nullptr);
+
+	/// Add played time for the specified serial.
+	void AddPlayedTimeForSerial(const std::string& serial, std::time_t last_time, std::time_t add_time);
+	void ClearPlayedTimeForSerial(const std::string& serial);
+
+	/// Returns the total time played for a game. Requires the game to be scanned in the list.
+	std::time_t GetCachedPlayedTimeForSerial(const std::string& serial);
+
+	/// Formats a timestamp to something human readable (e.g. Today, Yesterday, 10/11/12).
+	std::string FormatTimestamp(std::time_t timestamp);
+
+	/// Formats a timespan to something human readable (e.g. 1h2m3s or 1 hour).
+	std::string FormatTimespan(std::time_t timespan, bool long_format = false);
 
 	std::string GetCoverImagePathForEntry(const Entry* entry);
 	std::string GetCoverImagePath(const std::string& path, const std::string& code, const std::string& title);
-	std::string GetNewCoverImagePathForEntry(const Entry* entry, const char* new_filename);
+	std::string GetNewCoverImagePathForEntry(const Entry* entry, const char* new_filename, bool use_serial = false);
+
+	/// Downloads covers using the specified URL templates. By default, covers are saved by title, but this can be changed with
+	/// the use_serial parameter. save_callback optionall takes the entry and the path the new cover is saved to.
+	bool DownloadCovers(const std::vector<std::string>& url_templates, bool use_serial = false, ProgressCallback* progress = nullptr,
+		std::function<void(const Entry*, std::string)> save_callback = {});
 } // namespace GameList

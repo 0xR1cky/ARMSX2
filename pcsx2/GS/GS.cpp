@@ -22,12 +22,12 @@
 #include "GSGL.h"
 #include "GSUtil.h"
 #include "GSExtra.h"
-#include "Renderers/SW/GSRendererSW.h"
 #include "Renderers/Null/GSRendererNull.h"
 #include "Renderers/Null/GSDeviceNull.h"
 #include "Renderers/HW/GSRendererHW.h"
 #include "Renderers/HW/GSTextureReplacements.h"
 #include "GSLzma.h"
+#include "MultiISA.h"
 
 #include "common/Console.h"
 #include "common/FileSystem.h"
@@ -40,6 +40,7 @@
 #include "pcsx2/GS.h"
 #ifdef PCSX2_CORE
 #include "pcsx2/HostSettings.h"
+#include "pcsx2/Frontend/FullscreenUI.h"
 #include "pcsx2/Frontend/InputManager.h"
 #endif
 
@@ -75,7 +76,7 @@ static HRESULT s_hr = E_FAIL;
 
 Pcsx2Config::GSOptions GSConfig;
 
-static HostDisplay::RenderAPI s_render_api;
+static RenderAPI s_render_api;
 
 int GSinit()
 {
@@ -90,14 +91,9 @@ int GSinit()
 	// const type qualifier from all the affected variables.
 	GSinitConfig();
 
-
+	GSVertexSW::InitStatic();
 
 	GSUtil::Init();
-
-	if (g_const == nullptr)
-		return -1;
-	else
-		g_const->Init();
 
 #ifdef _WIN32
 	s_hr = ::CoInitializeEx(NULL, COINIT_MULTITHREADED);
@@ -131,7 +127,7 @@ void GSshutdown()
 		g_gs_device.reset();
 	}
 
-	Host::ReleaseHostDisplay();
+	Host::ReleaseHostDisplay(true);
 #endif
 
 #ifdef _WIN32
@@ -157,51 +153,51 @@ void GSclose()
 		g_gs_device.reset();
 	}
 
-	if (HostDisplay* display = Host::GetHostDisplay(); display)
-		display->SetGPUTimingEnabled(false);
+	if (g_host_display)
+		g_host_display->SetGPUTimingEnabled(false);
 
-	Host::ReleaseHostDisplay();
+	Host::ReleaseHostDisplay(true);
 }
 
-static HostDisplay::RenderAPI GetAPIForRenderer(GSRendererType renderer)
+static RenderAPI GetAPIForRenderer(GSRendererType renderer)
 {
 #if defined(_WIN32)
 	// On Windows, we use DX11 for software, since it's always available.
-	constexpr HostDisplay::RenderAPI default_api = HostDisplay::RenderAPI::D3D11;
+	constexpr RenderAPI default_api = RenderAPI::D3D11;
 #elif defined(__APPLE__)
 	// For Macs, default to Metal.
-	constexpr HostDisplay::RenderAPI default_api = HostDisplay::RenderAPI::Metal;
+	constexpr RenderAPI default_api = RenderAPI::Metal;
 #else
 	// For Linux, default to OpenGL (because of hardware compatibility), if we
 	// have it, otherwise Vulkan (if we have it).
 #if defined(ENABLE_OPENGL)
-	constexpr HostDisplay::RenderAPI default_api = HostDisplay::RenderAPI::OpenGL;
+	constexpr RenderAPI default_api = RenderAPI::OpenGL;
 #elif defined(ENABLE_VULKAN)
-	constexpr HostDisplay::RenderAPI default_api = HostDisplay::RenderAPI::Vulkan;
+	constexpr RenderAPI default_api = RenderAPI::Vulkan;
 #else
-	constexpr HostDisplay::RenderAPI default_api = HostDisplay::RenderAPI::None;
+	constexpr RenderAPI default_api = RenderAPI::None;
 #endif
 #endif
 
 	switch (renderer)
 	{
 		case GSRendererType::OGL:
-			return HostDisplay::RenderAPI::OpenGL;
+			return RenderAPI::OpenGL;
 
 		case GSRendererType::VK:
-			return HostDisplay::RenderAPI::Vulkan;
+			return RenderAPI::Vulkan;
 
 #ifdef _WIN32
 		case GSRendererType::DX11:
-			return HostDisplay::RenderAPI::D3D11;
+			return RenderAPI::D3D11;
 
 		case GSRendererType::DX12:
-			return HostDisplay::RenderAPI::D3D12;
+			return RenderAPI::D3D12;
 #endif
 
 #ifdef __APPLE__
 		case GSRendererType::Metal:
-			return HostDisplay::RenderAPI::Metal;
+			return RenderAPI::Metal;
 #endif
 
 		default:
@@ -211,47 +207,44 @@ static HostDisplay::RenderAPI GetAPIForRenderer(GSRendererType renderer)
 
 static bool DoGSOpen(GSRendererType renderer, u8* basemem)
 {
-	HostDisplay* display = Host::GetHostDisplay();
-	pxAssert(display);
+	s_render_api = g_host_display->GetRenderAPI();
 
-	s_render_api = Host::GetHostDisplay()->GetRenderAPI();
-
-	switch (display->GetRenderAPI())
+	switch (g_host_display->GetRenderAPI())
 	{
 #ifdef _WIN32
-		case HostDisplay::RenderAPI::D3D11:
+		case RenderAPI::D3D11:
 			g_gs_device = std::make_unique<GSDevice11>();
 			break;
-		case HostDisplay::RenderAPI::D3D12:
+		case RenderAPI::D3D12:
 			g_gs_device = std::make_unique<GSDevice12>();
 			break;
 #endif
 #ifdef __APPLE__
-		case HostDisplay::RenderAPI::Metal:
+		case RenderAPI::Metal:
 			g_gs_device = std::unique_ptr<GSDevice>(MakeGSDeviceMTL());
 			break;
 #endif
 #ifdef ENABLE_OPENGL
-		case HostDisplay::RenderAPI::OpenGL:
-		case HostDisplay::RenderAPI::OpenGLES:
+		case RenderAPI::OpenGL:
+		case RenderAPI::OpenGLES:
 			g_gs_device = std::make_unique<GSDeviceOGL>();
 			break;
 #endif
 
 #ifdef ENABLE_VULKAN
-		case HostDisplay::RenderAPI::Vulkan:
+		case RenderAPI::Vulkan:
 			g_gs_device = std::make_unique<GSDeviceVK>();
 			break;
 #endif
 
 		default:
-			Console.Error("Unknown render API %u", static_cast<unsigned>(display->GetRenderAPI()));
+			Console.Error("Unknown render API %u", static_cast<unsigned>(g_host_display->GetRenderAPI()));
 			return false;
 	}
 
 	try
 	{
-		if (!g_gs_device->Create(display))
+		if (!g_gs_device->Create())
 		{
 			g_gs_device->Destroy();
 			g_gs_device.reset();
@@ -269,7 +262,7 @@ static bool DoGSOpen(GSRendererType renderer, u8* basemem)
 		else
 		{
 			const int threads = theApp.GetConfigI("extrathreads");
-			g_gs_renderer = std::make_unique<GSRendererSW>(threads);
+			g_gs_renderer = std::unique_ptr<GSRenderer>(MULTI_ISA_SELECT(makeGSRendererSW)(threads));
 		}
 	}
 	catch (std::exception& ex)
@@ -281,8 +274,7 @@ static bool DoGSOpen(GSRendererType renderer, u8* basemem)
 		return false;
 	}
 
-	display->SetVSync(EmuConfig.GetEffectiveVsyncMode());
-	GSConfig.OsdShowGPU = EmuConfig.GS.OsdShowGPU && display->SetGPUTimingEnabled(true);
+	GSConfig.OsdShowGPU = EmuConfig.GS.OsdShowGPU && g_host_display->SetGPUTimingEnabled(true);
 
 	g_gs_renderer->SetRegsMem(basemem);
 	g_perfmon.Reset();
@@ -293,7 +285,7 @@ bool GSreopen(bool recreate_display, const Pcsx2Config::GSOptions& old_config)
 {
 	Console.WriteLn("Reopening GS with %s display", recreate_display ? "new" : "existing");
 
-	g_gs_renderer->Flush();
+	g_gs_renderer->Flush(GSState::GSFlushReason::GSREOPEN);
 
 	freezeData fd = {};
 	if (g_gs_renderer->Freeze(&fd, true) != 0)
@@ -327,13 +319,13 @@ bool GSreopen(bool recreate_display, const Pcsx2Config::GSOptions& old_config)
 
 	if (recreate_display)
 	{
-		Host::ReleaseHostDisplay();
-		if (!Host::AcquireHostDisplay(GetAPIForRenderer(GSConfig.Renderer)))
+		Host::ReleaseHostDisplay(false);
+		if (!Host::AcquireHostDisplay(GetAPIForRenderer(GSConfig.Renderer), false))
 		{
 			Console.Error("(GSreopen) Failed to reacquire host display");
 
 			// try to get the old one back
-			if (!Host::AcquireHostDisplay(GetAPIForRenderer(old_config.Renderer)))
+			if (!Host::AcquireHostDisplay(GetAPIForRenderer(old_config.Renderer), false))
 			{
 				pxFailRel("Failed to recreate old config host display");
 				return false;
@@ -341,7 +333,7 @@ bool GSreopen(bool recreate_display, const Pcsx2Config::GSOptions& old_config)
 
 			Host::AddKeyedOSDMessage("GSReopenFailed", fmt::format("Failed to open {} display, switching back to {}.",
 														   HostDisplay::RenderAPIToString(GetAPIForRenderer(GSConfig.Renderer)),
-														   HostDisplay::RenderAPIToString(GetAPIForRenderer(old_config.Renderer)), 10.0f));
+														   HostDisplay::RenderAPIToString(GetAPIForRenderer(old_config.Renderer)), Host::OSD_CRITICAL_ERROR_DURATION));
 			GSConfig = old_config;
 		}
 	}
@@ -353,15 +345,15 @@ bool GSreopen(bool recreate_display, const Pcsx2Config::GSOptions& old_config)
 		// try the old config
 		if (recreate_display && GSConfig.Renderer != old_config.Renderer)
 		{
-			Host::ReleaseHostDisplay();
-			if (!Host::AcquireHostDisplay(GetAPIForRenderer(old_config.Renderer)))
+			Host::ReleaseHostDisplay(false);
+			if (!Host::AcquireHostDisplay(GetAPIForRenderer(old_config.Renderer), false))
 			{
 				pxFailRel("Failed to recreate old config host display (part 2)");
 				return false;
 			}
 		}
 
-		Host::AddKeyedOSDMessage("GSReopenFailed","Failed to reopen, restoring old configuration.", 10.0f);
+		Host::AddKeyedOSDMessage("GSReopenFailed","Failed to reopen, restoring old configuration.", Host::OSD_CRITICAL_ERROR_DURATION);
 		GSConfig = old_config;
 		if (!DoGSOpen(GSConfig.Renderer, basemem))
 		{
@@ -388,7 +380,7 @@ bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* b
 	GSConfig = config;
 	GSConfig.Renderer = renderer;
 
-	if (!Host::AcquireHostDisplay(GetAPIForRenderer(renderer)))
+	if (!Host::AcquireHostDisplay(GetAPIForRenderer(renderer), true))
 	{
 		Console.Error("Failed to acquire host display");
 		return false;
@@ -396,7 +388,7 @@ bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* b
 
 	if (!DoGSOpen(renderer, basemem))
 	{
-		Host::ReleaseHostDisplay();
+		Host::ReleaseHostDisplay(true);
 		return false;
 	}
 
@@ -758,22 +750,21 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 	if (!g_gs_renderer)
 		return;
 
-	HostDisplay* display = Host::GetHostDisplay();
 
 	// Handle OSD scale changes by pushing a window resize through.
 	if (new_config.OsdScale != old_config.OsdScale)
 	{
 		g_gs_device->ResetAPIState();
-		Host::ResizeHostDisplay(display->GetWindowWidth(), display->GetWindowHeight(), display->GetWindowScale());
+		Host::ResizeHostDisplay(g_host_display->GetWindowWidth(), g_host_display->GetWindowHeight(), g_host_display->GetWindowScale());
 		g_gs_device->RestoreAPIState();
 	}
 
 	// Options which need a full teardown/recreate.
 	if (!GSConfig.RestartOptionsAreEqual(old_config))
 	{
-		HostDisplay::RenderAPI existing_api = Host::GetHostDisplay()->GetRenderAPI();
-		if (existing_api == HostDisplay::RenderAPI::OpenGLES)
-			existing_api = HostDisplay::RenderAPI::OpenGL;
+		RenderAPI existing_api = g_host_display->GetRenderAPI();
+		if (existing_api == RenderAPI::OpenGLES)
+			existing_api = RenderAPI::OpenGL;
 
 		const bool do_full_restart = (
 			existing_api != GetAPIForRenderer(GSConfig.Renderer) ||
@@ -802,10 +793,7 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 		GSConfig.SWExtraThreadsHeight != old_config.SWExtraThreadsHeight ||
 
 		GSConfig.SaveN != old_config.SaveN ||
-		GSConfig.SaveL != old_config.SaveL ||
-
-		GSConfig.ShaderFX_Conf != old_config.ShaderFX_Conf ||
-		GSConfig.ShaderFX_GLSL != old_config.ShaderFX_GLSL)
+		GSConfig.SaveL != old_config.SaveL)
 	{
 		if (!GSreopen(false, old_config))
 			pxFailRel("Failed to do quick GS reopen");
@@ -829,9 +817,8 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 	// reload texture cache when trilinear filtering or TC options change
 	if (
 		(GSConfig.UseHardwareRenderer() && GSConfig.HWMipmap != old_config.HWMipmap) ||
-		GSConfig.ConservativeFramebuffer != old_config.ConservativeFramebuffer ||
 		GSConfig.TexturePreloading != old_config.TexturePreloading ||
-		GSConfig.UserHacks_TriFilter != old_config.UserHacks_TriFilter ||
+		GSConfig.TriFilter != old_config.TriFilter ||
 		GSConfig.GPUPaletteConversion != old_config.GPUPaletteConversion ||
 		GSConfig.PreloadFrameWithGSData != old_config.PreloadFrameWithGSData ||
 		GSConfig.WrapGSMem != old_config.WrapGSMem ||
@@ -839,7 +826,8 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 		GSConfig.UserHacks_DisableDepthSupport != old_config.UserHacks_DisableDepthSupport ||
 		GSConfig.UserHacks_DisablePartialInvalidation != old_config.UserHacks_DisablePartialInvalidation ||
 		GSConfig.UserHacks_TextureInsideRt != old_config.UserHacks_TextureInsideRt ||
-		GSConfig.UserHacks_CPUSpriteRenderBW != old_config.UserHacks_CPUSpriteRenderBW)
+		GSConfig.UserHacks_CPUSpriteRenderBW != old_config.UserHacks_CPUSpriteRenderBW ||
+		GSConfig.UserHacks_CPUCLUTRender != old_config.UserHacks_CPUCLUTRender)
 	{
 		g_gs_renderer->PurgeTextureCache();
 		g_gs_renderer->PurgePool();
@@ -862,11 +850,8 @@ void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config)
 
 	if (GSConfig.OsdShowGPU != old_config.OsdShowGPU)
 	{
-		if (HostDisplay* display = Host::GetHostDisplay(); display)
-		{
-			if (!display->SetGPUTimingEnabled(GSConfig.OsdShowGPU))
-				GSConfig.OsdShowGPU = false;
-		}
+		if (!g_host_display->SetGPUTimingEnabled(GSConfig.OsdShowGPU))
+			GSConfig.OsdShowGPU = false;
 	}
 }
 
@@ -878,9 +863,9 @@ void GSSwitchRenderer(GSRendererType new_renderer)
 	if (!g_gs_renderer || GSConfig.Renderer == new_renderer)
 		return;
 
-	HostDisplay::RenderAPI existing_api = Host::GetHostDisplay()->GetRenderAPI();
-	if (existing_api == HostDisplay::RenderAPI::OpenGLES)
-		existing_api = HostDisplay::RenderAPI::OpenGL;
+	RenderAPI existing_api = g_host_display->GetRenderAPI();
+	if (existing_api == RenderAPI::OpenGLES)
+		existing_api = RenderAPI::OpenGL;
 
 	const bool is_software_switch = (new_renderer == GSRendererType::SW || GSConfig.Renderer == GSRendererType::SW);
 	const bool recreate_display = (!is_software_switch && existing_api != GetAPIForRenderer(new_renderer));
@@ -1317,14 +1302,16 @@ void GSApp::Init()
 	// The null renderer goes last, it has use for benchmarking purposes in a release build
 	m_gs_renderers.push_back(GSSetting(static_cast<u32>(GSRendererType::Null), "Null", ""));
 
-	m_gs_deinterlace.push_back(GSSetting(0, "None", ""));
-	m_gs_deinterlace.push_back(GSSetting(1, "Weave tff", "saw-tooth"));
-	m_gs_deinterlace.push_back(GSSetting(2, "Weave bff", "saw-tooth"));
-	m_gs_deinterlace.push_back(GSSetting(3, "Bob tff", "use blend if shaking"));
-	m_gs_deinterlace.push_back(GSSetting(4, "Bob bff", "use blend if shaking"));
-	m_gs_deinterlace.push_back(GSSetting(5, "Blend tff", "slight blur, 1/2 fps"));
-	m_gs_deinterlace.push_back(GSSetting(6, "Blend bff", "slight blur, 1/2 fps"));
-	m_gs_deinterlace.push_back(GSSetting(7, "Automatic", "Default"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::Automatic), "Automatic", "Default"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::Off), "None", ""));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::WeaveTFF), "Weave tff", "saw-tooth"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::WeaveBFF), "Weave bff", "saw-tooth"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::BobTFF), "Bob tff", "use adaptive or blend if shaking"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::BobBFF), "Bob bff", "use adaptive or blend if shaking"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::BlendTFF), "Blend tff", "slight blur, 1/2 fps"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::BlendBFF), "Blend bff", "slight blur, 1/2 fps"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::AdaptiveTFF), "Adaptive tff", "minor artifacts"));
+	m_gs_deinterlace.push_back(GSSetting(static_cast<u32>(GSInterlaceMode::AdaptiveBFF), "Adaptive bff", "minor artifacts"));
 
 	m_gs_upscale_multiplier.push_back(GSSetting(1, "Native", "PS2"));
 	m_gs_upscale_multiplier.push_back(GSSetting(2, "2x Native", "~720p"));
@@ -1355,9 +1342,13 @@ void GSApp::Init()
 	m_gs_trifilter.push_back(GSSetting(static_cast<u32>(TriFiltering::PS2), "Trilinear", ""));
 	m_gs_trifilter.push_back(GSSetting(static_cast<u32>(TriFiltering::Forced), "Trilinear", "Ultra/Slow"));
 
-	m_gs_texture_preloading.push_back(GSSetting(static_cast<u32>(TexturePreloadingLevel::Off), "None", "Default"));
+	m_gs_texture_preloading.push_back(GSSetting(static_cast<u32>(TexturePreloadingLevel::Off), "None", ""));
 	m_gs_texture_preloading.push_back(GSSetting(static_cast<u32>(TexturePreloadingLevel::Partial), "Partial", ""));
 	m_gs_texture_preloading.push_back(GSSetting(static_cast<u32>(TexturePreloadingLevel::Full), "Full", "Hash Cache"));
+
+	m_gs_tex_display_list.push_back(GSSetting(static_cast<u32>(GSPostBilinearMode::Off), "None", ""));
+	m_gs_tex_display_list.push_back(GSSetting(static_cast<u32>(GSPostBilinearMode::BilinearSmooth), "Bilinear (Smooth)", ""));
+	m_gs_tex_display_list.push_back(GSSetting(static_cast<u32>(GSPostBilinearMode::BilinearSharp), "Bilinear (Sharp)", ""));
 
 	m_gs_generic_list.push_back(GSSetting(-1, "Automatic", "Default"));
 	m_gs_generic_list.push_back(GSSetting(0, "Force-Disabled", ""));
@@ -1404,6 +1395,15 @@ void GSApp::Init()
 	m_gs_tv_shaders.push_back(GSSetting(4, "Wave filter", ""));
 	m_gs_tv_shaders.push_back(GSSetting(5, "Lottes CRT filter", ""));
 
+	m_gs_casmode.push_back(GSSetting(static_cast<u32>(GSCASMode::Disabled), "Disabled", ""));
+	m_gs_casmode.push_back(GSSetting(static_cast<u32>(GSCASMode::SharpenOnly), "Sharpen Only", "Internal Resolution"));
+	m_gs_casmode.push_back(GSSetting(static_cast<u32>(GSCASMode::SharpenAndResize), "Sharpen And Resize", "Display Resolution"));
+
+	m_gs_hw_download_mode.push_back(GSSetting(static_cast<u32>(GSHardwareDownloadMode::Enabled), "Accurate", "Recommended"));
+	m_gs_hw_download_mode.push_back(GSSetting(static_cast<u32>(GSHardwareDownloadMode::NoReadbacks), "Disable Readbacks", "Synchronize GS Thread"));
+	m_gs_hw_download_mode.push_back(GSSetting(static_cast<u32>(GSHardwareDownloadMode::Unsynchronized), "Unsynchronized", "Non-Deterministic"));
+	m_gs_hw_download_mode.push_back(GSSetting(static_cast<u32>(GSHardwareDownloadMode::Disabled), "Disabled", "Ignore Transfers"));
+
 	m_gs_dump_compression.push_back(GSSetting(static_cast<u32>(GSDumpCompressionMethod::Uncompressed), "Uncompressed", ""));
 	m_gs_dump_compression.push_back(GSSetting(static_cast<u32>(GSDumpCompressionMethod::LZMA), "LZMA (xz)", ""));
 	m_gs_dump_compression.push_back(GSSetting(static_cast<u32>(GSDumpCompressionMethod::Zstandard), "Zstandard (zst)", ""));
@@ -1420,9 +1420,7 @@ void GSApp::Init()
 #else
 	m_default_configuration["linux_replay"]                               = "1";
 #endif
-	m_default_configuration["aa1"]                                        = "1";
-	m_default_configuration["accurate_date"]                              = "1";
-	m_default_configuration["accurate_blending_unit"]                     = "1";
+	m_default_configuration["accurate_blending_unit"]                     = std::to_string(static_cast<u8>(AccBlendLevel::Basic));
 	m_default_configuration["AspectRatio"]                                = "1";
 	m_default_configuration["autoflush_sw"]                               = "1";
 	m_default_configuration["capture_enabled"]                            = "0";
@@ -1432,7 +1430,6 @@ void GSApp::Init()
 	m_default_configuration["CaptureWidth"]                               = "640";
 	m_default_configuration["crc_hack_level"]                             = std::to_string(static_cast<s8>(CRCHackLevel::Automatic));
 	m_default_configuration["CrcHacksExclusions"]                         = "";
-	m_default_configuration["disable_hw_gl_draw"]                         = "0";
 	m_default_configuration["disable_shader_cache"]                       = "0";
 	m_default_configuration["DisableDualSourceBlend"]                     = "0";
 	m_default_configuration["DisableFramebufferFetch"]                    = "0";
@@ -1445,20 +1442,20 @@ void GSApp::Init()
 	m_default_configuration["DumpPaletteTextures"]                        = "1";
 	m_default_configuration["extrathreads"]                               = "2";
 	m_default_configuration["extrathreads_height"]                        = "4";
-	m_default_configuration["filter"]                                     = std::to_string(static_cast<s8>(BiFiltering::PS2));
-	m_default_configuration["FMVSoftwareRendererSwitch"]                  = "0";
+	m_default_configuration["filter"]                                     = std::to_string(static_cast<u8>(BiFiltering::PS2));
 	m_default_configuration["FullscreenMode"]                             = "";
 	m_default_configuration["fxaa"]                                       = "0";
-	m_default_configuration["GSDumpCompression"]                          = "0";
-	m_default_configuration["HWDisableReadbacks"]                         = "0";
+	m_default_configuration["HWDownloadMode"]                             = std::to_string(static_cast<u8>(GSHardwareDownloadMode::Enabled));
+	m_default_configuration["GSDumpCompression"]                          = std::to_string(static_cast<u8>(GSDumpCompressionMethod::Zstandard));
+	m_default_configuration["HWSpinGPUForReadbacks"]                      = "0";
+	m_default_configuration["HWSpinCPUForReadbacks"]                      = "0";
 	m_default_configuration["pcrtc_antiblur"]                             = "1";
 	m_default_configuration["disable_interlace_offset"]                   = "0";
 	m_default_configuration["pcrtc_offsets"]                              = "0";
 	m_default_configuration["pcrtc_overscan"]                             = "0";
 	m_default_configuration["IntegerScaling"]                             = "0";
-	m_default_configuration["deinterlace"]                                = "7";
-	m_default_configuration["conservative_framebuffer"]                   = "1";
-	m_default_configuration["linear_present"]                             = "1";
+	m_default_configuration["deinterlace_mode"]                           = std::to_string(static_cast<s8>(GSInterlaceMode::Automatic));
+	m_default_configuration["linear_present_mode"]                        = std::to_string(static_cast<s8>(GSPostBilinearMode::BilinearSmooth));
 	m_default_configuration["LoadTextureReplacements"]                    = "0";
 	m_default_configuration["LoadTextureReplacementsAsync"]               = "1";
 	m_default_configuration["MaxAnisotropy"]                              = "0";
@@ -1472,16 +1469,15 @@ void GSApp::Init()
 	m_default_configuration["OsdShowResolution"]                          = "0";
 	m_default_configuration["OsdShowGSStats"]                             = "0";
 	m_default_configuration["OsdShowIndicators"]                          = "1";
+	m_default_configuration["OsdShowSettings"]                            = "0";
+	m_default_configuration["OsdShowInputs"]                              = "0";
+	m_default_configuration["OsdShowFrameTimes"]                          = "0";
 	m_default_configuration["OsdScale"]                                   = "100";
 	m_default_configuration["override_GL_ARB_copy_image"]                 = "-1";
-	m_default_configuration["override_GL_ARB_clear_texture"]              = "-1";
 	m_default_configuration["override_GL_ARB_clip_control"]               = "-1";
 	m_default_configuration["override_GL_ARB_direct_state_access"]        = "-1";
 	m_default_configuration["override_GL_ARB_draw_buffers_blend"]         = "-1";
 	m_default_configuration["override_GL_ARB_gpu_shader5"]                = "-1";
-	m_default_configuration["override_GL_ARB_shader_image_load_store"]    = "-1";
-	m_default_configuration["override_GL_ARB_sparse_texture"]             = "-1";
-	m_default_configuration["override_GL_ARB_sparse_texture2"]            = "-1";
 	m_default_configuration["override_GL_ARB_texture_barrier"]            = "-1";
 	m_default_configuration["OverrideTextureBarriers"]                    = "-1";
 	m_default_configuration["OverrideGeometryShaders"]                    = "-1";
@@ -1501,13 +1497,13 @@ void GSApp::Init()
 	m_default_configuration["ShadeBoost_Brightness"]                      = "50";
 	m_default_configuration["ShadeBoost_Contrast"]                        = "50";
 	m_default_configuration["ShadeBoost_Saturation"]                      = "50";
-	m_default_configuration["shaderfx"]                                   = "0";
-	m_default_configuration["shaderfx_conf"]                              = "shaders/GS_FX_Settings.ini";
-	m_default_configuration["shaderfx_glsl"]                              = "shaders/GS.fx";
 	m_default_configuration["SkipDuplicateFrames"]                        = "0";
-	m_default_configuration["texture_preloading"]                         = "0";
+	m_default_configuration["texture_preloading"]                         = "2";
 	m_default_configuration["ThreadedPresentation"]                       = "0";
+	m_default_configuration["TriFilter"]                                  = std::to_string(static_cast<s8>(TriFiltering::Automatic));
 	m_default_configuration["TVShader"]                                   = "0";
+	m_default_configuration["CASMode"]                                    = std::to_string(static_cast<u8>(GSCASMode::Disabled));
+	m_default_configuration["CASSharpness"]                               = "50";
 	m_default_configuration["upscale_multiplier"]                         = "1";
 	m_default_configuration["UseBlitSwapChain"]                           = "0";
 	m_default_configuration["UseDebugDevice"]                             = "0";
@@ -1518,6 +1514,7 @@ void GSApp::Init()
 	m_default_configuration["UserHacks_Disable_Safe_Features"]            = "0";
 	m_default_configuration["UserHacks_DisablePartialInvalidation"]       = "0";
 	m_default_configuration["UserHacks_CPUSpriteRenderBW"]                = "0";
+	m_default_configuration["UserHacks_CPUCLUTRender"]                    = "0";
 	m_default_configuration["UserHacks_CPU_FB_Conversion"]                = "0";
 	m_default_configuration["UserHacks_Half_Bottom_Override"]             = "-1";
 	m_default_configuration["UserHacks_HalfPixelOffset"]                  = "0";
@@ -1528,7 +1525,6 @@ void GSApp::Init()
 	m_default_configuration["UserHacks_TCOffsetX"]                        = "0";
 	m_default_configuration["UserHacks_TCOffsetY"]                        = "0";
 	m_default_configuration["UserHacks_TextureInsideRt"]                  = "0";
-	m_default_configuration["UserHacks_TriFilter"]                        = std::to_string(static_cast<s8>(TriFiltering::Automatic));
 	m_default_configuration["UserHacks_WildHack"]                         = "0";
 	m_default_configuration["wrap_gs_mem"]                                = "0";
 	m_default_configuration["vsync"]                                      = "0";
@@ -1683,7 +1679,7 @@ void GSApp::SetConfig(const char* entry, int value)
 static void HotkeyAdjustUpscaleMultiplier(s32 delta)
 {
 	const u32 new_multiplier = static_cast<u32>(std::clamp(static_cast<s32>(EmuConfig.GS.UpscaleMultiplier) + delta, 1, 8));
-	Host::AddKeyedFormattedOSDMessage("UpscaleMultiplierChanged", 10.0f, "Upscale multiplier set to %ux.", new_multiplier);
+	Host::AddKeyedFormattedOSDMessage("UpscaleMultiplierChanged", Host::OSD_QUICK_DURATION, "Upscale multiplier set to %ux.", new_multiplier);
 	EmuConfig.GS.UpscaleMultiplier = new_multiplier;
 
 	// this is pretty slow. we only really need to flush the TC and recompile shaders.
@@ -1694,7 +1690,7 @@ static void HotkeyAdjustUpscaleMultiplier(s32 delta)
 static void HotkeyAdjustZoom(double delta)
 {
 	const double new_zoom = std::clamp(EmuConfig.GS.Zoom + delta, 1.0, 200.0);
-	Host::AddKeyedFormattedOSDMessage("ZoomChanged", 10.0f, "Zoom set to %.1f%%.", new_zoom);
+	Host::AddKeyedFormattedOSDMessage("ZoomChanged", Host::OSD_QUICK_DURATION, "Zoom set to %.1f%%.", new_zoom);
 	EmuConfig.GS.Zoom = new_zoom;
 
 	// no need to go through the full settings update for this
@@ -1744,7 +1740,7 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 
 		 // technically this races, but the worst that'll happen is one frame uses the old AR.
 		 EmuConfig.CurrentAspectRatio = static_cast<AspectRatioType>((static_cast<int>(EmuConfig.CurrentAspectRatio) + 1) % static_cast<int>(AspectRatioType::MaxCount));
-		 Host::AddKeyedFormattedOSDMessage("CycleAspectRatio", 10.0f, "Aspect ratio set to '%s'.", Pcsx2Config::GSOptions::AspectRatioNames[static_cast<int>(EmuConfig.CurrentAspectRatio)]);
+		 Host::AddKeyedFormattedOSDMessage("CycleAspectRatio", Host::OSD_QUICK_DURATION, "Aspect ratio set to '%s'.", Pcsx2Config::GSOptions::AspectRatioNames[static_cast<int>(EmuConfig.CurrentAspectRatio)]);
 	 }},
 	{"CycleMipmapMode", "Graphics", "Cycle Hardware Mipmapping", [](s32 pressed) {
 		 if (pressed)
@@ -1754,7 +1750,7 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 		 static constexpr std::array<const char*, CYCLE_COUNT> option_names = {{"Automatic", "Off", "Basic (Generated)", "Full (PS2)"}};
 
 		 const HWMipmapLevel new_level = static_cast<HWMipmapLevel>(((static_cast<s32>(EmuConfig.GS.HWMipmap) + 2) % CYCLE_COUNT) - 1);
-		 Host::AddKeyedFormattedOSDMessage("CycleMipmapMode", 10.0f, "Hardware mipmapping set to '%s'.", option_names[static_cast<s32>(new_level) + 1]);
+		 Host::AddKeyedFormattedOSDMessage("CycleMipmapMode", Host::OSD_QUICK_DURATION, "Hardware mipmapping set to '%s'.", option_names[static_cast<s32>(new_level) + 1]);
 		 EmuConfig.GS.HWMipmap = new_level;
 
 		 GetMTGS().RunOnGSThread([new_level]() {
@@ -1768,6 +1764,7 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 			 return;
 
 		 static constexpr std::array<const char*, static_cast<int>(GSInterlaceMode::Count)> option_names = {{
+			 "Automatic",
 			 "Off",
 			 "Weave (Top Field First)",
 			 "Weave (Bottom Field First)",
@@ -1775,11 +1772,12 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 			 "Bob (Bottom Field First)",
 			 "Blend (Top Field First)",
 			 "Blend (Bottom Field First)",
-			 "Automatic",
+			 "Adaptive (Top Field First)",
+			 "Adaptive (Bottom Field First)",
 		 }};
 
 		 const GSInterlaceMode new_mode = static_cast<GSInterlaceMode>((static_cast<s32>(EmuConfig.GS.InterlaceMode) + 1) % static_cast<s32>(GSInterlaceMode::Count));
-		 Host::AddKeyedFormattedOSDMessage("CycleInterlaceMode", 10.0f, "Deinterlace mode set to '%s'.", option_names[static_cast<s32>(new_mode)]);
+		 Host::AddKeyedFormattedOSDMessage("CycleInterlaceMode", Host::OSD_QUICK_DURATION, "Deinterlace mode set to '%s'.", option_names[static_cast<s32>(new_mode)]);
 		 EmuConfig.GS.InterlaceMode = new_mode;
 
 		 GetMTGS().RunOnGSThread([new_mode]() { GSConfig.InterlaceMode = new_mode; });
@@ -1796,7 +1794,9 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 		 if (!pressed)
 		 {
 			 EmuConfig.GS.DumpReplaceableTextures = !EmuConfig.GS.DumpReplaceableTextures;
-			 Host::AddKeyedOSDMessage("ToggleTextureReplacements", EmuConfig.GS.DumpReplaceableTextures ? "Texture dumping is now enabled." : "Texture dumping is now disabled.", 10.0f);
+			 Host::AddKeyedOSDMessage("ToggleTextureReplacements",
+				 EmuConfig.GS.DumpReplaceableTextures ? "Texture dumping is now enabled." : "Texture dumping is now disabled.",
+				 Host::OSD_INFO_DURATION);
 			 GetMTGS().ApplySettings();
 		 }
 	 }},
@@ -1804,7 +1804,9 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 		 if (!pressed)
 		 {
 			 EmuConfig.GS.LoadTextureReplacements = !EmuConfig.GS.LoadTextureReplacements;
-			 Host::AddKeyedOSDMessage("ToggleTextureReplacements", EmuConfig.GS.LoadTextureReplacements ? "Texture replacements are now enabled." : "Texture replacements are now disabled.", 10.0f);
+			 Host::AddKeyedOSDMessage("ToggleTextureReplacements",
+				 EmuConfig.GS.LoadTextureReplacements ? "Texture replacements are now enabled." : "Texture replacements are now disabled.",
+				 Host::OSD_INFO_DURATION);
 			 GetMTGS().ApplySettings();
 		 }
 	 }},
@@ -1813,11 +1815,11 @@ BEGIN_HOTKEY_LIST(g_gs_hotkeys)
 		 {
 			 if (!EmuConfig.GS.LoadTextureReplacements)
 			 {
-				 Host::AddKeyedOSDMessage("ReloadTextureReplacements", "Texture replacements are not enabled.", 10.0f);
+				 Host::AddKeyedOSDMessage("ReloadTextureReplacements", "Texture replacements are not enabled.", Host::OSD_INFO_DURATION);
 			 }
 			 else
 			 {
-				 Host::AddKeyedOSDMessage("ReloadTextureReplacements", "Reloading texture replacements...", 10.0f);
+				 Host::AddKeyedOSDMessage("ReloadTextureReplacements", "Reloading texture replacements...", Host::OSD_INFO_DURATION);
 				 GetMTGS().RunOnGSThread([]() {
 					 GSTextureReplacements::ReloadReplacementMap();
 				 });

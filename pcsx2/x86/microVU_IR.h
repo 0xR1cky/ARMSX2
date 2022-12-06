@@ -51,7 +51,8 @@ union alignas(16) microRegInfo
 				u8 blockType;      // 0 = Normal; 1,2 = Compile one instruction (E-bit/Branch Ending)
 				u8 r;
 			};
-			u32 quick32[4];
+			u64 quick64[1];
+			u32 quick32[2];
 		};
 
 		u32 xgkickcycles;
@@ -66,12 +67,13 @@ union alignas(16) microRegInfo
 		};
 	};
 
-	u128 full128[176 / sizeof(u128)];
-	u64  full64[176 / sizeof(u64)];
-	u32  full32[176 / sizeof(u32)];
+	u128 full128[160 / sizeof(u128)];
+	u64  full64[160 / sizeof(u64)];
+	u32  full32[160 / sizeof(u32)];
 };
 
-static_assert(sizeof(microRegInfo) == 176, "microRegInfo was not 176 bytes");
+// Note: mVUcustomSearch needs to be updated if this is changed
+static_assert(sizeof(microRegInfo) == 160, "microRegInfo was not 160 bytes");
 
 struct microProgram;
 struct microJumpCache
@@ -214,6 +216,9 @@ struct microIR
 // Reg Alloc
 //------------------------------------------------------------------
 
+//#define MVURALOG(...) fprintf(stderr, __VA_ARGS__)
+#define MVURALOG(...)
+
 struct microMapXMM
 {
 	int  VFreg;    // VF Reg Number Stored (-1 = Temp; 0 = vf0 and will not be written back; 32 = ACC; 33 = I reg)
@@ -230,6 +235,13 @@ protected:
 	microMapXMM xmmMap[xmmTotal];
 	int         counter; // Current allocation count
 	int         index;   // VU0 or VU1
+
+	// DO NOT REMOVE THIS.
+	// This is here for a reason. MSVC likes to turn global writes into a load+conditional move+store.
+	// That creates a race with the EE thread when we're compiling on the VU thread, even though
+	// regAllocCOP2 is false. By adding another level of indirection, it emits a branch instead.
+	_xmmregs*   pxmmregs;
+
 	bool        regAllocCOP2;    // Local COP2 check
 
 	// Helper functions to get VU regs
@@ -259,11 +271,11 @@ protected:
 		return -1;
 	}
 
-	int findFreeReg()
+	int findFreeReg(int vfreg)
 	{
 		if (regAllocCOP2)
 		{
-			return _freeXMMregsCOP2();
+			return _allocVFtoXMMreg(vfreg, 0);
 		}
 
 		for (int i = 0; i < xmmTotal; i++)
@@ -288,12 +300,38 @@ public:
 	// Fully resets the regalloc by clearing all cached data
 	void reset(bool cop2mode)
 	{
+		// we run this at the of cop2, so don't free fprs
+		regAllocCOP2 = false;
+
 		for (int i = 0; i < xmmTotal; i++)
 		{
 			clearReg(i);
 		}
 		counter = 0;
 		regAllocCOP2 = cop2mode;
+		pxmmregs = cop2mode ? xmmregs : nullptr;
+
+		if (cop2mode)
+		{
+			for (int i = 0; i < xmmTotal; i++)
+			{
+				if (!pxmmregs[i].inuse || pxmmregs[i].type != XMMTYPE_VFREG)
+					continue;
+
+				// we shouldn't have any temp registers in here.. except for PQ, which
+				// isn't allocated here yet.
+				// pxAssertRel(fprregs[i].reg >= 0, "Valid full register preserved");
+				if (pxmmregs[i].reg >= 0)
+				{
+					MVURALOG("Preserving VF reg %d in host reg %d across instruction\n", pxmmregs[i].reg, i);
+					pxAssert(pxmmregs[i].reg != 255);
+					pxmmregs[i].needed = false;
+					xmmMap[i].isNeeded = false;
+					xmmMap[i].VFreg = pxmmregs[i].reg;
+					xmmMap[i].xyzw = ((pxmmregs[i].mode & MODE_WRITE) != 0) ? 0xf : 0x0;
+				}
+			}
+		}
 	}
 
 	int getXmmCount()
@@ -310,6 +348,35 @@ public:
 			writeBackReg(xmm(i));
 			if (clearState)
 				clearReg(i);
+		}
+	}
+
+	void flushPartialForCOP2()
+	{
+		for (int i = 0; i < xmmTotal; i++)
+		{
+			microMapXMM& clear = xmmMap[i];
+
+			// toss away anything which is not a full cached register
+			if (pxmmregs[i].inuse && pxmmregs[i].type == XMMTYPE_VFREG)
+			{
+				// Should've been done in clearNeeded()
+				if (clear.xyzw != 0 && clear.xyzw != 0xf)
+					writeBackReg(xRegisterSSE::GetInstance(i), false);
+
+				if (clear.VFreg <= 0)
+				{
+					// temps really shouldn't be here..
+					_freeXMMreg(i);
+				}
+			}
+
+			// needed gets cleared in iCore.
+			clear.VFreg = -1;
+			clear.count = 0;
+			clear.xyzw = 0;
+			clear.isNeeded = 0;
+			clear.isZero = 0;
 		}
 	}
 
@@ -351,6 +418,12 @@ public:
 	void clearReg(int regId)
 	{
 		microMapXMM& clear = xmmMap[regId];
+		if (regAllocCOP2)
+		{
+			pxAssert(pxmmregs[regId].type == XMMTYPE_VFREG);
+			pxmmregs[regId].inuse = false;
+		}
+
 		clear.VFreg    = -1;
 		clear.count    =  0;
 		clear.xyzw     =  0;
@@ -365,6 +438,24 @@ public:
 			if (xmmMap[i].VFreg == VFreg)
 				clearReg(i);
 		}
+	}
+
+	void clearRegCOP2(int xmmReg)
+	{
+		if (regAllocCOP2)
+			clearReg(xmmReg);
+	}
+
+	void updateCOP2AllocState(int rn)
+	{
+		if (!regAllocCOP2)
+			return;
+
+		const bool dirty = (xmmMap[rn].VFreg > 0 && xmmMap[rn].xyzw != 0);
+		pxAssert(pxmmregs[rn].type == XMMTYPE_VFREG);
+		pxmmregs[rn].reg = xmmMap[rn].VFreg;
+		pxmmregs[rn].mode = dirty ? (MODE_READ | MODE_WRITE) : MODE_READ;
+		pxmmregs[rn].needed = xmmMap[rn].isNeeded;
 	}
 
 	// Writes back modified reg to memory.
@@ -405,6 +496,7 @@ public:
 				mapX.count    = counter;
 				mapX.xyzw     = 0;
 				mapX.isNeeded = false;
+				updateCOP2AllocState(reg.Id);
 				return;
 			}
 			clearReg(reg);
@@ -452,6 +544,7 @@ public:
 							mapI.xyzw  = 0xf;
 							mapI.count = counter;
 							mergeRegs  = 2;
+							updateCOP2AllocState(i);
 						}
 						else
 							clearReg(i); // Clears when mergeRegs is 0 or 2
@@ -464,6 +557,12 @@ public:
 			}
 			else
 				clearReg(reg); // If Reg was temp or vf0, then invalidate itself
+		}
+		else if (regAllocCOP2 && clear.VFreg < 0)
+		{
+			// free on the EE side
+			pxAssert(pxmmregs[reg.Id].type == XMMTYPE_VFREG);
+			pxmmregs[reg.Id].inuse = false;
 		}
 	}
 
@@ -494,7 +593,7 @@ public:
 					{
 						if (cloneWrite) // Clone Reg so as not to use the same Cached Reg
 						{
-							z = findFreeReg();
+							z = findFreeReg(vfWriteReg);
 							const xmm& xmmZ = xmm::GetInstance(z);
 							writeBackReg(xmmZ);
 
@@ -527,11 +626,13 @@ public:
 					}
 					xmmMap[z].count = counter;
 					xmmMap[z].isNeeded = true;
+					updateCOP2AllocState(z);
+
 					return xmm::GetInstance(z);
 				}
 			}
 		}
-		int x = findFreeReg();
+		int x = findFreeReg((vfWriteReg >= 0) ? vfWriteReg : vfLoadReg);
 		const xmm& xmmX = xmm::GetInstance(x);
 		writeBackReg(xmmX);
 
@@ -564,6 +665,7 @@ public:
 		xmmMap[x].isZero = (vfLoadReg == 0);
 		xmmMap[x].count    = counter;
 		xmmMap[x].isNeeded = true;
+		updateCOP2AllocState(x);
 		return xmmX;
 	}
 };

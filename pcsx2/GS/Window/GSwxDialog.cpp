@@ -275,7 +275,6 @@ RendererTab::RendererTab(wxWindow* parent)
 	const int space = wxSizerFlags().Border().GetBorderInPixels();
 	auto hw_prereq = [this]{ return m_is_hardware; };
 	auto sw_prereq = [this]{ return !m_is_hardware; };
-	auto upscale_prereq = [this]{ return !m_is_native_res; };
 
 	PaddedBoxSizer<wxBoxSizer> tab_box(wxVERTICAL);
 	PaddedBoxSizer<wxStaticBoxSizer> general_box(wxVERTICAL, this, "General GS Settings");
@@ -284,10 +283,9 @@ RendererTab::RendererTab(wxWindow* parent)
 
 	auto* hw_checks_box = new wxWrapSizer(wxHORIZONTAL);
 
-	m_ui.addCheckBox(hw_checks_box, "Accurate Destination Alpha Test", "accurate_date",            IDC_ACCURATE_DATE,   hw_prereq);
-	m_ui.addCheckBox(hw_checks_box, "Conservative Buffer Allocation",  "conservative_framebuffer", IDC_CONSERVATIVE_FB, upscale_prereq);
-
 	auto* paltex_prereq = m_ui.addCheckBox(hw_checks_box, "GPU Palette Conversion", "paltex", IDC_PALTEX, hw_prereq);
+	m_ui.addCheckBox(hw_checks_box, "Spin GPU During Readbacks", "HWSpinGPUForReadbacks", IDC_SPIN_GPU);
+	m_ui.addCheckBox(hw_checks_box, "Spin CPU During Readbacks", "HWSpinCPUForReadbacks", IDC_SPIN_CPU);
 	auto aniso_prereq = [this, paltex_prereq]{ return m_is_hardware && paltex_prereq->GetValue() == false; };
 
 	auto* hw_choice_grid = new wxFlexGridSizer(2, space, space);
@@ -297,6 +295,7 @@ RendererTab::RendererTab(wxWindow* parent)
 	m_ui.addComboBoxAndLabel(hw_choice_grid, "Anisotropic Filtering:", "MaxAnisotropy",          &theApp.m_gs_max_anisotropy,     IDC_AFCOMBO,             aniso_prereq);
 	m_ui.addComboBoxAndLabel(hw_choice_grid, "Dithering (PgDn):",      "dithering_ps2",          &theApp.m_gs_dithering,          IDC_DITHERING,           hw_prereq);
 	m_ui.addComboBoxAndLabel(hw_choice_grid, "Mipmapping:",            "mipmap_hw",              &theApp.m_gs_hw_mipmapping,      IDC_MIPMAP_HW,           hw_prereq);
+	m_ui.addComboBoxAndLabel(hw_choice_grid, "Trilinear Filtering:",   "TriFilter",              &theApp.m_gs_trifilter,          IDC_TRI_FILTER,          hw_prereq);
 	m_ui.addComboBoxAndLabel(hw_choice_grid, "CRC Hack Level:",        "crc_hack_level",         &theApp.m_gs_crc_level,          IDC_CRC_LEVEL,           hw_prereq);
 	m_ui.addComboBoxAndLabel(hw_choice_grid, "Blending Accuracy:",     "accurate_blending_unit", &theApp.m_gs_acc_blend_level,    IDC_ACCURATE_BLEND_UNIT, hw_prereq);
 	m_ui.addComboBoxAndLabel(hw_choice_grid, "Texture Preloading:",    "texture_preloading",     &theApp.m_gs_texture_preloading, IDC_PRELOAD_TEXTURES,    hw_prereq);
@@ -307,7 +306,6 @@ RendererTab::RendererTab(wxWindow* parent)
 
 	auto* sw_checks_box = new wxWrapSizer(wxHORIZONTAL);
 	m_ui.addCheckBox(sw_checks_box, "Auto Flush",              "autoflush_sw", IDC_AUTO_FLUSH_SW, sw_prereq);
-	m_ui.addCheckBox(sw_checks_box, "Edge Antialiasing (Del)", "aa1",          IDC_AA1,           sw_prereq);
 	m_ui.addCheckBox(sw_checks_box, "Mipmapping",              "mipmap",       IDC_MIPMAP_SW,     sw_prereq);
 
 	software_box->Add(sw_checks_box, wxSizerFlags().Centre());
@@ -376,7 +374,6 @@ HacksTab::HacksTab(wxWindow* parent)
 
 	// Renderer Hacks:
 	m_ui.addComboBoxAndLabel(rend_hack_choice_grid, "Half Screen Fix:",     "UserHacks_Half_Bottom_Override", &theApp.m_gs_generic_list, IDC_HALF_SCREEN_TS, hacks_prereq);
-	m_ui.addComboBoxAndLabel(rend_hack_choice_grid, "Trilinear Filtering:", "UserHacks_TriFilter",            &theApp.m_gs_trifilter,    IDC_TRI_FILTER,     hacks_prereq);
 
 	// Skipdraw Range
 	add_label(this, rend_hack_choice_grid, "Skipdraw Range:", IDC_SKIPDRAWEND);
@@ -465,47 +462,63 @@ PostTab::PostTab(wxWindow* parent)
 {
 	const int space = wxSizerFlags().Border().GetBorderInPixels();
 	PaddedBoxSizer<wxBoxSizer> tab_box(wxVERTICAL);
-	PaddedBoxSizer<wxStaticBoxSizer> shader_box(wxVERTICAL, this, "Custom Shader");
+	PaddedBoxSizer<wxStaticBoxSizer> shader_box(wxVERTICAL, this, "Shader Options");
+	
+	// Bilinear filtering
+	auto* bil_filter_grid_box = new wxFlexGridSizer(2, space, space);
+	bil_filter_grid_box->AddGrowableCol(1);
 
-	auto not_vk_prereq = [this] { return !m_is_vk_hw; };
+	m_ui.addComboBoxAndLabel(bil_filter_grid_box, "Bilinear Filtering:", "linear_present_mode", &theApp.m_gs_tex_display_list, IDC_LINEAR_PRESENT);
 
-	m_ui.addCheckBox(shader_box.inner, "Texture Filtering of Display", "linear_present", IDC_LINEAR_PRESENT);
-	m_ui.addCheckBox(shader_box.inner, "FXAA Shader (PgUp)",           "fxaa",           IDC_FXAA);
+	shader_box->Add(bil_filter_grid_box, wxSizerFlags().Expand());
 
+	// Sharpening, fxaa
+	PaddedBoxSizer<wxStaticBoxSizer> sharpening_box(wxVERTICAL, this, "Sharpening/Anti-aliasing");
+	auto* casmode_grid = new wxFlexGridSizer(2, space, space);
+	casmode_grid->AddGrowableCol(1);
+
+	m_ui.addComboBoxAndLabel(casmode_grid, "Contrast Adaptive Sharpening:", "CASMode", &theApp.m_gs_casmode);
+
+	sharpening_box->Add(casmode_grid, wxSizerFlags().Expand());
+
+	auto* sharpness_grid = new wxFlexGridSizer(2, space, space);
+	sharpness_grid->AddGrowableCol(1);
+
+	m_ui.addSliderAndLabel(sharpness_grid, "Sharpness:", "CASSharpness", 0, 100, 50, -1);
+
+	sharpening_box->Add(sharpness_grid, wxSizerFlags().Expand());
+
+	auto* fxaa_grid = new wxFlexGridSizer(2, space, space);
+	fxaa_grid->AddGrowableCol(1);
+
+	m_ui.addCheckBox(fxaa_grid, "FXAA (PgUp)", "fxaa", IDC_FXAA);
+
+	sharpening_box->Add(fxaa_grid, wxSizerFlags().Expand());
+
+	shader_box->Add(sharpening_box.outer, wxSizerFlags().Expand());
+
+	// Shade boost
 	CheckboxPrereq shade_boost_check(m_ui.addCheckBox(shader_box.inner, "Enable Shade Boost", "ShadeBoost", IDC_SHADEBOOST));
-
 	PaddedBoxSizer<wxStaticBoxSizer> shade_boost_box(wxVERTICAL, this, "Shade Boost");
 	auto* shader_boost_grid = new wxFlexGridSizer(2, space, space);
 	shader_boost_grid->AddGrowableCol(1);
 
-	auto shader_boost_prereq = [shade_boost_check, this] { return shade_boost_check.box->GetValue(); };
-	m_ui.addSliderAndLabel(shader_boost_grid, "Brightness:", "ShadeBoost_Brightness", 0, 100, 50, -1, shader_boost_prereq);
-	m_ui.addSliderAndLabel(shader_boost_grid, "Contrast:",   "ShadeBoost_Contrast",   0, 100, 50, -1, shader_boost_prereq);
-	m_ui.addSliderAndLabel(shader_boost_grid, "Saturation:", "ShadeBoost_Saturation", 0, 100, 50, -1, shader_boost_prereq);
+	m_ui.addSliderAndLabel(shader_boost_grid, "Brightness:", "ShadeBoost_Brightness", 0, 100, 50, -1, shade_boost_check);
+	m_ui.addSliderAndLabel(shader_boost_grid, "Contrast:",   "ShadeBoost_Contrast",   0, 100, 50, -1, shade_boost_check);
+	m_ui.addSliderAndLabel(shader_boost_grid, "Saturation:", "ShadeBoost_Saturation", 0, 100, 50, -1, shade_boost_check);
 
 	shade_boost_box->Add(shader_boost_grid, wxSizerFlags().Expand());
 	shader_box->Add(shade_boost_box.outer, wxSizerFlags().Expand());
 
-	CheckboxPrereq ext_shader_check(m_ui.addCheckBox(shader_box.inner, "Enable External Shader", "shaderfx", IDC_SHADER_FX, not_vk_prereq));
-
-	PaddedBoxSizer<wxStaticBoxSizer> ext_shader_box(wxVERTICAL, this, "External Shader (Home)");
-	auto* ext_shader_grid = new wxFlexGridSizer(2, space, space);
-	ext_shader_grid->AddGrowableCol(1);
-
-	auto shaderext_prereq = [ext_shader_check, this] { return !m_is_vk_hw && ext_shader_check.box->GetValue(); };
-	m_ui.addFilePickerAndLabel(ext_shader_grid, "GLSL fx File:", "shaderfx_glsl", -1, shaderext_prereq);
-	m_ui.addFilePickerAndLabel(ext_shader_grid, "Config File:",  "shaderfx_conf", -1, shaderext_prereq);
-
-	ext_shader_box->Add(ext_shader_grid, wxSizerFlags().Expand());
-	shader_box->Add(ext_shader_box.outer, wxSizerFlags().Expand());
-
 	// TV Shader
 	auto* tv_box = new wxFlexGridSizer(2, space, space);
 	tv_box->AddGrowableCol(1);
-	m_ui.addComboBoxAndLabel(tv_box, "TV Shader:", "TVShader", &theApp.m_gs_tv_shaders);
-	shader_box->Add(tv_box, wxSizerFlags().Expand());
 
+	m_ui.addComboBoxAndLabel(tv_box, "TV Shader:", "TVShader", &theApp.m_gs_tv_shaders);
+
+	shader_box->Add(tv_box, wxSizerFlags().Expand());
 	tab_box->Add(shader_box.outer, wxSizerFlags().Expand());
+
 	SetSizerAndFit(tab_box.outer);
 }
 
@@ -520,7 +533,7 @@ OSDTab::OSDTab(wxWindow* parent)
 	auto* font_grid = new wxFlexGridSizer(2, space, space);
 	font_grid->AddGrowableCol(1);
 
-	m_ui.addSliderAndLabel(font_grid, "Scale:",   "OsdScale", 50, 300, 100, -1);
+	m_ui.addSliderAndLabel(font_grid, "OSD Scale:", "OsdScale", 50, 300, 100, -1);
 
 	font_box->Add(font_grid, wxSizerFlags().Expand());
 	tab_box->Add(font_box.outer, wxSizerFlags().Expand());
@@ -529,14 +542,16 @@ OSDTab::OSDTab(wxWindow* parent)
 	auto* log_grid = new wxFlexGridSizer(2, space, space);
 	log_grid->AddGrowableCol(1);
 
-	m_ui.addCheckBox(log_grid, "Show Messages",   "OsdShowMessages",   -1);
-	m_ui.addCheckBox(log_grid, "Show Speed",      "OsdShowSpeed",      -1);
-	m_ui.addCheckBox(log_grid, "Show FPS",        "OsdShowFPS",        -1);
-	m_ui.addCheckBox(log_grid, "Show CPU Usage",  "OsdShowCPU",        -1);
-	m_ui.addCheckBox(log_grid, "Show GPU Usage",  "OsdShowGPU",        -1);
-	m_ui.addCheckBox(log_grid, "Show Resolution", "OsdShowResolution", -1);
-	m_ui.addCheckBox(log_grid, "Show Statistics", "OsdShowGSStats",    -1);
-	m_ui.addCheckBox(log_grid, "Show Indicators", "OsdShowIndicators", -1);
+	m_ui.addCheckBox(log_grid, "Show Notifications", "OsdShowMessages",   -1);
+	m_ui.addCheckBox(log_grid, "Show Speed",         "OsdShowSpeed",      -1);
+	m_ui.addCheckBox(log_grid, "Show FPS",           "OsdShowFPS",        -1);
+	m_ui.addCheckBox(log_grid, "Show CPU Usage",     "OsdShowCPU",        -1);
+	m_ui.addCheckBox(log_grid, "Show GPU Usage",     "OsdShowGPU",        -1);
+	m_ui.addCheckBox(log_grid, "Show Resolution",    "OsdShowResolution", -1);
+	m_ui.addCheckBox(log_grid, "Show Statistics",    "OsdShowGSStats",    -1);
+	m_ui.addCheckBox(log_grid, "Show Indicators",    "OsdShowIndicators", -1);
+	m_ui.addCheckBox(log_grid, "Show Settings",      "OsdShowSettings",   -1);
+	m_ui.addCheckBox(log_grid, "Show Inputs",        "OsdShowInputs",     -1);
 
 	log_box->Add(log_grid, wxSizerFlags().Expand());
 	tab_box->Add(log_box.outer, wxSizerFlags().Expand());
@@ -551,19 +566,18 @@ DebugTab::DebugTab(wxWindow* parent)
 	const int space = wxSizerFlags().Border().GetBorderInPixels();
 	PaddedBoxSizer<wxBoxSizer> tab_box(wxVERTICAL);
 
-	auto ogl_hw_prereq = [this]{ return m_is_ogl_hw; };
 	auto vk_ogl_hw_prereq = [this] { return m_is_ogl_hw || m_is_vk_hw; };
 
 	if (g_Conf->DevMode || IsDevBuild)
 	{
 		PaddedBoxSizer<wxStaticBoxSizer> debug_box(wxVERTICAL, this, "Debug");
-		auto* debug_check_box = new wxWrapSizer(wxHORIZONTAL);
-		m_ui.addCheckBox(debug_check_box, "Use Blit Swap Chain",          "UseBlitSwapChain");
-		m_ui.addCheckBox(debug_check_box, "Disable Shader Cache",         "disable_shader_cache");
-		m_ui.addCheckBox(debug_check_box, "Disable Framebuffer Fetch",    "DisableFramebufferFetch");
+		auto* debug_check_box = new wxFlexGridSizer(2, space, space);
 		m_ui.addCheckBox(debug_check_box, "Disable Dual-Source Blending", "DisableDualSourceBlend");
-		m_ui.addCheckBox(debug_check_box, "Use Debug Device",             "UseDebugDevice");
+		m_ui.addCheckBox(debug_check_box, "Disable Framebuffer Fetch",    "DisableFramebufferFetch");
+		m_ui.addCheckBox(debug_check_box, "Disable Shader Cache",         "disable_shader_cache");
+		m_ui.addCheckBox(debug_check_box, "Use Blit Swap Chain",          "UseBlitSwapChain");
 		m_ui.addCheckBox(debug_check_box, "Dump GS data",                 "dump");
+		m_ui.addCheckBox(debug_check_box, "Use Debug Device",             "UseDebugDevice");
 
 		auto* debug_save_check_box = new wxWrapSizer(wxHORIZONTAL);
 		m_ui.addCheckBox(debug_save_check_box, "Save RT",      "save");
@@ -572,6 +586,7 @@ DebugTab::DebugTab(wxWindow* parent)
 		m_ui.addCheckBox(debug_save_check_box, "Save Depth",   "savez");
 
 		debug_box->Add(debug_check_box);
+		debug_box->AddSpacer(space);
 		debug_box->Add(debug_save_check_box);
 
 		auto* dump_grid = new wxFlexGridSizer(2, space, space);
@@ -587,11 +602,10 @@ DebugTab::DebugTab(wxWindow* parent)
 
 	PaddedBoxSizer<wxStaticBoxSizer> ogl_box(wxVERTICAL, this, "Overrides");
 	auto* ogl_grid = new wxFlexGridSizer(2, space, space);
-	m_ui.addComboBoxAndLabel(ogl_grid, "Texture Barriers:", "OverrideTextureBarriers",                 &theApp.m_gs_generic_list, -1,                           vk_ogl_hw_prereq);
-	m_ui.addComboBoxAndLabel(ogl_grid, "Geometry Shader:",  "OverrideGeometryShaders",                 &theApp.m_gs_generic_list, IDC_GEOMETRY_SHADER_OVERRIDE, vk_ogl_hw_prereq);
-	m_ui.addComboBoxAndLabel(ogl_grid, "Image Load Store:", "override_GL_ARB_shader_image_load_store", &theApp.m_gs_generic_list, IDC_IMAGE_LOAD_STORE,         ogl_hw_prereq);
-	m_ui.addComboBoxAndLabel(ogl_grid, "Sparse Texture:",   "override_GL_ARB_sparse_texture",          &theApp.m_gs_generic_list, IDC_SPARSE_TEXTURE,           ogl_hw_prereq);
-	m_ui.addComboBoxAndLabel(ogl_grid, "Dump Compression:", "GSDumpCompression",                       &theApp.m_gs_dump_compression, -1);
+	m_ui.addComboBoxAndLabel(ogl_grid, "Texture Barriers:",       "OverrideTextureBarriers", &theApp.m_gs_generic_list, -1,                           vk_ogl_hw_prereq);
+	m_ui.addComboBoxAndLabel(ogl_grid, "Geometry Shader:",        "OverrideGeometryShaders", &theApp.m_gs_generic_list, IDC_GEOMETRY_SHADER_OVERRIDE, vk_ogl_hw_prereq);
+	m_ui.addComboBoxAndLabel(ogl_grid, "Hardware Download Mode:", "HWDownloadMode",          &theApp.m_gs_hw_download_mode, -1);
+	m_ui.addComboBoxAndLabel(ogl_grid, "Dump Compression:",       "GSDumpCompression",       &theApp.m_gs_dump_compression, -1);
 	ogl_box->Add(ogl_grid);
 
 	tab_box->Add(ogl_box.outer, wxSizerFlags().Expand());
@@ -634,7 +648,7 @@ Dialog::Dialog()
 	m_adapter_select = new wxChoice(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, {});
 	top_grid->Add(m_adapter_select, wxSizerFlags().Expand());
 
-	m_ui.addComboBoxAndLabel(top_grid, "Deinterlacing (F5):", "deinterlace", &theApp.m_gs_deinterlace);
+	m_ui.addComboBoxAndLabel(top_grid, "Deinterlacing (F5):", "deinterlace_mode", &theApp.m_gs_deinterlace);
 
 	m_bifilter_select = m_ui.addComboBoxAndLabel(top_grid, "Texture Filtering:", "filter", &theApp.m_gs_bifilter, IDC_FILTER).first;
 
@@ -805,8 +819,6 @@ void Dialog::Update()
 		m_hacks_panel->m_is_native_res = !is_hw || !is_upscale;
 		m_hacks_panel->m_is_hardware = is_hw;
 		m_renderer_panel->m_is_hardware = is_hw;
-		m_renderer_panel->m_is_native_res = !is_hw || !is_upscale;
-		m_post_panel->m_is_vk_hw = renderer == GSRendererType::VK;
 		m_debug_panel->m_is_ogl_hw = renderer == GSRendererType::OGL;
 		m_debug_panel->m_is_vk_hw = renderer == GSRendererType::VK;
 

@@ -523,10 +523,8 @@ namespace usb_pad
 			GetClientRect(GetDlgItem(hWnd, IDC_PICTURE), &rect);
 			MapWindowPoints(GetDlgItem(hWnd, IDC_PICTURE), hWnd, (POINT*)&rect, 2);
 
-			int px = rect.left;
-			int py = rect.top;
-			int pwidth = rect.right - rect.left;
-			int pheight = rect.bottom - rect.top;
+			const int pwidth = rect.right - rect.left;
+			const int pheight = rect.bottom - rect.top;
 
 			DWORD startTime, endTime;
 
@@ -565,7 +563,6 @@ namespace usb_pad
 
 			// Get source bits
 			int srcWidth = scale * pwidth;
-			int srcHeight = scale * pheight;
 			int srcPitch = srcWidth * 4;
 			int srcSize = srcWidth * srcPitch;
 			BYTE* lpSrcBits = new BYTE[srcSize];

@@ -5,7 +5,7 @@ set(CMAKE_AUTOUIC ON)
 add_executable(pcsx2-qt)
 
 if (PACKAGE_MODE)
-	install(TARGETS pcsx2-qt DESTINATION ${CMAKE_INSTALL_BINDIR})
+	message(FATAL_ERROR "Package mode is not supported for Qt builds.")
 else()
 	install(TARGETS pcsx2-qt DESTINATION ${CMAKE_SOURCE_DIR}/bin)
 endif()
@@ -17,12 +17,12 @@ target_sources(pcsx2-qt PRIVATE
 	AutoUpdaterDialog.cpp
 	AutoUpdaterDialog.h
 	AutoUpdaterDialog.ui
+	CoverDownloadDialog.cpp
+	CoverDownloadDialog.h
+	CoverDownloadDialog.ui
 	DisplayWidget.cpp
 	DisplayWidget.h
 	EarlyHardwareCheck.cpp
-	EmuThread.cpp
-	EmuThread.h
-	Main.cpp
 	MainWindow.cpp
 	MainWindow.h
 	MainWindow.ui
@@ -31,6 +31,8 @@ target_sources(pcsx2-qt PRIVATE
 	QtHost.cpp
 	QtHost.h
 	QtKeyCodes.cpp
+	QtProgressCallback.cpp
+	QtProgressCallback.h
 	QtUtils.cpp
 	QtUtils.h
 	SettingWidgetBinder.h
@@ -41,9 +43,9 @@ target_sources(pcsx2-qt PRIVATE
 	GameList/GameListRefreshThread.h
 	GameList/GameListWidget.cpp
 	GameList/GameListWidget.h
-	Settings/AdvancedSystemSettingsWidget.cpp
-	Settings/AdvancedSystemSettingsWidget.h
-	Settings/AdvancedSystemSettingsWidget.ui
+	Settings/AdvancedSettingsWidget.cpp
+	Settings/AdvancedSettingsWidget.h
+	Settings/AdvancedSettingsWidget.ui
 	Settings/AudioSettingsWidget.cpp
 	Settings/AudioSettingsWidget.h
 	Settings/AudioSettingsWidget.ui
@@ -57,6 +59,8 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/ControllerGlobalSettingsWidget.cpp
 	Settings/ControllerGlobalSettingsWidget.h
 	Settings/ControllerGlobalSettingsWidget.ui
+	Settings/ControllerMacroEditWidget.ui
+	Settings/ControllerMacroWidget.ui
 	Settings/ControllerSettingsDialog.cpp
 	Settings/ControllerSettingsDialog.h
 	Settings/ControllerSettingsDialog.ui
@@ -92,6 +96,11 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/InterfaceSettingsWidget.cpp
 	Settings/InterfaceSettingsWidget.h
 	Settings/InterfaceSettingsWidget.ui
+	Settings/MemoryCardConvertDialog.cpp
+	Settings/MemoryCardConvertDialog.h
+	Settings/MemoryCardConvertDialog.ui
+	Settings/MemoryCardConvertWorker.cpp
+	Settings/MemoryCardConvertWorker.h
 	Settings/MemoryCardSettingsWidget.cpp
 	Settings/MemoryCardSettingsWidget.h
 	Settings/MemoryCardSettingsWidget.ui
@@ -108,14 +117,25 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/SettingsDialog.cpp
 	Settings/SettingsDialog.h
 	Settings/SettingsDialog.ui
-	Settings/SystemSettingsWidget.cpp
-	Settings/SystemSettingsWidget.h
-	Settings/SystemSettingsWidget.ui
 	Tools/InputRecording/NewInputRecordingDlg.cpp
 	Tools/InputRecording/NewInputRecordingDlg.h
 	Tools/InputRecording/NewInputRecordingDlg.ui
+	Tools/InputRecording/InputRecordingViewer.cpp
+	Tools/InputRecording/InputRecordingViewer.h
+	Tools/InputRecording/InputRecordingViewer.ui
 	resources/resources.qrc
 )
+
+if(USE_ACHIEVEMENTS)
+	target_sources(pcsx2-qt PRIVATE
+		Settings/AchievementLoginDialog.cpp
+		Settings/AchievementLoginDialog.h
+		Settings/AchievementLoginDialog.ui
+		Settings/AchievementSettingsWidget.cpp
+		Settings/AchievementSettingsWidget.h
+		Settings/AchievementSettingsWidget.ui
+	)
+endif()
 
 target_precompile_headers(pcsx2-qt PRIVATE PrecompiledHeader.h)
 

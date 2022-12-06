@@ -238,6 +238,9 @@
     <Filter Include="Tools\Input Recording">
       <UniqueIdentifier>{03ba2aa7-2cd9-48cb-93c6-fc93d5bdc938}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tools\Input Recording\Utilities">
+      <UniqueIdentifier>{78c9db9c-9c7c-4385-90e7-9fa71b922f60}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="Utilities\folderdesc.txt">
@@ -569,9 +572,6 @@
     <ClCompile Include="IopMem.cpp">
       <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
-    <ClCompile Include="IopSio2.cpp">
-      <Filter>System\Ps2\Iop</Filter>
-    </ClCompile>
     <ClCompile Include="R3000A.cpp">
       <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
@@ -605,7 +605,7 @@
     <ClCompile Include="CDVD\CDVD.cpp">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClCompile>
-    <ClCompile Include="CDVD\CDVDaccess.cpp">
+    <ClCompile Include="CDVD\CDVDcommon.cpp">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClCompile>
     <ClCompile Include="CDVD\CDVDisoReader.cpp">
@@ -615,6 +615,9 @@
       <Filter>System\Ps2\IPU</Filter>
     </ClCompile>
     <ClCompile Include="IPU\IPU_Fifo.cpp">
+      <Filter>System\Ps2\IPU</Filter>
+    </ClCompile>
+    <ClCompile Include="IPU\IPU_MultiISA.cpp">
       <Filter>System\Ps2\IPU</Filter>
     </ClCompile>
     <ClCompile Include="IPU\yuv2rgb.cpp">
@@ -998,6 +1001,9 @@
     <ClCompile Include="GS\GSLocalMemory.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
+    <ClCompile Include="GS\GSLocalMemoryMultiISA.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
     <ClCompile Include="GS\GSPerfMon.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
@@ -1011,6 +1017,12 @@
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
     <ClCompile Include="GS\GSVector.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
+    <ClCompile Include="GS\GSXXH.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
+    <ClCompile Include="GS\MultiISA.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
     <ClCompile Include="GS\GSPng.cpp">
@@ -1094,6 +1106,9 @@
     <ClCompile Include="GS\Renderers\HW\GSRendererHW.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClCompile>
+    <ClCompile Include="GS\Renderers\HW\GSRendererHWMultiISA.cpp">
+      <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
+    </ClCompile>
     <ClCompile Include="GS\Renderers\HW\GSTextureCache.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClCompile>
@@ -1113,6 +1128,9 @@
       <Filter>System\Ps2\GS\Renderers\Common</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\Common\GSVertexTrace.cpp">
+      <Filter>System\Ps2\GS\Renderers\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="GS\Renderers\Common\GSVertexTraceFMM.cpp">
       <Filter>System\Ps2\GS\Renderers\Common</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\Common\GSVertexList.cpp">
@@ -1172,7 +1190,7 @@
     <ClCompile Include="Frontend\GameList.cpp">
       <Filter>Host</Filter>
     </ClCompile>
-    <ClCompile Include="Frontend\INISettingsInterface.cpp">
+    <ClCompile Include="INISettingsInterface.cpp">
       <Filter>Host</Filter>
     </ClCompile>
     <ClCompile Include="Frontend\InputManager.cpp">
@@ -1205,7 +1223,7 @@
     <ClCompile Include="USB\USBNull.cpp">
       <Filter>System\Ps2\USB</Filter>
     </ClCompile>
-    <ClCompile Include="HostSettings.cpp">
+    <ClCompile Include="Frontend\HostSettings.cpp">
       <Filter>Host</Filter>
     </ClCompile>
     <ClCompile Include="VMManager.cpp">
@@ -1266,14 +1284,41 @@
     <ClCompile Include="Recording\InputRecordingFile.cpp">
       <Filter>Tools\Input Recording</Filter>
     </ClCompile>
-    <ClCompile Include="Recording\Utilities\InputRecordingLogger.cpp">
-      <Filter>Tools\Input Recording</Filter>
-    </ClCompile>
     <ClCompile Include="Recording\PadData.cpp">
       <Filter>Tools\Input Recording</Filter>
     </ClCompile>
+    <ClCompile Include="Recording\Utilities\InputRecordingLogger.cpp">
+      <Filter>Tools\Input Recording\Utilities</Filter>
+    </ClCompile>
     <ClCompile Include="Frontend\LogSink.cpp">
       <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\ImGuiFullscreen.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\FullscreenUI.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\CommonHost.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\CommonHotkeys.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\Achievements.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\ImGuiOverlays.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\DInputSource.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="MemoryCardProtocol.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
+    <ClCompile Include="MultitapProtocol.cpp">
+      <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1457,9 +1502,6 @@
     <ClInclude Include="IopMem.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
-    <ClInclude Include="IopSio2.h">
-      <Filter>System\Ps2\Iop</Filter>
-    </ClInclude>
     <ClInclude Include="R3000A.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
@@ -1484,13 +1526,16 @@
     <ClInclude Include="CDVD\CDVD_internal.h">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClInclude>
-    <ClInclude Include="CDVD\CDVDaccess.h">
+    <ClInclude Include="CDVD\CDVDcommon.h">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClInclude>
     <ClInclude Include="IPU\IPU.h">
       <Filter>System\Ps2\IPU</Filter>
     </ClInclude>
     <ClInclude Include="IPU\IPU_Fifo.h">
+      <Filter>System\Ps2\IPU</Filter>
+    </ClInclude>
+    <ClInclude Include="IPU\IPU_MultiISA.h">
       <Filter>System\Ps2\IPU</Filter>
     </ClInclude>
     <ClInclude Include="IPU\yuv2rgb.h">
@@ -1617,9 +1662,6 @@
       <Filter>System\Include</Filter>
     </ClInclude>
     <ClInclude Include="IopGte.h">
-      <Filter>System\Ps2\Iop</Filter>
-    </ClInclude>
-    <ClInclude Include="sio_internal.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
     <ClInclude Include="ps2\pgif.h">
@@ -1850,6 +1892,12 @@
     <ClInclude Include="GS\GSVector8.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
+    <ClInclude Include="GS\GSXXH.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\MultiISA.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
     <ClInclude Include="GS\config.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
@@ -2028,7 +2076,7 @@
     <ClInclude Include="Frontend\GameList.h">
       <Filter>Host</Filter>
     </ClInclude>
-    <ClInclude Include="Frontend\INISettingsInterface.h">
+    <ClInclude Include="INISettingsInterface.h">
       <Filter>Host</Filter>
     </ClInclude>
     <ClInclude Include="Frontend\InputManager.h">
@@ -2110,14 +2158,45 @@
     <ClInclude Include="Recording\InputRecordingFile.h">
       <Filter>Tools\Input Recording</Filter>
     </ClInclude>
-    <ClInclude Include="Recording\Utilities\InputRecordingLogger.h">
-      <Filter>Tools\Input Recording</Filter>
-    </ClInclude>
     <ClInclude Include="Recording\PadData.h">
       <Filter>Tools\Input Recording</Filter>
     </ClInclude>
+    <ClInclude Include="Recording\Utilities\InputRecordingLogger.h">
+      <Filter>Tools\Input Recording\Utilities</Filter>
+    </ClInclude>
     <ClInclude Include="Frontend\LogSink.h">
       <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="Frontend\ImGuiFullscreen.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="Frontend\FullscreenUI.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="Frontend\CommonHost.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="Frontend\Achievements.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="Achievements.h" />
+    <ClInclude Include="ShaderCacheVersion.h">
+      <Filter>System\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="Frontend\ImGuiOverlays.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="Frontend\DInputSource.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="SioTypes.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="MemoryCardProtocol.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="MultitapProtocol.h">
+      <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

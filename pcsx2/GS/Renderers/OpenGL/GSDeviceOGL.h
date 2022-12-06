@@ -211,12 +211,7 @@ public:
 	static int m_shader_reg;
 
 private:
-	// Increment this constant whenever shaders change, to invalidate user's program binary cache.
-	static constexpr u32 SHADER_VERSION = 3;
-
 	static FILE* m_debug_gl_file;
-
-	bool m_disable_hw_gl_draw;
 
 	// Place holder for the GLSL shader code (to avoid useless reload)
 	std::string m_shader_common_header;
@@ -242,7 +237,7 @@ private:
 
 	struct
 	{
-		GL::Program ps[4]; // program object
+		GL::Program ps[NUM_INTERLACE_SHADERS]; // program object
 	} m_interlace;
 
 	struct
@@ -262,23 +257,22 @@ private:
 		GL::Program ps;
 	} m_fxaa;
 
-#ifndef PCSX2_CORE
-	struct
-	{
-		GL::Program ps;
-	} m_shaderfx;
-#endif
-
 	struct
 	{
 		GSDepthStencilOGL* dss = nullptr;
-		GSTexture* t = nullptr;
+		GL::Program primid_ps[2];
 	} m_date;
 
 	struct
 	{
 		GL::Program ps;
 	} m_shadeboost;
+
+	struct
+	{
+		GL::Program upscale_ps;
+		GL::Program sharpen_ps;
+	} m_cas;
 
 	struct
 	{
@@ -303,10 +297,12 @@ private:
 	GSTexture* CreateSurface(GSTexture::Type type, int width, int height, int levels, GSTexture::Format format) final;
 
 	void DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c) final;
-	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0) final;
+	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0, int bufIdx = 0) final;
 	void DoFXAA(GSTexture* sTex, GSTexture* dTex) final;
 	void DoShadeBoost(GSTexture* sTex, GSTexture* dTex, const float params[4]) final;
-	void DoExternalFX(GSTexture* sTex, GSTexture* dTex) final;
+
+	bool CreateCASPrograms();
+	bool DoCAS(GSTexture* sTex, GSTexture* dTex, bool sharpen_only, const std::array<u32, NUM_CAS_CONSTANTS>& constants) final;
 
 	void OMAttachRt(GSTextureOGL* rt = NULL);
 	void OMAttachDs(GSTextureOGL* ds = NULL);
@@ -323,7 +319,7 @@ public:
 	// Used by OpenGL, so the same calling convention is required.
 	static void APIENTRY DebugOutputToFile(GLenum gl_source, GLenum gl_type, GLuint id, GLenum gl_severity, GLsizei gl_length, const GLchar* gl_message, const void* userParam);
 
-	bool Create(HostDisplay* display) override;
+	bool Create() override;
 
 	void ResetAPIState() override;
 	void RestoreAPIState() override;
@@ -338,8 +334,7 @@ public:
 	void ClearDepth(GSTexture* t) final;
 	void ClearStencil(GSTexture* t, u8 c) final;
 
-	void InitPrimDateTexture(GSTexture* rt, const GSVector4i& area);
-	void RecycleDateTexture();
+	GSTexture* InitPrimDateTexture(GSTexture* rt, const GSVector4i& area, bool datm);
 
 	bool DownloadTexture(GSTexture* src, const GSVector4i& rect, GSTexture::GSMap& out_map) final;
 
@@ -377,9 +372,6 @@ public:
 	void OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector4i* scissor = NULL);
 	void OMSetColorMaskState(OMColorMaskSelector sel = OMColorMaskSelector());
 
-	bool HasColorSparse() final { return GLLoader::found_compatible_GL_ARB_sparse_texture2; }
-	bool HasDepthSparse() final { return GLLoader::found_compatible_sparse_depth; }
-
 	bool CreateTextureFX();
 	std::string GetShaderSource(const std::string_view& entry, GLenum type, const std::string_view& common_header, const std::string_view& glsl_h_code, const std::string_view& macro_sel);
 	std::string GenGlslHeader(const std::string_view& entry, GLenum type, const std::string_view& macro);
@@ -394,6 +386,4 @@ public:
 	void SetupOM(OMDepthStencilSelector dssel);
 	GLuint GetSamplerID(PSSamplerSelector ssel);
 	GLuint GetPaletteSamplerID();
-
-	void Barrier(GLbitfield b);
 };

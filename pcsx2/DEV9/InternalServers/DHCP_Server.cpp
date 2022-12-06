@@ -57,7 +57,6 @@ namespace InternalServers
 	void DHCP_Server::Init(ifaddrs* adapter, IP_Address ipOverride, IP_Address subnetOverride, IP_Address gatewayOverride)
 #endif
 	{
-		ps2IP = {0};
 		netmask = {0};
 		gateway = {0};
 		dns1 = {0};
@@ -107,7 +106,7 @@ namespace InternalServers
 				break;
 		}
 
-		AutoDNS(adapter, EmuConfig.DEV9.ModeDNS1 != Pcsx2Config::DEV9Options::DnsMode::Manual, EmuConfig.DEV9.ModeDNS2 != Pcsx2Config::DEV9Options::DnsMode::Manual);
+		AutoDNS(adapter, EmuConfig.DEV9.ModeDNS1 == Pcsx2Config::DEV9Options::DnsMode::Auto, EmuConfig.DEV9.ModeDNS2 == Pcsx2Config::DEV9Options::DnsMode::Auto);
 		AutoBroadcast(ps2IP, netmask);
 	}
 

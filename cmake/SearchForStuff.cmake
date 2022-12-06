@@ -31,7 +31,12 @@ else()
 		set(OpenGL_GL_PREFERENCE GLVND)
 		find_package(OpenGL REQUIRED)
 	endif()
+	# On macOS, Mono.framework contains an ancient version of libpng.  We don't want that.
+	# Avoid it by telling cmake to avoid finding frameworks while we search for libpng.
+	set(FIND_FRAMEWORK_BACKUP ${CMAKE_FIND_FRAMEWORK})
+	set(CMAKE_FIND_FRAMEWORK NEVER)
 	find_package(PNG REQUIRED)
+	set(CMAKE_FIND_FRAMEWORK ${FIND_FRAMEWORK_BACKUP})
 	find_package(Vtune)
 
 	if(NOT PCSX2_CORE)
@@ -81,7 +86,12 @@ else()
 			endif()
 		else()
 			if (${CMAKE_SYSTEM_NAME} MATCHES "FreeBSD")
-				set(wxWidgets_CONFIG_EXECUTABLE "/usr/local/bin/wxgtk3u-3.0-config")
+				if(EXISTS "/usr/local/bin/wxgtk3u-3.1-config")
+					set(wxWidgets_CONFIG_EXECUTABLE "/usr/local/bin/wxgtk3u-3.1-config")
+				endif()
+				if(EXISTS "/usr/local/bin/wxgtk3u-3.0-config")
+					set(wxWidgets_CONFIG_EXECUTABLE "/usr/local/bin/wxgtk3u-3.0-config")
+				endif()
 			endif()
 			if(EXISTS "/usr/bin/wx-config-3.2")
 				set(wxWidgets_CONFIG_EXECUTABLE "/usr/bin/wx-config-3.2")
@@ -123,7 +133,7 @@ else()
 		if(X11_API)
 			check_lib(X11_XCB X11-xcb X11/Xlib-xcb.h)
 			check_lib(XCB xcb xcb/xcb.h)
-			check_lib(XRANDR xrandr)
+			check_lib(XRANDR Xrandr X11/extensions/Xrandr.h)
 		endif()
 
 		if(Linux)
@@ -188,10 +198,6 @@ endif()
 #----------------------------------------
 include(ApiValidation)
 
-if(NOT PCSX2_CORE)
-	WX_vs_SDL()
-endif()
-
 # Blacklist bad GCC
 if(GCC_VERSION VERSION_EQUAL "7.0" OR GCC_VERSION VERSION_EQUAL "7.1")
 	GCC7_BUG()
@@ -218,7 +224,7 @@ find_optional_system_library(libzip 3rdparty/libzip 1.8.0)
 if(QT_BUILD)
 	# Default to bundled Qt6 for Windows.
 	if(WIN32 AND NOT DEFINED Qt6_DIR)
-		set(Qt6_DIR ${CMAKE_SOURCE_DIR}/3rdparty/qt/6.3.0/msvc2019_64/lib/cmake/Qt6)
+		set(Qt6_DIR ${CMAKE_SOURCE_DIR}/3rdparty/qt/6.4.0/msvc2022_64/lib/cmake/Qt6)
 	endif()
 
 	# Find the Qt components that we need.
@@ -234,6 +240,21 @@ if(QT_BUILD)
 
 	# We use the bundled (latest) SDL version for Qt.
 	find_optional_system_library(SDL2 3rdparty/sdl2 2.0.22)
+
+	# rcheevos backend for RetroAchievements.
+	if(USE_ACHIEVEMENTS)
+		add_subdirectory(3rdparty/rcheevos EXCLUDE_FROM_ALL)
+	endif()
+
+	# Discord-RPC library for rich presence.
+	if(USE_DISCORD_PRESENCE)
+		add_subdirectory(3rdparty/rapidjson EXCLUDE_FROM_ALL)
+		add_subdirectory(3rdparty/discord-rpc EXCLUDE_FROM_ALL)
+	endif()
+endif()
+
+if(NOT WIN32 AND QT_BUILD)
+	find_package(CURL REQUIRED)
 endif()
 
 add_subdirectory(3rdparty/lzma EXCLUDE_FROM_ALL)
@@ -248,9 +269,19 @@ else()
 	set(BIN2CPPDEP ${CMAKE_SOURCE_DIR}/linux_various/hex2h.pl)
 endif()
 
+# rapidyaml includes fast_float as a submodule, saves us pulling it in directly.
+# Normally, we'd just pull in the cmake project, and link to it, but... it seems to enable
+# permissive mode, which breaks other parts of PCSX2. So, we'll just create a target here
+# for now.
+#add_subdirectory(3rdparty/rapidyaml/rapidyaml/ext/c4core/src/c4/ext/fast_float EXCLUDE_FROM_ALL)
+add_library(fast_float INTERFACE)
+target_include_directories(fast_float INTERFACE 3rdparty/rapidyaml/rapidyaml/ext/c4core/src/c4/ext/fast_float/include)
+
+add_subdirectory(3rdparty/jpgd EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/simpleini EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/imgui EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/cpuinfo EXCLUDE_FROM_ALL)
+add_subdirectory(3rdparty/zydis EXCLUDE_FROM_ALL)
 
 if(USE_OPENGL)
 	add_subdirectory(3rdparty/glad EXCLUDE_FROM_ALL)

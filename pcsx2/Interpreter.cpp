@@ -75,7 +75,7 @@ void intMemcheck(u32 op, u32 bits, bool store)
 
 	start = standardizeBreakpointAddress(start);
 	u32 end = start + bits/8;
-	
+
 	auto checks = CBreakPoints::GetMemChecks();
 	for (size_t i = 0; i < checks.size(); i++)
 	{
@@ -499,7 +499,7 @@ static void intEventTest()
 {
 	// Perform counters, ints, and IOP updates:
 	_cpuEventTest_Shared();
-	
+
 	if (intExitExecution)
 	{
 		intExitExecution = false;
@@ -615,15 +615,6 @@ static void intThrowException( const BaseException& ex )
 	ex.Rethrow();
 }
 
-static void intSetCacheReserve( uint reserveInMegs )
-{
-}
-
-static uint intGetCacheReserve()
-{
-	return 0;
-}
-
 R5900cpu intCpu =
 {
 	intReserve,
@@ -636,8 +627,5 @@ R5900cpu intCpu =
 	intSafeExitExecution,
 	intThrowException,
 	intThrowException,
-	intClear,
-
-	intGetCacheReserve,
-	intSetCacheReserve,
+	intClear
 };

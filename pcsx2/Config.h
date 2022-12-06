@@ -18,6 +18,7 @@
 #include "common/emitter/tools.h"
 #include "common/General.h"
 #include <string>
+#include <vector>
 
 class SettingsInterface;
 class SettingsWrapper;
@@ -35,6 +36,7 @@ enum GamefixId
 	Fix_SkipMpeg,
 	Fix_OPHFlag,
 	Fix_EETiming,
+	Fix_InstantDMA,
 	Fix_DMABusy,
 	Fix_GIFFIFO,
 	Fix_VIFFIFO,
@@ -45,6 +47,7 @@ enum GamefixId
 	Fix_VUOverflow,
 	Fix_XGKick,
 	Fix_BlitInternalFPS,
+	Fix_FullVU0Sync,
 
 	GamefixId_COUNT
 };
@@ -129,6 +132,7 @@ enum class GSRendererType : s8
 
 enum class GSInterlaceMode : u8
 {
+	Automatic,
 	Off,
 	WeaveTFF,
 	WeaveBFF,
@@ -136,8 +140,16 @@ enum class GSInterlaceMode : u8
 	BobBFF,
 	BlendTFF,
 	BlendBFF,
-	Automatic,
+	AdaptiveTFF,
+	AdaptiveBFF,
 	Count
+};
+
+enum class GSPostBilinearMode : u8
+{
+	Off,
+	BilinearSmooth,
+	BilinearSharp,
 };
 
 // Ordering was done to keep compatibility with older ini file.
@@ -199,6 +211,21 @@ enum class GSDumpCompressionMethod : u8
 	Zstandard,
 };
 
+enum class GSHardwareDownloadMode : u8
+{
+	Enabled,
+	NoReadbacks,
+	Unsynchronized,
+	Disabled
+};
+
+enum class GSCASMode : u8
+{
+	Disabled,
+	SharpenOnly,
+	SharpenAndResize,
+};
+
 // Template function for casting enumerations to their underlying type
 template <typename Enumeration>
 typename std::underlying_type<Enumeration>::type enum_cast(Enumeration E)
@@ -212,6 +239,7 @@ ImplementEnumOperators(SpeedhackId);
 //------------ DEFAULT sseMXCSR VALUES ---------------
 #define DEFAULT_sseMXCSR 0xffc0 //FPU rounding > DaZ, FtZ, "chop"
 #define DEFAULT_sseVUMXCSR 0xffc0 //VU  rounding > DaZ, FtZ, "chop"
+#define SYSTEM_sseMXCSR 0x1f80
 
 // --------------------------------------------------------------------------------------
 //  TraceFiltersEE
@@ -369,11 +397,9 @@ struct Pcsx2Config
 			fpuFullMode : 1;
 
 		bool
-			StackFrameChecks : 1,
-			PreBlockCheckEE : 1,
-			PreBlockCheckIOP : 1;
-		bool
 			EnableEECache : 1;
+		bool
+			EnableFastmem : 1;
 		BITFIELD_END
 
 		RecompilerOptions();
@@ -389,6 +415,30 @@ struct Pcsx2Config
 		bool operator!=(const RecompilerOptions& right) const
 		{
 			return !OpEqu(bitset);
+		}
+
+		u32 GetEEClampMode() const
+		{
+			return fpuFullMode ? 3 : (fpuExtraOverflow ? 2 : (fpuOverflow ? 1 : 0));
+		}
+
+		void SetEEClampMode(u32 value)
+		{
+			fpuOverflow = (value >= 1);
+			fpuExtraOverflow = (value >= 2);
+			fpuFullMode = (value >= 3);
+		}
+
+		u32 GetVUClampMode() const
+		{
+			return vuSignOverflow ? 3 : (vuExtraOverflow ? 2 : (vuOverflow ? 1 : 0));
+		}
+
+		void SetVUClampMode(u32 value)
+		{
+			vuOverflow = (value >= 1);
+			vuExtraOverflow = (value >= 2);
+			vuSignOverflow = (value >= 3);
 		}
 	};
 
@@ -427,6 +477,9 @@ struct Pcsx2Config
 
 		static const char* GetRendererName(GSRendererType type);
 
+		static constexpr float DEFAULT_FRAME_RATE_NTSC = 59.94f;
+		static constexpr float DEFAULT_FRAME_RATE_PAL = 50.00f;
+
 		union
 		{
 			u64 bitset;
@@ -439,7 +492,6 @@ struct Pcsx2Config
 					PCRTCOffsets : 1,
 					PCRTCOverscan : 1,
 					IntegerScaling : 1,
-					LinearPresent : 1,
 					SyncToHostRefreshRate : 1,
 					UseDebugDevice : 1,
 					UseBlitSwapChain : 1,
@@ -455,18 +507,19 @@ struct Pcsx2Config
 					OsdShowGPU : 1,
 					OsdShowResolution : 1,
 					OsdShowGSStats : 1,
-					OsdShowIndicators : 1;
+					OsdShowIndicators : 1,
+					OsdShowSettings : 1,
+					OsdShowInputs : 1,
+					OsdShowFrameTimes : 1;
 
 				bool
-					HWDisableReadbacks : 1,
-					AccurateDATE : 1,
+					HWSpinGPUForReadbacks : 1,
+					HWSpinCPUForReadbacks : 1,
 					GPUPaletteConversion : 1,
-					ConservativeFramebuffer : 1,
 					AutoFlushSW : 1,
 					PreloadFrameWithGSData : 1,
 					WrapGSMem : 1,
 					Mipmap : 1,
-					AA1 : 1,
 					PointListPalette : 1,
 					ManualUserHacks : 1,
 					UserHacks_AlignSpriteX : 1,
@@ -480,7 +533,6 @@ struct Pcsx2Config
 					UserHacks_TextureInsideRt : 1,
 					FXAA : 1,
 					ShadeBoost : 1,
-					ShaderFX : 1,
 					DumpGSData : 1,
 					SaveRT : 1,
 					SaveFrame : 1,
@@ -506,30 +558,37 @@ struct Pcsx2Config
 
 		VsyncMode VsyncEnable{VsyncMode::Off};
 
-		double LimitScalar{1.0};
-		double FramerateNTSC{59.94};
-		double FrameratePAL{50.00};
+		float LimitScalar{1.0f};
+		float FramerateNTSC{DEFAULT_FRAME_RATE_NTSC};
+		float FrameratePAL{DEFAULT_FRAME_RATE_PAL};
 
 		AspectRatioType AspectRatio{AspectRatioType::RAuto4_3_3_2};
 		FMVAspectRatioSwitchType FMVAspectRatioSwitch{FMVAspectRatioSwitchType::Off};
 		GSInterlaceMode InterlaceMode{GSInterlaceMode::Automatic};
+		GSPostBilinearMode LinearPresent{ GSPostBilinearMode::BilinearSmooth };
 
-		double Zoom{100.0};
-		double StretchY{100.0};
-		double OffsetX{0.0};
-		double OffsetY{0.0};
+		float Zoom{100.0f};
+		float StretchY{100.0f};
+#ifndef PCSX2_CORE
+		float OffsetX{0.0f};
+		float OffsetY{0.0f};
+#else
+		int Crop[4]{};
+#endif
 
-		double OsdScale{100.0};
+		float OsdScale{100.0};
 
 		GSRendererType Renderer{GSRendererType::Auto};
-		uint UpscaleMultiplier{1};
+		float UpscaleMultiplier{1.0f};
 
 		HWMipmapLevel HWMipmap{HWMipmapLevel::Automatic};
 		AccBlendLevel AccurateBlendingUnit{AccBlendLevel::Basic};
 		CRCHackLevel CRCHack{CRCHackLevel::Automatic};
 		BiFiltering TextureFiltering{BiFiltering::PS2};
 		TexturePreloadingLevel TexturePreloading{TexturePreloadingLevel::Full};
-		GSDumpCompressionMethod GSDumpCompression{GSDumpCompressionMethod::Uncompressed};
+		GSDumpCompressionMethod GSDumpCompression{GSDumpCompressionMethod::Zstandard};
+		GSHardwareDownloadMode HWDownloadMode{GSHardwareDownloadMode::Enabled};
+		GSCASMode CASMode{GSCASMode::Disabled};
 		int Dithering{2};
 		int MaxAnisotropy{0};
 		int SWExtraThreads{2};
@@ -544,18 +603,18 @@ struct Pcsx2Config
 		int UserHacks_TCOffsetX{0};
 		int UserHacks_TCOffsetY{0};
 		int UserHacks_CPUSpriteRenderBW{0};
-		TriFiltering UserHacks_TriFilter{TriFiltering::Automatic};
+		int UserHacks_CPUCLUTRender{ 0 };
+		TriFiltering TriFilter{TriFiltering::Automatic};
 		int OverrideTextureBarriers{-1};
 		int OverrideGeometryShaders{-1};
 
+		int CAS_Sharpness{50};
 		int ShadeBoost_Brightness{50};
 		int ShadeBoost_Contrast{50};
 		int ShadeBoost_Saturation{50};
 		int SaveN{0};
 		int SaveL{5000};
 		std::string Adapter;
-		std::string ShaderFX_Conf;
-		std::string ShaderFX_GLSL;
 
 		GSOptions();
 
@@ -608,7 +667,6 @@ struct Pcsx2Config
 			NoSync,
 		};
 
-
 		BITFIELD32()
 		bool
 			AdvancedVolumeControl : 1;
@@ -620,17 +678,19 @@ struct Pcsx2Config
 		s32 FinalVolume = 100;
 		s32 Latency{100};
 		s32 SpeakerConfiguration{0};
+		s32 DplDecodingLevel{0};
 
-		double VolumeAdjustC{ 0.0f };
-		double VolumeAdjustFL{ 0.0f };
-		double VolumeAdjustFR{ 0.0f };
-		double VolumeAdjustBL{ 0.0f };
-		double VolumeAdjustBR{ 0.0f };
-		double VolumeAdjustSL{ 0.0f };
-		double VolumeAdjustSR{ 0.0f };
-		double VolumeAdjustLFE{ 0.0f };
+		float VolumeAdjustC{ 0.0f };
+		float VolumeAdjustFL{ 0.0f };
+		float VolumeAdjustFR{ 0.0f };
+		float VolumeAdjustBL{ 0.0f };
+		float VolumeAdjustBR{ 0.0f };
+		float VolumeAdjustSL{ 0.0f };
+		float VolumeAdjustSR{ 0.0f };
+		float VolumeAdjustLFE{ 0.0f };
 
 		std::string OutputModule;
+		std::string BackendName;
 
 		SPU2Options();
 
@@ -646,6 +706,7 @@ struct Pcsx2Config
 				OpEqu(FinalVolume) &&
 				OpEqu(Latency) &&
 				OpEqu(SpeakerConfiguration) &&
+				OpEqu(DplDecodingLevel) &&
 
 				OpEqu(VolumeAdjustC) &&
 				OpEqu(VolumeAdjustFL) &&
@@ -656,7 +717,8 @@ struct Pcsx2Config
 				OpEqu(VolumeAdjustSR) &&
 				OpEqu(VolumeAdjustLFE) &&
 
-				OpEqu(OutputModule);
+				OpEqu(OutputModule) &&
+				OpEqu(BackendName);
 		}
 
 		bool operator!=(const SPU2Options& right) const
@@ -791,6 +853,7 @@ struct Pcsx2Config
 			SkipMPEGHack : 1, // Skips MPEG videos (Katamari and other games need this)
 			OPHFlagHack : 1, // Bleach Blade Battlers
 			EETimingHack : 1, // General purpose timing hack.
+			InstantDMAHack : 1, // Instantly complete DMA's if possible, good for cache emulation problems.
 			DMABusyHack : 1, // Denies writes to the DMAC when it's busy. This is correct behaviour but bad timing can cause problems.
 			GIFFIFOHack : 1, // Enabled the GIF FIFO (more correct but slower)
 			VIFFIFOHack : 1, // Pretends to fill the non-existant VIF FIFO Buffer.
@@ -800,7 +863,8 @@ struct Pcsx2Config
 			VUSyncHack : 1, // Makes microVU run behind the EE to avoid VU register reading/writing sync issues. Useful for M-Bit games
 			VUOverflowHack : 1, // Tries to simulate overflow flag checks (not really possible on x86 without soft floats)
 			XgKickHack : 1, // Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics, but breaks Tri-ace games and others.
-			BlitInternalFPSHack : 1; // Disables privileged register write-based FPS detection.
+			BlitInternalFPSHack : 1, // Disables privileged register write-based FPS detection.
+			FullVU0SyncHack : 1; // Forces tight VU0 sync on every COP2 instruction.
 		BITFIELD_END
 
 		GamefixOptions();
@@ -887,9 +951,9 @@ struct Pcsx2Config
 	// ------------------------------------------------------------------------
 	struct FramerateOptions
 	{
-		double NominalScalar{1.0};
-		double TurboScalar{2.0};
-		double SlomoScalar{0.5};
+		float NominalScalar{1.0f};
+		float TurboScalar{2.0f};
+		float SlomoScalar{0.5f};
 
 		void LoadSave(SettingsWrapper& wrap);
 		void SanityCheck();
@@ -934,6 +998,40 @@ struct Pcsx2Config
 		MemoryCardType Type; // the memory card implementation that should be used
 	};
 
+	// ------------------------------------------------------------------------
+
+#ifdef ENABLE_ACHIEVEMENTS
+	struct AchievementsOptions
+	{
+		BITFIELD32()
+		bool
+			Enabled : 1,
+			TestMode : 1,
+			UnofficialTestMode : 1,
+			RichPresence : 1,
+			ChallengeMode : 1,
+			Leaderboards : 1,
+			SoundEffects : 1,
+			PrimedIndicators : 1;
+		BITFIELD_END
+
+		AchievementsOptions();
+		void LoadSave(SettingsWrapper& wrap);
+
+		bool operator==(const AchievementsOptions& right) const
+		{
+			return OpEqu(bitset);
+		}
+
+		bool operator!=(const AchievementsOptions& right) const
+		{
+			return !this->operator==(right);
+		}
+	};
+#endif
+
+	// ------------------------------------------------------------------------
+
 	BITFIELD32()
 	bool
 		CdvdVerboseReads : 1, // enables cdvd read activity verbosely dumped to the console
@@ -949,10 +1047,11 @@ struct Pcsx2Config
 #ifdef PCSX2_CORE
 		EnableGameFixes : 1, // enables automatic game fixes
 		SaveStateOnShutdown : 1, // default value for saving state on shutdown
+		EnableDiscordPresence : 1, // enables discord rich presence integration
+		InhibitScreensaver : 1,
 #endif
 		// when enabled uses BOOT2 injection, skipping sony bios splashes
 		UseBOOT2Injection : 1,
-		PatchBios : 1,
 		BackupSavestate : 1,
 		SavestateZstdCompression : 1,
 		// enables simulated ejection of memory cards when loading savestates
@@ -963,7 +1062,9 @@ struct Pcsx2Config
 		MultitapPort1_Enabled : 1,
 
 		ConsoleToStdio : 1,
-		HostFs : 1;
+		HostFs : 1,
+
+		WarnAboutUnsafeSettings : 1;
 
 	// uses automatic ntfs compression when creating new memory cards (Win32 only)
 #ifdef _WIN32
@@ -985,7 +1086,9 @@ struct Pcsx2Config
 
 	FilenameOptions BaseFilenames;
 
-	std::string PatchRegion;
+#ifdef ENABLE_ACHIEVEMENTS
+	AchievementsOptions Achievements;
+#endif
 
 	// Memorycard options - first 2 are default slots, last 6 are multitap 1 and 2
 	// slots (3 each)
@@ -1008,8 +1111,6 @@ struct Pcsx2Config
 
 	bool MultitapEnabled(uint port) const;
 
-	VsyncMode GetEffectiveVsyncMode() const;
-
 	bool operator==(const Pcsx2Config& right) const;
 	bool operator!=(const Pcsx2Config& right) const
 	{
@@ -1019,6 +1120,9 @@ struct Pcsx2Config
 	// You shouldn't assign to this class, because it'll mess with the runtime variables (Current...).
 	// But you can still use this to copy config. Only needed until we drop wx.
 	void CopyConfig(const Pcsx2Config& cfg);
+
+	/// Copies runtime configuration settings (e.g. frame limiter state).
+	void CopyRuntimeConfig(Pcsx2Config& cfg);
 };
 
 extern Pcsx2Config EmuConfig;
@@ -1045,10 +1149,9 @@ namespace EmuFolders
 	extern std::string InputProfiles;
 
 	// Assumes that AppRoot and DataRoot have been initialized.
-	void SetDefaults();
-	bool EnsureFoldersExist();
+	void SetDefaults(SettingsInterface& si);
 	void LoadConfig(SettingsInterface& si);
-	void Save(SettingsInterface& si);
+	bool EnsureFoldersExist();
 } // namespace EmuFolders
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -1062,6 +1165,7 @@ namespace EmuFolders
 #define CHECK_EEREC (EmuConfig.Cpu.Recompiler.EnableEE)
 #define CHECK_CACHE (EmuConfig.Cpu.Recompiler.EnableEECache)
 #define CHECK_IOPREC (EmuConfig.Cpu.Recompiler.EnableIOP)
+#define CHECK_FASTMEM (EmuConfig.Cpu.Recompiler.EnableEE && EmuConfig.Cpu.Recompiler.EnableFastmem)
 
 //------------ SPECIAL GAME FIXES!!! ---------------
 #define CHECK_VUADDSUBHACK (EmuConfig.Gamefixes.VuAddSubHack) // Special Fix for Tri-ace games, they use an encryption algorithm that requires VU addi opcode to be bit-accurate.
@@ -1069,6 +1173,7 @@ namespace EmuFolders
 #define CHECK_FPUNEGDIVHACK (EmuConfig.Gamefixes.FpuNegDivHack) // Special Fix for Gundam games messed up camera-view.
 #define CHECK_XGKICKHACK (EmuConfig.Gamefixes.XgKickHack) // Special Fix for Erementar Gerad, adds more delay to VU XGkick instructions. Corrects the color of some graphics.
 #define CHECK_EETIMINGHACK (EmuConfig.Gamefixes.EETimingHack) // Fix all scheduled events to happen in 1 cycle.
+#define CHECK_INSTANTDMAHACK (EmuConfig.Gamefixes.InstantDMAHack) // Attempt to finish DMA's instantly, useful for games which rely on cache emulation.
 #define CHECK_SKIPMPEGHACK (EmuConfig.Gamefixes.SkipMPEGHack) // Finds sceMpegIsEnd pattern to tell the game the mpeg is finished (Katamari and a lot of games need this)
 #define CHECK_OPHFLAGHACK (EmuConfig.Gamefixes.OPHFlagHack) // Bleach Blade Battlers
 #define CHECK_DMABUSYHACK (EmuConfig.Gamefixes.DMABusyHack) // Denies writes to the DMAC when it's busy. This is correct behaviour but bad timing can cause problems.
@@ -1076,6 +1181,7 @@ namespace EmuFolders
 #define CHECK_VIF1STALLHACK (EmuConfig.Gamefixes.VIF1StallHack) // Like above, processes FIFO data before the stall is allowed (to make sure data goes over).
 #define CHECK_GIFFIFOHACK (EmuConfig.Gamefixes.GIFFIFOHack) // Enabled the GIF FIFO (more correct but slower)
 #define CHECK_VUOVERFLOWHACK (EmuConfig.Gamefixes.VUOverflowHack) // Special Fix for Superman Returns, they check for overflows on PS2 floats which we can't do without soft floats.
+#define CHECK_FULLVU0SYNCHACK (EmuConfig.Gamefixes.FullVU0SyncHack)
 
 //------------ Advanced Options!!! ---------------
 #define CHECK_VU_OVERFLOW (EmuConfig.Cpu.Recompiler.vuOverflow)

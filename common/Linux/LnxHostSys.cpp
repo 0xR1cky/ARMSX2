@@ -18,10 +18,12 @@
 #include <sys/mman.h>
 #include <signal.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <unistd.h>
 
 #include "fmt/core.h"
 
+#include "common/Align.h"
 #include "common/PageFaultSource.h"
 #include "common/Assertions.h"
 #include "common/Console.h"
@@ -33,12 +35,27 @@
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#include <cerrno>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+
+#ifndef __APPLE__
+#include <ucontext.h>
+#endif
+
 extern void SignalExit(int sig);
 
 static const uptr m_pagemask = getpagesize() - 1;
 
+#if defined(__APPLE__)
+static struct sigaction s_old_sigbus_action;
+#else
+static struct sigaction s_old_sigsegv_action;
+#endif
+
 // Linux implementation of SIGSEGV handler.  Bind it using sigaction().
-static void SysPageFaultSignalFilter(int signal, siginfo_t* siginfo, void*)
+static void SysPageFaultSignalFilter(int signal, siginfo_t* siginfo, void* ctx)
 {
 	// [TODO] : Add a thread ID filter to the Linux Signal handler here.
 	// Rationale: On windows, the __try/__except model allows per-thread specific behavior
@@ -56,13 +73,20 @@ static void SysPageFaultSignalFilter(int signal, siginfo_t* siginfo, void*)
 	// Note: Use of stdio functions isn't safe here.  Avoid console logs,
 	// assertions, file logs, or just about anything else useful.
 
+#if defined(__APPLE__) && defined(__x86_64__)
+	void* const exception_pc = reinterpret_cast<void*>(static_cast<ucontext_t*>(ctx)->uc_mcontext->__ss.__rip);
+#elif defined(__x86_64__)
+	void* const exception_pc = reinterpret_cast<void*>(static_cast<ucontext_t*>(ctx)->uc_mcontext.gregs[REG_RIP]);
+#else
+	void* const exception_pc = nullptr;
+#endif
 
 	// Note: This signal can be accessed by the EE or MTVU thread
 	// Source_PageFault is a global variable with its own state information
 	// so for now we lock this exception code unless someone can fix this better...
 	std::unique_lock lock(PageFault_Mutex);
 
-	Source_PageFault->Dispatch(PageFaultInfo((uptr)siginfo->si_addr & ~m_pagemask));
+	Source_PageFault->Dispatch(PageFaultInfo((uptr)exception_pc, (uptr)siginfo->si_addr & ~m_pagemask));
 
 	// resumes execution right where we left off (re-executes instruction that
 	// caused the SIGSEGV).
@@ -88,22 +112,17 @@ void _platform_InstallSignalHandler()
 	sigemptyset(&sa.sa_mask);
 	sa.sa_flags = SA_SIGINFO;
 	sa.sa_sigaction = SysPageFaultSignalFilter;
-#ifdef __APPLE__
+#if defined(__APPLE__)
 	// MacOS uses SIGBUS for memory permission violations
-	sigaction(SIGBUS, &sa, NULL);
+	sigaction(SIGBUS, &sa, &s_old_sigbus_action);
 #else
-	sigaction(SIGSEGV, &sa, NULL);
+	sigaction(SIGSEGV, &sa, &s_old_sigsegv_action);
 #endif
 }
 
-// returns FALSE if the mprotect call fails with an ENOMEM.
-// Raises assertions on other types of POSIX errors (since those typically reflect invalid object
-// or memory states).
-static bool _memprotect(void* baseaddr, size_t size, const PageProtectionMode& mode)
+static __ri uint LinuxProt(const PageProtectionMode& mode)
 {
-	pxAssertDev((size & (__pagesize - 1)) == 0, "Size is page aligned");
-
-	uint lnxmode = 0;
+	u32 lnxmode = 0;
 
 	if (mode.CanWrite())
 		lnxmode |= PROT_WRITE;
@@ -112,109 +131,158 @@ static bool _memprotect(void* baseaddr, size_t size, const PageProtectionMode& m
 	if (mode.CanExecute())
 		lnxmode |= PROT_EXEC | PROT_READ;
 
-	const int result = mprotect(baseaddr, size, lnxmode);
-
-	if (result == 0)
-		return true;
-
-	switch (errno)
-	{
-		case EINVAL:
-			pxFailDev(fmt::format("mprotect returned EINVAL @ 0x{:X} -> 0x{:X}  (mode={})",
-				baseaddr, (uptr)baseaddr + size, mode.ToString()).c_str());
-			break;
-
-		case EACCES:
-			pxFailDev(fmt::format("mprotect returned EACCES @ 0x{:X} -> 0x{:X}  (mode={})",
-				baseaddr, (uptr)baseaddr + size, mode.ToString()).c_str());
-			break;
-
-		case ENOMEM:
-			// caller handles assertion or exception, or whatever.
-			break;
-	}
-	return false;
+	return lnxmode;
 }
 
-void* HostSys::MmapReservePtr(void* base, size_t size)
+void* HostSys::Mmap(void* base, size_t size, const PageProtectionMode& mode)
 {
 	pxAssertDev((size & (__pagesize - 1)) == 0, "Size is page aligned");
-
-	// On linux a reserve-without-commit is performed by using mmap on a read-only
-	// or anonymous source, with PROT_NONE (no-access) permission.  Since the mapping
-	// is completely inaccessible, the OS will simply reserve it and will not put it
-	// against the commit table.
-	void* result = mmap(base, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-
-	if (result == MAP_FAILED)
-		result = nullptr;
-
-	return result;
-}
-
-bool HostSys::MmapCommitPtr(void* base, size_t size, const PageProtectionMode& mode)
-{
-	// In linux, reserved memory is automatically committed when its permissions are
-	// changed to something other than PROT_NONE.  If the user is committing memory
-	// as PROT_NONE, then just ignore this call (memory will be committed automatically
-	// later when the user changes permissions to something useful via calls to MemProtect).
 
 	if (mode.IsNone())
-		return false;
+		return nullptr;
 
-	if (_memprotect(base, size, mode))
-		return true;
+	const u32 prot = LinuxProt(mode);
 
-	return false;
+	u32 flags = MAP_PRIVATE | MAP_ANONYMOUS;
+	if (base)
+		flags |= MAP_FIXED;
+
+	void* res = mmap(base, size, prot, flags, -1, 0);
+	if (res == MAP_FAILED)
+		return nullptr;
+
+	return res;
 }
 
-void HostSys::MmapResetPtr(void* base, size_t size)
-{
-	pxAssertDev((size & (__pagesize - 1)) == 0, "Size is page aligned");
-
-	void* result = mmap(base, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-
-	pxAssertRel((uptr)result == (uptr)base, "Virtual memory decommit failed");
-}
-
-void* HostSys::MmapReserve(uptr base, size_t size)
-{
-	return MmapReservePtr((void*)base, size);
-}
-
-bool HostSys::MmapCommit(uptr base, size_t size, const PageProtectionMode& mode)
-{
-	return MmapCommitPtr((void*)base, size, mode);
-}
-
-void HostSys::MmapReset(uptr base, size_t size)
-{
-	MmapResetPtr((void*)base, size);
-}
-
-void* HostSys::Mmap(uptr base, size_t size)
-{
-	pxAssertDev((size & (__pagesize - 1)) == 0, "Size is page aligned");
-
-	// MAP_ANONYMOUS - means we have no associated file handle (or device).
-
-	return mmap((void*)base, size, PROT_EXEC | PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-}
-
-void HostSys::Munmap(uptr base, size_t size)
+void HostSys::Munmap(void* base, size_t size)
 {
 	if (!base)
 		return;
+
 	munmap((void*)base, size);
 }
 
 void HostSys::MemProtect(void* baseaddr, size_t size, const PageProtectionMode& mode)
 {
-	if (!_memprotect(baseaddr, size, mode))
-	{
-		throw Exception::OutOfMemory("MemProtect")
-			.SetDiagMsg(fmt::format("mprotect failed @ 0x{:X} -> 0x{:X}  (mode={})",
-				baseaddr, (uptr)baseaddr + size, mode.ToString()));
-	}
+	pxAssertDev((size & (__pagesize - 1)) == 0, "Size is page aligned");
+
+	const u32 lnxmode = LinuxProt(mode);
+
+	const int result = mprotect(baseaddr, size, lnxmode);
+	if (result != 0)
+		pxFail("mprotect() failed");
 }
+
+std::string HostSys::GetFileMappingName(const char* prefix)
+{
+	const unsigned pid = static_cast<unsigned>(getpid());
+#if defined(__FreeBSD__)
+	// FreeBSD's shm_open(3) requires name to be absolute
+	return fmt::format("/tmp/{}_{}", prefix, pid);
+#else
+	return fmt::format("{}_{}", prefix, pid);
+#endif
+}
+
+void* HostSys::CreateSharedMemory(const char* name, size_t size)
+{
+	const int fd = shm_open(name, O_CREAT | O_EXCL | O_RDWR, 0600);
+	if (fd < 0)
+	{
+		std::fprintf(stderr, "shm_open failed: %d\n", errno);
+		return nullptr;
+	}
+
+	// we're not going to be opening this mapping in other processes, so remove the file
+	shm_unlink(name);
+
+	// ensure it's the correct size
+#if !defined(__APPLE__) && !defined(__FreeBSD__)
+	if (ftruncate64(fd, static_cast<off64_t>(size)) < 0)
+#else
+	if (ftruncate(fd, static_cast<off_t>(size)) < 0)
+#endif
+	{
+		std::fprintf(stderr, "ftruncate64(%zu) failed: %d\n", size, errno);
+		return nullptr;
+	}
+
+	return reinterpret_cast<void*>(static_cast<intptr_t>(fd));
+}
+
+void HostSys::DestroySharedMemory(void* ptr)
+{
+	close(static_cast<int>(reinterpret_cast<intptr_t>(ptr)));
+}
+
+void* HostSys::MapSharedMemory(void* handle, size_t offset, void* baseaddr, size_t size, const PageProtectionMode& mode)
+{
+	const uint lnxmode = LinuxProt(mode);
+
+	const int flags = (baseaddr != nullptr) ? (MAP_SHARED | MAP_FIXED) : MAP_SHARED;
+	void* ptr = mmap(baseaddr, size, lnxmode, flags, static_cast<int>(reinterpret_cast<intptr_t>(handle)), static_cast<off_t>(offset));
+	if (ptr == MAP_FAILED)
+		return nullptr;
+
+	return ptr;
+}
+
+void HostSys::UnmapSharedMemory(void* baseaddr, size_t size)
+{
+	if (mmap(baseaddr, size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED)
+		pxFailRel("Failed to unmap shared memory");
+}
+
+SharedMemoryMappingArea::SharedMemoryMappingArea(u8* base_ptr, size_t size, size_t num_pages)
+	: m_base_ptr(base_ptr)
+	, m_size(size)
+	, m_num_pages(num_pages)
+{
+}
+
+SharedMemoryMappingArea::~SharedMemoryMappingArea()
+{
+	pxAssertRel(m_num_mappings == 0, "No mappings left");
+
+	if (munmap(m_base_ptr, m_size) != 0)
+		pxFailRel("Failed to release shared memory area");
+}
+
+
+std::unique_ptr<SharedMemoryMappingArea> SharedMemoryMappingArea::Create(size_t size)
+{
+	pxAssertRel(Common::IsAlignedPow2(size, __pagesize), "Size is page aligned");
+
+	void* alloc = mmap(nullptr, size, PROT_NONE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	if (alloc == MAP_FAILED)
+		return nullptr;
+
+	return std::unique_ptr<SharedMemoryMappingArea>(new SharedMemoryMappingArea(static_cast<u8*>(alloc), size, size / __pagesize));
+}
+
+u8* SharedMemoryMappingArea::Map(void* file_handle, size_t file_offset, void* map_base, size_t map_size, const PageProtectionMode& mode)
+{
+	pxAssert(static_cast<u8*>(map_base) >= m_base_ptr && static_cast<u8*>(map_base) < (m_base_ptr + m_size));
+
+	const uint lnxmode = LinuxProt(mode);
+	void* const ptr = mmap(map_base, map_size, lnxmode, MAP_SHARED | MAP_FIXED,
+		static_cast<int>(reinterpret_cast<intptr_t>(file_handle)), static_cast<off_t>(file_offset));
+	if (ptr == MAP_FAILED)
+		return nullptr;
+
+	m_num_mappings++;
+	return static_cast<u8*>(ptr);
+}
+
+bool SharedMemoryMappingArea::Unmap(void* map_base, size_t map_size)
+{
+	pxAssert(static_cast<u8*>(map_base) >= m_base_ptr && static_cast<u8*>(map_base) < (m_base_ptr + m_size));
+
+	if (mmap(map_base, map_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0) == MAP_FAILED)
+		return false;
+
+	m_num_mappings--;
+	return true;
+}
+
 #endif

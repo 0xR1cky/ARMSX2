@@ -49,6 +49,17 @@
 
 using namespace pxSizerFlags;
 
+static void HookSignals()
+{
+#ifdef __linux__
+	// Ignore SIGCHLD by default on Linux, since we kick off xdg-screensaver asynchronously.
+	struct sigaction sa_chld = {};
+	sigemptyset(&sa_chld.sa_mask);
+	sa_chld.sa_flags = SA_SIGINFO | SA_RESTART | SA_NOCLDSTOP | SA_NOCLDWAIT;
+	sigaction(SIGCHLD, &sa_chld, nullptr);
+#endif
+}
+
 void Pcsx2App::DetectCpuAndUserMode()
 {
 	AffinityAssert_AllowFrom_MainUI();
@@ -62,7 +73,7 @@ void Pcsx2App::DetectCpuAndUserMode()
 	{
 		// This code will probably never run if the binary was correctly compiled for SSE4
 		// SSE4 is required for any decent speed and is supported by more than decade old x86 CPUs
-		throw Exception::HardwareDeficiency()
+		throw Exception::RuntimeError()
 			.SetDiagMsg("Critical Failure: SSE4.1 Extensions not available.")
 			.SetUserMsg("SSE4 extensions are not available.  PCSX2 requires a cpu that supports the SSE4.1 instruction set.");
 	}
@@ -92,11 +103,6 @@ void Pcsx2App::OpenMainFrame()
 
 	DisassemblyDialog* disassembly = new DisassemblyDialog(mainFrame);
 	m_id_Disassembler = disassembly->GetId();
-
-	NewRecordingFrame* newRecordingFrame = new NewRecordingFrame(mainFrame);
-	m_id_NewRecordingFrame = newRecordingFrame->GetId();
-	if (g_Conf->EmuOptions.EnableRecordingTools)
-		g_InputRecording.InitVirtualPadWindows(mainFrame);
 
 	if (g_Conf->EmuOptions.Debugger.ShowDebuggerOnStart)
 		disassembly->Show();
@@ -135,8 +141,8 @@ void Pcsx2App::OpenProgramLog()
 	for( int li=wxLANGUAGE_UNKNOWN+1; li<wxLANGUAGE_USER_DEFINED; ++li )
 	{
 		if (const wxLanguageInfo* info = wxLocale::GetLanguageInfo( li ))
-		{			
-			if (i18n_IsLegacyLanguageId((wxLanguage)info->Language)) continue;			
+		{
+			if (i18n_IsLegacyLanguageId((wxLanguage)info->Language)) continue;
 			Console.WriteLn( L"|| %-30s || %-8s ||", info->Description.c_str(), info->CanonicalName.c_str() );
 		}
 	}
@@ -151,7 +157,8 @@ void Pcsx2App::AllocateCoreStuffs()
 	SysLogMachineCaps();
 	AppApplySettings();
 
-	GetVmReserve().ReserveAll();
+	if (!GetVmReserve().Allocate())
+		pxFailRel("Failed to allocate memory.");
 
 	if (!m_CpuProviders)
 	{
@@ -159,55 +166,6 @@ void Pcsx2App::AllocateCoreStuffs()
 		// so that the thread is safely blocked from being able to start emulation.
 
 		m_CpuProviders = std::make_unique<SysCpuProviderPack>();
-
-		if (m_CpuProviders->HadSomeFailures(g_Conf->EmuOptions.Cpu.Recompiler))
-		{
-			// HadSomeFailures only returns 'true' if an *enabled* cpu type fails to init.  If
-			// the user already has all interps configured, for example, then no point in
-			// popping up this dialog.
-
-			wxDialogWithHelpers exconf(NULL, _("PCSX2 Recompiler Error(s)"));
-
-			wxTextCtrl* scrollableTextArea = new wxTextCtrl(
-				&exconf, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize,
-				wxTE_READONLY | wxTE_MULTILINE | wxTE_WORDWRAP);
-
-			exconf += 12;
-			exconf += exconf.Heading(pxE(L"Warning: Some of the configured PS2 recompilers failed to initialize and have been disabled:"));
-
-			exconf += 6;
-			exconf += scrollableTextArea | pxExpand.Border(wxALL, 16);
-
-			Pcsx2Config::RecompilerOptions& recOps = g_Conf->EmuOptions.Cpu.Recompiler;
-
-			if (BaseException* ex = m_CpuProviders->GetException_EE())
-			{
-				scrollableTextArea->AppendText(StringUtil::UTF8StringToWxString("* R5900 (EE)\n\t" + ex->FormatDisplayMessage() + "\n\n"));
-				recOps.EnableEE = false;
-			}
-
-			if (BaseException* ex = m_CpuProviders->GetException_IOP())
-			{
-				scrollableTextArea->AppendText(StringUtil::UTF8StringToWxString("* R3000A (IOP)\n\t" + ex->FormatDisplayMessage() + "\n\n"));
-				recOps.EnableIOP = false;
-			}
-
-			if (BaseException* ex = m_CpuProviders->GetException_MicroVU0())
-			{
-				scrollableTextArea->AppendText(StringUtil::UTF8StringToWxString("* microVU0\n\t" + ex->FormatDisplayMessage() + "\n\n"));
-				recOps.EnableVU0 = false;
-			}
-
-			if (BaseException* ex = m_CpuProviders->GetException_MicroVU1())
-			{
-				scrollableTextArea->AppendText(StringUtil::UTF8StringToWxString("* microVU1\n\t" + ex->FormatDisplayMessage() + "\n\n"));
-				recOps.EnableVU1 = false;
-			}
-
-			exconf += exconf.Heading(pxE(L"Note: Recompilers are not necessary for PCSX2 to run, however they typically improve emulation speed substantially. You may have to manually re-enable the recompilers listed above, if you resolve the errors."));
-
-			pxIssueConfirmation(exconf, MsgButtons().OK());
-		}
 	}
 }
 
@@ -383,6 +341,7 @@ typedef void (wxEvtHandler::*pxStuckThreadEventHandler)(pxMessageBoxEvent&);
 
 bool Pcsx2App::OnInit()
 {
+	HookSignals();
 	EnableAllLogging();
 	Console.WriteLn("Interface is initializing.  Entering Pcsx2App::OnInit!");
 
@@ -501,12 +460,6 @@ bool Pcsx2App::OnInit()
 	catch (Exception::StartupAborted& ex) // user-aborted, no popups needed.
 	{
 		Console.Warning(ex.FormatDiagnosticMessage());
-		CleanupOnExit();
-		return false;
-	}
-	catch (Exception::HardwareDeficiency& ex)
-	{
-		Msgbox::Alert(StringUtil::UTF8StringToWxString(ex.FormatDisplayMessage()) + L"\n\n" + AddAppName(_("Press OK to close %s.")), _("PCSX2 Error: Hardware Deficiency."));
 		CleanupOnExit();
 		return false;
 	}
@@ -677,6 +630,10 @@ protected:
 
 Pcsx2App::Pcsx2App()
 	: SysExecutorThread(new SysEvtHandler())
+	, m_id_MainFrame(wxID_ANY)
+	, m_id_GsFrame(wxID_ANY)
+	, m_id_ProgramLogBox(wxID_ANY)
+	, m_id_Disassembler(wxID_ANY)
 {
 // Warning: Do not delete this comment block! Gettext will parse it to allow
 // the translation of some wxWidget internal strings. -- greg
@@ -717,10 +674,6 @@ Pcsx2App::Pcsx2App()
 	m_UseGUI = true;
 	m_NoGuiExitPrompt = true;
 
-	m_id_MainFrame = wxID_ANY;
-	m_id_GsFrame = wxID_ANY;
-	m_id_ProgramLogBox = wxID_ANY;
-	m_id_Disassembler = wxID_ANY;
 	m_ptr_ProgramLog = NULL;
 
 	SetAppName(L"PCSX2");

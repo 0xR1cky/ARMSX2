@@ -20,9 +20,12 @@
 
 static int findmax(int tl, int br, int limit, int wm, int minuv, int maxuv)
 {
-	// return max possible texcoord
-
+	// return max possible texcoord.
 	int uv = br;
+
+	// Confirmed on hardware if the size exceeds 1024, it basically gets masked so you end up with a 1x1 pixel (Except Region Clamp).
+	if (limit > 1024)
+		limit = 0;
 
 	if (wm == CLAMP_CLAMP)
 	{
@@ -45,10 +48,12 @@ static int findmax(int tl, int br, int limit, int wm, int minuv, int maxuv)
 	}
 	else if (wm == CLAMP_REGION_REPEAT)
 	{
+		// REGION_REPEAT adhears to the original texture size, even if offset outside the texture (with MAXUV).
+		minuv &= limit;
 		if (tl < 0)
-			uv = minuv | maxuv; // wrap around, just use (any & mask) | fix
+			uv = minuv | maxuv; // wrap around, just use (any & mask) | fix.
 		else
-			uv = std::min(uv, minuv) | maxuv; // (any & mask) cannot be larger than mask, select br if that is smaller (not br & mask because there might be a larger value between tl and br when &'ed with the mask)
+			uv = std::min(uv, minuv) | maxuv; // (any & mask) cannot be larger than mask, select br if that is smaller (not br & mask because there might be a larger value between tl and br when &'ed with the mask).
 	}
 
 	return uv;
@@ -74,7 +79,7 @@ static int extend(int uv, int size)
 	return size;
 }
 
-GIFRegTEX0 GSDrawingContext::GetSizeFixedTEX0(const GSVector4& st, bool linear, bool mipmap)
+GIFRegTEX0 GSDrawingContext::GetSizeFixedTEX0(const GSVector4& st, bool linear, bool mipmap) const
 {
 	if (mipmap)
 		return TEX0; // no mipmaping allowed
@@ -120,7 +125,12 @@ GIFRegTEX0 GSDrawingContext::GetSizeFixedTEX0(const GSVector4& st, bool linear, 
 		th = extend(uv.y, th);
 	}
 
-	if (GSConfig.Renderer == GSRendererType::SW && ((int)TEX0.TW != tw || (int)TEX0.TH != th))
+	GIFRegTEX0 res = TEX0;
+
+	res.TW = tw > 10 ? 0 : tw;
+	res.TH = th > 10 ? 0 : th;
+
+	if (GSConfig.Renderer == GSRendererType::SW && (TEX0.TW != res.TW || TEX0.TH != res.TH))
 	{
 		GL_DBG("FixedTEX0 %05x %d %d tw %d=>%d th %d=>%d st (%.0f,%.0f,%.0f,%.0f) uvmax %d,%d wm %d,%d (%d,%d,%d,%d)",
 			(int)TEX0.TBP0, (int)TEX0.TBW, (int)TEX0.PSM,
@@ -130,11 +140,6 @@ GIFRegTEX0 GSDrawingContext::GetSizeFixedTEX0(const GSVector4& st, bool linear, 
 			wms, wmt, minu, maxu, minv, maxv);
 	}
 
-	GIFRegTEX0 res = TEX0;
-
-	res.TW = tw;
-	res.TH = th;
-
 	return res;
 }
 
@@ -142,7 +147,6 @@ void GSDrawingContext::ComputeFixedTEX0(const GSVector4& st)
 {
 	// It is quite complex to handle rescaling so this function is less stricter than GetSizeFixedTEX0,
 	// therefore we remove the reduce optimization and we don't handle bilinear filtering which might create wrong interpolation at the border.
-
 	int tw = TEX0.TW;
 	int th = TEX0.TH;
 
@@ -154,16 +158,25 @@ void GSDrawingContext::ComputeFixedTEX0(const GSVector4& st)
 	int maxu = (int)CLAMP.MAXU;
 	int maxv = (int)CLAMP.MAXV;
 
+	if (wms != CLAMP_REGION_CLAMP)
+		tw = tw > 10 ? 0 : tw;
+
+	if (wmt != CLAMP_REGION_CLAMP)
+		th = th > 10 ? 0 : th;
+
 	GSVector4i uv = GSVector4i(st.floor().xyzw(st.ceil()));
 
-	uv.x = findmax(uv.x, uv.z, (1 << TEX0.TW) - 1, wms, minu, maxu);
-	uv.y = findmax(uv.y, uv.w, (1 << TEX0.TH) - 1, wmt, minv, maxv);
+	uv.x = findmax(uv.x, uv.z, (1 << tw) - 1, wms, minu, maxu);
+	uv.y = findmax(uv.y, uv.w, (1 << th) - 1, wmt, minv, maxv);
 
 	if (wms == CLAMP_REGION_CLAMP || wms == CLAMP_REGION_REPEAT)
 		tw = extend(uv.x, tw);
 
 	if (wmt == CLAMP_REGION_CLAMP || wmt == CLAMP_REGION_REPEAT)
 		th = extend(uv.y, th);
+
+	tw = std::clamp<int>(tw, 0, 10);
+	th = std::clamp<int>(th, 0, 10);
 
 	if ((tw != (int)TEX0.TW) || (th != (int)TEX0.TH))
 	{

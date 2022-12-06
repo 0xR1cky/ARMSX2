@@ -836,17 +836,15 @@ struct QueryInfo
 
 s32 PADinit()
 {
-	const u32 flags = 3;
 	// Note:  Won't load settings if already loaded.
 	if (LoadSettings() < 0)
 	{
 		return -1;
 	}
-	int port = (flags & 3);
 
 	for (int i = 2; i > 0; i--)
 	{
-		port = i;
+		int port = i;
 		port--;
 
 		for (int slot = 0; slot < 4; slot++)
@@ -1057,21 +1055,26 @@ void PADclose()
 	}
 }
 
-u8 PADstartPoll(int port)
+bool PADcomplete()
+{
+	return query.queryDone;
+}
+
+u8 PADstartPoll(int port, int slot)
 {
 	DEBUG_NEW_SET();
-	port--;
-	if ((unsigned int)port <= 1 && pads[port][slots[port]].enabled)
+	
+	if ((unsigned int)port <= 1 && pads[port][slot].enabled)
 	{
 		query.queryDone = 0;
 		query.port = port;
-		query.slot = slots[port];
+		query.slot = slot;
 		query.numBytes = 2;
 		query.lastByte = 0;
 		DEBUG_IN(port);
 		DEBUG_OUT(0xFF);
-		DEBUG_IN(slots[port]);
-		DEBUG_OUT(pads[port][slots[port]].enabled);
+		DEBUG_IN(slot);
+		DEBUG_OUT(pads[port][slot].enabled);
 		return 0xFF;
 	}
 	else

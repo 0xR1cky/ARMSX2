@@ -1,6 +1,6 @@
 /*  PCSX2 - PS2 Emulator for PCs
  *  Copyright (C) 2002-2010  PCSX2 Dev Team
- * 
+ *
  *  PCSX2 is free software: you can redistribute it and/or modify it under the terms
  *  of the GNU Lesser General Public License as published by the Free Software Found-
  *  ation, either version 3 of the License, or (at your option) any later version.
@@ -125,7 +125,8 @@ void mVUDTendProgram(mV, microFlagCycles* mFC, int isEbit)
 		xMOVAPS(ptr128[&mVU.regs().micro_statusflags], xmmT1);
 	}
 
-	xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
+	if (EmuConfig.Gamefixes.VUSyncHack || EmuConfig.Gamefixes.FullVU0SyncHack)
+		xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
 
 
 	xMOV(ptr32[&mVU.regs().VI[REG_TPC].UL], xPC);
@@ -251,7 +252,8 @@ void mVUendProgram(mV, microFlagCycles* mFC, int isEbit)
 
 	if ((isEbit && isEbit != 3)) // Clear 'is busy' Flags
 	{
-		xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
+		if (EmuConfig.Gamefixes.VUSyncHack || EmuConfig.Gamefixes.FullVU0SyncHack)
+			xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
 		if (!mVU.index || !THREAD_VU1)
 		{
 			xAND(ptr32[&VU0.VI[REG_VPU_STAT].UL], (isVU1 ? ~0x100 : ~0x001)); // VBS0/VBS1 flag
@@ -259,7 +261,8 @@ void mVUendProgram(mV, microFlagCycles* mFC, int isEbit)
 	}
 	else if(isEbit)
 	{
-		xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
+		if (EmuConfig.Gamefixes.VUSyncHack || EmuConfig.Gamefixes.FullVU0SyncHack)
+			xMOV(ptr32[&mVU.regs().nextBlockCycles], 0);
 	}
 
 	if (isEbit != 2 && isEbit != 3) // Save PC, and Jump to Exit Point

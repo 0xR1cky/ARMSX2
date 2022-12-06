@@ -9,14 +9,12 @@ else
 fi
 INSTALLDIR="$HOME/deps"
 NPROCS="$(getconf _NPROCESSORS_ONLN)"
-SDL=SDL2-2.0.22
+SDL=SDL2-2.26.0
 PNG=1.6.37
 JPG=9e
-SAMPLERATE=libsamplerate-0.1.9
-PORTAUDIO=pa_stable_v190700_20210406
 SOUNDTOUCH=soundtouch-2.3.1
 WXWIDGETS=3.1.6
-QT=6.2.4
+QT=6.3.1
 
 mkdir deps-build
 cd deps-build
@@ -27,25 +25,21 @@ export CFLAGS="-I$INSTALLDIR/include -Os $CFLAGS"
 export CXXFLAGS="-I$INSTALLDIR/include -Os $CXXFLAGS"
 
 cat > SHASUMS <<EOF
-fe7cbf3127882e3fc7259a75a0cb585620272c51745d3852ab9dd87960697f2e  $SDL.tar.gz
+8000d7169febce93c84b6bdf376631f8179132fd69f7015d4dadb8b9c2bdb295  $SDL.tar.gz
 505e70834d35383537b6491e7ae8641f1a4bed1876dbfe361201fc80868d88ca  libpng-$PNG.tar.xz
 4077d6a6a75aeb01884f708919d25934c93305e49f7e3f36db9129320e6f4f3d  jpegsrc.v$JPG.tar.gz
-0a7eb168e2f21353fb6d84da152e4512126f7dc48ccb0be80578c565413444c1  $SAMPLERATE.tar.gz
-47efbf42c77c19a05d22e627d42873e991ec0c1357219c0d74ce6a2948cb2def  $PORTAUDIO.tgz
 6900996607258496ce126924a19fe9d598af9d892cf3f33d1e4daaa9b42ae0b1  $SOUNDTOUCH.tar.gz
 4980e86c6494adcd527a41fc0a4e436777ba41d1893717d7b7176c59c2061c25  wxWidgets-$WXWIDGETS.tar.bz2
-d9924d6fd4fa5f8e24458c87f73ef3dfc1e7c9b877a5407c040d89e6736e2634  qtbase-everywhere-src-$QT.tar.xz
-23ec4c14259d799bb6aaf1a07559d6b1bd2cf6d0da3ac439221ebf9e46ff3fd2  qtsvg-everywhere-src-$QT.tar.xz
-17f40689c4a1706a1b7db22fa92f6ab79f7b698a89e100cab4d10e19335f8267  qttools-everywhere-src-$QT.tar.xz
-bd1aac74a892c60b2f147b6d53bb5b55ab7a6409e63097d38198933f8024fa51  qttranslations-everywhere-src-$QT.tar.xz
+0a64421d9c2469c2c48490a032ab91d547017c9cc171f3f8070bc31888f24e03  qtbase-everywhere-src-$QT.tar.xz
+7b19f418e6f7b8e23344082dd04440aacf5da23c5a73980ba22ae4eba4f87df7  qtsvg-everywhere-src-$QT.tar.xz
+c412750f2aa3beb93fce5f30517c607f55daaeb7d0407af206a8adf917e126c1  qttools-everywhere-src-$QT.tar.xz
+d7bdd55e2908ded901dcc262157100af2a490bf04d31e32995f6d91d78dfdb97  qttranslations-everywhere-src-$QT.tar.xz
 EOF
 
 curl -L \
 	-O "https://libsdl.org/release/$SDL.tar.gz" \
 	-O "https://downloads.sourceforge.net/project/libpng/libpng16/$PNG/libpng-$PNG.tar.xz" \
 	-O "https://www.ijg.org/files/jpegsrc.v$JPG.tar.gz" \
-	-O "http://www.mega-nerd.com/SRC/$SAMPLERATE.tar.gz" \
-	-O "http://files.portaudio.com/archives/$PORTAUDIO.tgz" \
 	-O "https://www.surina.net/soundtouch/$SOUNDTOUCH.tar.gz" \
 	-O "https://github.com/wxWidgets/wxWidgets/releases/download/v$WXWIDGETS/wxWidgets-$WXWIDGETS.tar.bz2" \
 	-O "https://download.qt.io/official_releases/qt/${QT%.*}/$QT/submodules/qtbase-everywhere-src-$QT.tar.xz" \
@@ -79,23 +73,6 @@ make "-j$NPROCS"
 make install
 cd ..
 
-echo "Installing libsamplerate..."
-tar xf "$SAMPLERATE.tar.gz"
-cd "$SAMPLERATE"
-sed -i "" "s/Carbon.h/Carbon\\/Carbon.h/" examples/audio_out.c
-./configure --prefix "$INSTALLDIR" --disable-dependency-tracking --disable-sndfile
-make "-j$NPROCS"
-make install
-cd ..
-
-echo "Installing portaudio..."
-tar xf "$PORTAUDIO.tgz"
-cd portaudio
-./configure --prefix "$INSTALLDIR" --enable-mac-universal=no
-make "-j$NPROCS"
-make install
-cd ..
-
 echo "Installing soundtouch..."
 tar xf "$SOUNDTOUCH.tar.gz"
 cd "$SOUNDTOUCH"
@@ -118,7 +95,7 @@ if [ "$GUI" == "Qt" ]; then
 	echo "Installing Qt Base..."
 	tar xf "qtbase-everywhere-src-$QT.tar.xz"
 	cd "qtbase-everywhere-src-$QT"
-	cmake -B build -DCMAKE_PREFIX_PATH="$INSTALLDIR" -DCMAKE_INSTALL_PREFIX="$INSTALLDIR" -DCMAKE_BUILD_TYPE=Release -DFEATURE_optimize_size=ON -DFEATURE_dbus=OFF -DFEATURE_framework=OFF -DFEATURE_icu=OFF -DFEATURE_opengl=OFF -DFEATURE_printsupport=OFF -DFEATURE_sql=OFF
+	cmake -B build -DCMAKE_PREFIX_PATH="$INSTALLDIR" -DCMAKE_INSTALL_PREFIX="$INSTALLDIR" -DCMAKE_BUILD_TYPE=Release -DFEATURE_optimize_size=ON -DFEATURE_dbus=OFF -DFEATURE_framework=OFF -DFEATURE_icu=OFF -DFEATURE_opengl=OFF -DFEATURE_printsupport=OFF -DFEATURE_sql=OFF -DFEATURE_gssapi=OFF
 	make -C build "-j$NPROCS"
 	make -C build install
 	cd ..

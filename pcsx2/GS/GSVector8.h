@@ -15,8 +15,6 @@
 
 #include <cassert>
 
-#if _M_SSE >= 0x500
-
 class alignas(32) GSVector8
 {
 	struct cxpr_init_tag {};
@@ -53,7 +51,9 @@ public:
 		u16 U16[16];
 		u32 U32[8];
 		u64 U64[4];
+#if _M_SSE >= 0x500
 		__m256 m;
+#endif
 		__m128 m0, m1;
 	};
 
@@ -104,6 +104,8 @@ public:
 		return GSVector8(cxpr_init, x, x, x, x);
 	}
 
+#if _M_SSE >= 0x500
+
 	__forceinline GSVector8(float x0, float y0, float z0, float w0, float x1, float y1, float z1, float w1)
 	{
 		m = _mm256_set_ps(w1, z1, y1, x1, w0, z0, y0, x0);
@@ -116,8 +118,8 @@ public:
 
 	__forceinline GSVector8(__m128 m0, __m128 m1)
 	{
-#if 0 // _MSC_VER >= 1700 
-		
+#if 0 // _MSC_VER >= 1700
+
 		this->m = _mm256_permute2f128_ps(_mm256_castps128_ps256(m0), _mm256_castps128_ps256(m1), 0x20);
 
 #else
@@ -948,6 +950,5 @@ public:
 	// TODO: v.(x0|y0|z0|w0|x1|y1|z1|w1) // broadcast element
 
 #endif
-};
-
 #endif
+};

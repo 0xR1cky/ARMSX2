@@ -17,8 +17,12 @@
 #include "GSDrawScanline.h"
 #include "GSTextureCacheSW.h"
 
+#if MULTI_ISA_COMPILE_ONCE
 // Lack of a better home
-std::unique_ptr<GSScanlineConstantData> g_const(new GSScanlineConstantData());
+constexpr GSScanlineConstantData g_const;
+#endif
+
+MULTI_ISA_UNSHARED_IMPL;
 
 GSDrawScanline::GSDrawScanline()
 	: m_sp_map("GSSetupPrim", &m_local)
@@ -131,10 +135,10 @@ void GSDrawScanline::CSetupPrim(const GSVertexSW* vertex, const u32* index, cons
 	constexpr int vlen = sizeof(VectorF) / sizeof(float);
 
 #if _M_SSE >= 0x501
-	const GSVector8* shift = (GSVector8*)g_const->m_shift_256b;
+	const GSVector8* shift = (GSVector8*)g_const.m_shift_256b;
 	const GSVector4 step_shift = GSVector4::broadcast32(&shift[0]);
 #else
-	const GSVector4* shift = (GSVector4*)g_const->m_shift_128b;
+	const GSVector4* shift = (GSVector4*)g_const.m_shift_128b;
 	const GSVector4 step_shift = shift[0];
 #endif
 
@@ -308,7 +312,7 @@ void GSDrawScanline::CDrawScanline(int pixels, int left, int top, const GSVertex
 	constexpr int vlen = sizeof(VectorF) / sizeof(float);
 
 #if _M_SSE < 0x501
-	const GSVector4i* const_test = (GSVector4i*)g_const->m_test_128b;
+	const GSVector4i* const_test = (GSVector4i*)g_const.m_test_128b;
 #endif
 	VectorI test;
 	VectorF z0, z1;
@@ -328,7 +332,7 @@ void GSDrawScanline::CDrawScanline(int pixels, int left, int top, const GSVertex
 		steps = pixels + skip - vlen;
 		left -= skip;
 #if _M_SSE >= 0x501
-		test = GSVector8i::i8to32(g_const->m_test_256b[skip]) | GSVector8i::i8to32(g_const->m_test_256b[15 + (steps & (steps >> 31))]);
+		test = GSVector8i::i8to32(g_const.m_test_256b[skip]) | GSVector8i::i8to32(g_const.m_test_256b[15 + (steps & (steps >> 31))]);
 #else
 		test = const_test[skip] | const_test[7 + (steps & (steps >> 31))];
 #endif
@@ -357,18 +361,14 @@ void GSDrawScanline::CDrawScanline(int pixels, int left, int top, const GSVertex
 
 		if (sel.zb)
 		{
-			VectorF zbase = VectorF::broadcast64(&scan.p.z);
 			if (sel.zequal)
 			{
-#if _M_SSE >= 0x501
-				z0 = GSVector8::cast(GSVector8i::broadcast32(zbase.extract<0>().f64toi32()));
-#else
-				z0 = GSVector4::cast(zbase.f64toi32());
-				z0 = z0.upld(z0);
-#endif
+				u32 z = static_cast<u32>(scan.p.F64[1]);
+				z0 = VectorF::cast(VectorI(z));
 			}
 			else
 			{
+				VectorF zbase = VectorF::broadcast64(&scan.p.z);
 				z0 = zbase.add64(VectorF::f32to64(&local.d[skip].z.F32[0]));
 				z1 = zbase.add64(VectorF::f32to64(&local.d[skip].z.F32[vlen/2]));
 			}
@@ -1573,7 +1573,7 @@ void GSDrawScanline::CDrawScanline(int pixels, int left, int top, const GSVertex
 		if (!sel.notest)
 		{
 #if _M_SSE >= 0x501
-			test = GSVector8i::i8to32(g_const->m_test_256b[15 + (steps & (steps >> 31))]);
+			test = GSVector8i::i8to32(g_const.m_test_256b[15 + (steps & (steps >> 31))]);
 #else
 			test = const_test[7 + (steps & (steps >> 31))];
 #endif

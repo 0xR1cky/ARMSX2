@@ -45,7 +45,7 @@ class VU_Thread final {
 public:
 	alignas(16)  vifStruct        vif;
 	alignas(16)  VIFregisters     vifRegs;
-	Threading::KernelSemaphore semaXGkick;
+	Threading::UserspaceSemaphore semaXGkick;
 	std::atomic<unsigned int> vuCycles[4]; // Used for VU cycle stealing hack
 	u32 vuCycleIdx;  // Used for VU cycle stealing hack
 	u32 vuFBRST;
@@ -66,6 +66,7 @@ public:
 	~VU_Thread();
 
 	__fi const Threading::ThreadHandle& GetThreadHandle() const { return m_thread; }
+	__fi bool IsOpen() const { return m_thread.Joinable(); }
 
 	/// Ensures the VU thread is started.
 	void Open();
@@ -88,18 +89,18 @@ public:
 
 	void ExecuteVU(u32 vu_addr, u32 vif_top, u32 vif_itop, u32 fbrst);
 
-	void VifUnpack(vifStruct& _vif, VIFregisters& _vifRegs, u8* data, u32 size);
+	void VifUnpack(vifStruct& _vif, VIFregisters& _vifRegs, const u8* data, u32 size);
 
 	// Writes to VU's Micro Memory (size in bytes)
-	void WriteMicroMem(u32 vu_micro_addr, void* data, u32 size);
+	void WriteMicroMem(u32 vu_micro_addr, const void* data, u32 size);
 
 	// Writes to VU's Data Memory (size in bytes)
-	void WriteDataMem(u32 vu_data_addr, void* data, u32 size);
+	void WriteDataMem(u32 vu_data_addr, const void* data, u32 size);
 
 	void WriteVIRegs(REG_VI* viRegs);
 
 	void WriteVFRegs(VECTOR* vfRegs);
-	
+
 	void WriteCol(vifStruct& _vif);
 
 	void WriteRow(vifStruct& _vif);
@@ -123,7 +124,7 @@ private:
 	void ReadRegs(VIFregisters* dest);
 
 	void Write(u32 val);
-	void Write(void* src, u32 size);
+	void Write(const void* src, u32 size);
 	void WriteRegs(VIFregisters* src);
 
 	u32 Get_vuCycles();

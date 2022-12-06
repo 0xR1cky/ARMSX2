@@ -28,7 +28,6 @@
 
 #include "pcsx2/GS/GSIntrin.h" // _BitScanForward
 
-#include "EmuThread.h"
 #include "QtHost.h"
 #include "QtUtils.h"
 #include "Settings/ControllerSettingsDialog.h"
@@ -139,7 +138,7 @@ bool InputBindingWidget::eventFilter(QObject* watched, QEvent* event)
 		if (dx != 0.0f)
 		{
 			InputBindingKey key(InputManager::MakePointerAxisKey(0, InputPointerAxis::WheelX));
-			key.negative = (dx < 0.0f);
+			key.modifier = dx < 0.0f ? InputModifier::Negate : InputModifier::None;
 			m_new_bindings.push_back(key);
 		}
 
@@ -147,7 +146,7 @@ bool InputBindingWidget::eventFilter(QObject* watched, QEvent* event)
 		if (dy != 0.0f)
 		{
 			InputBindingKey key(InputManager::MakePointerAxisKey(0, InputPointerAxis::WheelY));
-			key.negative = (dy < 0.0f);
+			key.modifier = dy < 0.0f ? InputModifier::Negate : InputModifier::None;
 			m_new_bindings.push_back(key);
 		}
 
@@ -170,14 +169,14 @@ bool InputBindingWidget::eventFilter(QObject* watched, QEvent* event)
 		if (std::abs(diff.x()) >= THRESHOLD)
 		{
 			InputBindingKey key(InputManager::MakePointerAxisKey(0, InputPointerAxis::X));
-			key.negative = (diff.x() < 0);
+			key.modifier = diff.x() < 0 ? InputModifier::Negate : InputModifier::None;
 			m_new_bindings.push_back(key);
 			has_one = true;
 		}
 		if (std::abs(diff.y()) >= THRESHOLD)
 		{
 			InputBindingKey key(InputManager::MakePointerAxisKey(0, InputPointerAxis::Y));
-			key.negative = (diff.y() < 0);
+			key.modifier = diff.y() < 0 ? InputModifier::Negate : InputModifier::None;
 			m_new_bindings.push_back(key);
 			has_one = true;
 		}
@@ -236,7 +235,8 @@ void InputBindingWidget::setNewBinding()
 		}
 		else
 		{
-			QtHost::SetBaseStringSettingValue(m_section_name.c_str(), m_key_name.c_str(), new_binding.c_str());
+			Host::SetBaseStringSettingValue(m_section_name.c_str(), m_key_name.c_str(), new_binding.c_str());
+			Host::CommitBaseSettingChanges();
 			g_emu_thread->reloadInputBindings();
 		}
 	}
@@ -256,7 +256,8 @@ void InputBindingWidget::clearBinding()
 	}
 	else
 	{
-		QtHost::RemoveBaseSettingValue(m_section_name.c_str(), m_key_name.c_str());
+		Host::RemoveBaseSettingValue(m_section_name.c_str(), m_key_name.c_str());
+		Host::CommitBaseSettingChanges();
 		g_emu_thread->reloadInputBindings();
 	}
 	reloadBinding();
@@ -356,7 +357,7 @@ void InputBindingWidget::inputManagerHookCallback(InputBindingKey key, float val
 	if (abs_value >= 0.5f)
 	{
 		InputBindingKey key_to_add = key;
-		key_to_add.negative = (value < 0.0f);
+		key_to_add.modifier = value < 0.0f ? InputModifier::Negate : InputModifier::None;
 		m_new_bindings.push_back(key_to_add);
 	}
 }
@@ -413,7 +414,8 @@ void InputVibrationBindingWidget::setKey(ControllerSettingsDialog* dialog, std::
 void InputVibrationBindingWidget::clearBinding()
 {
 	m_binding = {};
-	QtHost::RemoveBaseSettingValue(m_section_name.c_str(), m_key_name.c_str());
+	Host::RemoveBaseSettingValue(m_section_name.c_str(), m_key_name.c_str());
+	Host::CommitBaseSettingChanges();
 	g_emu_thread->reloadInputBindings();
 	setText(QString());
 }
@@ -448,7 +450,8 @@ void InputVibrationBindingWidget::onClicked()
 
 	const QString new_value(input_dialog.textValue());
 	m_binding = new_value.toStdString();
-	QtHost::SetBaseStringSettingValue(m_section_name.c_str(), m_key_name.c_str(), m_binding.c_str());
+	Host::SetBaseStringSettingValue(m_section_name.c_str(), m_key_name.c_str(), m_binding.c_str());
+	Host::CommitBaseSettingChanges();
 	setText(new_value);
 }
 

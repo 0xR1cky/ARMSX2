@@ -83,6 +83,8 @@ public:
 		INDEX_BUFFER_SIZE = 16 * 1024 * 1024,
 		VERTEX_UNIFORM_BUFFER_SIZE = 8 * 1024 * 1024,
 		FRAGMENT_UNIFORM_BUFFER_SIZE = 8 * 1024 * 1024,
+
+		NUM_CAS_PIPELINES = 2,
 	};
 	enum DATE_RENDER_PASS : u32
 	{
@@ -109,6 +111,7 @@ private:
 	VkBuffer m_readback_staging_buffer = VK_NULL_HANDLE;
 	void* m_readback_staging_buffer_map = nullptr;
 	u32 m_readback_staging_buffer_size = 0;
+	bool m_warned_slow_spin = false;
 
 	VkSampler m_point_sampler = VK_NULL_HANDLE;
 	VkSampler m_linear_sampler = VK_NULL_HANDLE;
@@ -119,7 +122,7 @@ private:
 	std::array<VkPipeline, static_cast<int>(PresentShader::Count)> m_present{};
 	std::array<VkPipeline, 16> m_color_copy{};
 	std::array<VkPipeline, 2> m_merge{};
-	std::array<VkPipeline, 4> m_interlace{};
+	std::array<VkPipeline, NUM_INTERLACE_SHADERS> m_interlace{};
 	VkPipeline m_hdr_setup_pipelines[2][2] = {}; // [depth][feedback_loop]
 	VkPipeline m_hdr_finish_pipelines[2][2] = {}; // [depth][feedback_loop]
 	VkRenderPass m_date_image_setup_render_passes[2][2] = {}; // [depth][clear]
@@ -143,6 +146,10 @@ private:
 
 	VkRenderPass m_tfx_render_pass[2][2][2][3][2][3][3] = {}; // [rt][ds][hdr][date][fbl][rt_op][ds_op]
 
+	VkDescriptorSetLayout m_cas_ds_layout = VK_NULL_HANDLE;
+	VkPipelineLayout m_cas_pipeline_layout = VK_NULL_HANDLE;
+	std::array<VkPipeline, NUM_CAS_PIPELINES> m_cas_pipelines = {};
+
 	GSHWDrawConfig::VSConstantBuffer m_vs_cb_cache;
 	GSHWDrawConfig::PSConstantBuffer m_ps_cb_cache;
 
@@ -154,9 +161,11 @@ private:
 
 	void DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE,
 		const GSRegEXTBUF& EXTBUF, const GSVector4& c) final;
-	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0) final;
+	void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset = 0, int bufIdx = 0) final;
 	void DoShadeBoost(GSTexture* sTex, GSTexture* dTex, const float params[4]) final;
 	void DoFXAA(GSTexture* sTex, GSTexture* dTex) final;
+
+	bool DoCAS(GSTexture* sTex, GSTexture* dTex, bool sharpen_only, const std::array<u32, NUM_CAS_CONSTANTS>& constants) final;
 
 	VkSampler GetSampler(GSHWDrawConfig::SamplerSelector ss);
 	void ClearSamplerCache() final;
@@ -181,6 +190,7 @@ private:
 	bool CompileInterlacePipelines();
 	bool CompileMergePipelines();
 	bool CompilePostProcessingPipelines();
+	bool CompileCASPipelines();
 
 	bool CheckStagingBufferSize(u32 required_size);
 	void DestroyStagingBuffer();
@@ -201,7 +211,7 @@ public:
 	__fi VkSampler GetPointSampler() const { return m_point_sampler; }
 	__fi VkSampler GetLinearSampler() const { return m_linear_sampler; }
 
-	bool Create(HostDisplay* display) override;
+	bool Create() override;
 	void Destroy() override;
 
 	void ResetAPIState() override;
@@ -260,7 +270,7 @@ public:
 
 	void RenderHW(GSHWDrawConfig& config) override;
 	void UpdateHWPipelineSelector(GSHWDrawConfig& config, PipelineSelector& pipe);
-	void SendHWDraw(const GSHWDrawConfig& config, GSTextureVK* draw_rt);
+	void SendHWDraw(const GSHWDrawConfig& config, GSTextureVK* draw_rt, bool skip_first_barrier);
 
 	//////////////////////////////////////////////////////////////////////////
 	// Vulkan State
@@ -273,7 +283,7 @@ public:
 	/// Ends any render pass, executes the command buffer, and invalidates cached state.
 	void ExecuteCommandBuffer(bool wait_for_completion);
 	void ExecuteCommandBuffer(bool wait_for_completion, const char* reason, ...);
-	void ExecuteCommandBufferAndRestartRenderPass(const char* reason);
+	void ExecuteCommandBufferAndRestartRenderPass(bool wait_for_completion, const char* reason);
 
 	/// Set dirty flags on everything to force re-bind at next draw time.
 	void InvalidateCachedState();

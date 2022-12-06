@@ -626,7 +626,7 @@ namespace R5900
 
 		const OPCODE& Class_SPECIAL(u32 op) { return tbl_Special[op & 0x3F]; }
 		const OPCODE& Class_REGIMM(u32 op)  { return tbl_RegImm[(op >> 16) & 0x1F]; }
-		
+
 		const OPCODE& Class_MMI(u32 op)  { return tbl_MMI[op & 0x3F]; }
 		const OPCODE& Class_MMI0(u32 op) { return tbl_MMI0[(op >> 6) & 0x1F]; }
 		const OPCODE& Class_MMI1(u32 op) { return tbl_MMI1[(op >> 6) & 0x1F]; }
@@ -634,7 +634,7 @@ namespace R5900
 		const OPCODE& Class_MMI3(u32 op) { return tbl_MMI3[(op >> 6) & 0x1F]; }
 
 		const OPCODE& Class_COP0(u32 op) { return tbl_COP0[(op >> 21) & 0x1F]; }
-		const OPCODE& Class_COP0_BC0(u32 op) { return tbl_COP0_BC0[(cpuRegs.code >> 16) & 0x03]; }
+		const OPCODE& Class_COP0_BC0(u32 op) { return tbl_COP0_BC0[(op >> 16) & 0x03]; }
 		const OPCODE& Class_COP0_C0(u32 op) { return tbl_COP0_C0[op & 0x3F]; }
 
 		const OPCODE& Class_COP1(u32 op) { return tbl_COP1[(op >> 21) & 0x1F]; }

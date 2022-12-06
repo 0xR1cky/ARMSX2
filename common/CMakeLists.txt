@@ -19,16 +19,22 @@ target_sources(common PRIVATE
 	Exceptions.cpp
 	FastJmp.cpp
 	FileSystem.cpp
+	Image.cpp
+	HTTPDownloader.cpp
+	MemorySettingsInterface.cpp
 	Misc.cpp
 	MD5Digest.cpp
 	PrecompiledHeader.cpp
 	Perf.cpp
 	ProgressCallback.cpp
+	ReadbackSpinManager.cpp
 	Semaphore.cpp
 	SettingsWrapper.cpp
 	StringUtil.cpp
 	Timer.cpp
+	ThreadPool.cpp
 	WindowInfo.cpp
+	emitter/avx.cpp
 	emitter/bmi.cpp
 	emitter/cpudetect.cpp
 	emitter/fpu.cpp
@@ -60,6 +66,7 @@ target_sources(common PRIVATE
 	boost_spsc_queue.hpp
 	Console.h
 	CrashHandler.h
+	Easing.h
 	EnumOps.h
 	EventSource.h
 	Exceptions.h
@@ -67,7 +74,12 @@ target_sources(common PRIVATE
 	FileSystem.h
 	General.h
 	HashCombine.h
+	HeterogeneousContainers.h
+	Image.h
+	LRUCache.h
+	HTTPDownloader.h
 	MemcpyFast.h
+	MemorySettingsInterface.h
 	MemsetFast.inl
 	MD5Digest.h
 	MRCHelpers.h
@@ -75,6 +87,7 @@ target_sources(common PRIVATE
 	PageFaultSource.h
 	PrecompiledHeader.h
 	ProgressCallback.h
+	ReadbackSpinManager.h
 	RedtapeWindows.h
 	SafeArray.h
 	ScopedGuard.h
@@ -83,6 +96,7 @@ target_sources(common PRIVATE
 	StringUtil.h
 	Timer.h
 	Threading.h
+	ThreadPool.h
 	TraceLog.h
 	WindowInfo.h
 	emitter/cpudetect_internal.h
@@ -163,11 +177,13 @@ endif()
 if(WIN32)
 	enable_language(ASM_MASM)
 	target_sources(common PRIVATE FastJmp.asm)
-	target_link_libraries(common PUBLIC WIL::WIL D3D12MemAlloc Winmm.lib)
+	target_link_libraries(common PUBLIC WIL::WIL D3D12MemAlloc winmm)
 	target_sources(common PRIVATE
 		CrashHandler.cpp
 		CrashHandler.h
 		FastJmp.asm
+		HTTPDownloaderWinHTTP.cpp
+		HTTPDownloaderWinHTTP.h
 		StackWalker.cpp
 		StackWalker.h
 		D3D11/ShaderCache.cpp
@@ -261,12 +277,24 @@ if (USE_GCC AND CMAKE_INTERPROCEDURAL_OPTIMIZATION)
 	set_source_files_properties(FastJmp.cpp PROPERTIES COMPILE_FLAGS -fno-lto)
 endif()
 
+if(NOT WIN32 AND (QT_BUILD OR NOGUI_BUILD))
+	# libcurl-based HTTPDownloader
+	target_sources(common PRIVATE
+		HTTPDownloaderCurl.cpp
+		HTTPDownloaderCurl.h
+	)
+	target_link_libraries(common PRIVATE CURL::libcurl)
+endif()
+
 target_link_libraries(common PRIVATE
 	${LIBC_LIBRARIES}
+	PNG::PNG
+	jpgd
 )
 
 target_link_libraries(common PUBLIC
 	fmt::fmt
+	fast_float
 )
 
 fixup_file_properties(common)

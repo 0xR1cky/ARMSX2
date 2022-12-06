@@ -46,12 +46,6 @@ namespace Exception
 	public:
 		explicit CancelInstruction() { }
 	};
-
-	class FailedToAllocateRegister
-	{
-	public:
-		explicit FailedToAllocateRegister() { }
-	};
 }
 
 // --------------------------------------------------------------------------------------
@@ -174,6 +168,14 @@ struct cpuRegisters {
 	int branch;
 	int opmode;			// operating mode
 	u32 tempcycles;
+	u32 dmastall;
+	u32 pcWriteback;
+
+	// if cpuRegs.cycle is greater than this cycle, should check cpuEventTest for updates
+	u32 nextEventCycle;
+	u32 lastEventCycle;
+	u32 lastCOP0Cycle;
+	u32 lastPERFCycle[2];
 };
 
 // used for optimization
@@ -259,11 +261,7 @@ alignas(16) extern cpuRegisters cpuRegs;
 alignas(16) extern fpuRegisters fpuRegs;
 alignas(16) extern tlbs tlb[48];
 
-extern u32 g_nextEventCycle;
-extern u32 g_lastEventCycle;
 extern bool eeEventTestIsActive;
-extern u32 s_iLastCOP0Cycle;
-extern u32 s_iLastPERFCycle[2];
 
 void intSetBranch();
 
@@ -294,7 +292,7 @@ struct R5900cpu
 	// the virtual cpu provider.  Allocating additional heap memory from this method is
 	// NOT recommended.  Heap allocations should be performed by Reset only.  This
 	// maximizes the likeliness of reservations claiming addresses they prefer.
-	// 
+	//
 	// Thread Affinity:
 	//   Called from the main/UI thread only.  Cpu execution status is guaranteed to
 	//   be inactive.  No locking is necessary.
@@ -344,7 +342,7 @@ struct R5900cpu
 	// call to return at the nearest state check (typically handled internally using
 	// either C++ exceptions or setjmp/longjmp).
 	//
-	// Exception Throws: 
+	// Exception Throws:
 	//   Throws BaseR5900Exception and all derivatives.
 	//   Throws FileNotFound or other Streaming errors (typically related to BIOS MEC/NVM)
 	//
@@ -358,7 +356,7 @@ struct R5900cpu
 	// Safely throws host exceptions from executing code (either recompiled or interpreted).
 	// If this function is called outside the context of the CPU's code execution, then the
 	// given exception will be re-thrown automatically.
-	// 
+	//
 	// Exception Throws:
 	//   (SEH) Rethrows the given exception immediately.
 	//   (setjmp) Re-throws immediately if called from outside the context of dynamically
@@ -382,9 +380,6 @@ struct R5900cpu
 	//   doesn't matter if we're stripping it out soon. ;)
 	//
 	void (*Clear)(u32 Addr, u32 Size);
-	
-	uint (*GetCacheReserve)();
-	void (*SetCacheReserve)( uint reserveInMegs );
 };
 
 extern R5900cpu *Cpu;
@@ -411,14 +406,16 @@ enum EE_EventType
 	DMAC_STALL_SIS		= 13, // SIS
 	DMAC_MFIFO_EMPTY	= 14, // MEIS
 	DMAC_BUS_ERROR	= 15,      // BEIS
-	
+
 	DMAC_GIF_UNIT,
 	VIF_VU0_FINISH,
 	VIF_VU1_FINISH,
-	IPU_PROCESS
+	IPU_PROCESS,
+	VU_MTVU_BUSY
 };
 
 extern void CPU_INT( EE_EventType n, s32 ecycle );
+extern void CPU_SET_DMASTALL(EE_EventType n, bool set);
 extern uint intcInterrupt();
 extern uint dmacInterrupt();
 
@@ -435,6 +432,7 @@ extern void cpuSetNextEvent( u32 startCycle, s32 delta );
 extern void cpuSetNextEventDelta( s32 delta );
 extern int  cpuTestCycle( u32 startCycle, s32 delta );
 extern void cpuSetEvent();
+extern int cpuGetCycles(int interrupt);
 
 extern void _cpuEventTest_Shared();		// for internal use by the Dynarecs and Ints inside R5900:
 

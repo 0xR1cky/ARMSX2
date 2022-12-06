@@ -305,10 +305,6 @@ namespace Implementations
 		if (g_Conf->GSWindow.CloseOnEsc)
 		{
 			sMainFrame.SetFocus();
-			// Disable recording controls that only make sense if the game is running
-			sMainFrame.enableRecordingMenuItem(MenuId_Recording_FrameAdvance, false);
-			sMainFrame.enableRecordingMenuItem(MenuId_Recording_TogglePause, false);
-			sMainFrame.enableRecordingMenuItem(MenuId_Recording_ToggleRecordingMode, false);
 		}
 	}
 
@@ -419,38 +415,6 @@ namespace Implementations
 	{
 		if (GSFrame* gsframe = wxGetApp().GetGsFramePtr())
 			gsframe->ShowFullScreen(!gsframe->IsFullScreen());
-	}
-	void FrameAdvance()
-	{
-		if (g_Conf->EmuOptions.EnableRecordingTools)
-		{
-			g_InputRecordingControls.FrameAdvance();
-		}
-	}
-
-	void TogglePause()
-	{
-		if (g_Conf->EmuOptions.EnableRecordingTools)
-		{
-			g_InputRecordingControls.TogglePause();
-		}
-	}
-
-	void InputRecordingModeToggle()
-	{
-		if (g_Conf->EmuOptions.EnableRecordingTools)
-		{
-			g_InputRecordingControls.RecordModeToggle();
-		}
-	}
-
-	void GoToFirstFrame()
-	{
-		if (g_Conf->EmuOptions.EnableRecordingTools && g_InputRecording.IsActive())
-		{
-			// Assumes that gui is active, as you can't access recording options without it
-			g_InputRecording.GoToFirstFrame(GetMainFramePtr());
-		}
 	}
 
 	void States_SaveSlot(int slot)
@@ -730,11 +694,6 @@ static const GlobalCommandDescriptor CommandDeclarations[] =
 			false,
 		},
 
-		{"FrameAdvance", Implementations::FrameAdvance, NULL, NULL, false},
-		{"TogglePause", Implementations::TogglePause, NULL, NULL, false},
-		{"InputRecordingModeToggle", Implementations::InputRecordingModeToggle, NULL, NULL, false},
-		{"GoToFirstFrame", Implementations::GoToFirstFrame, NULL, NULL, false},
-
 		{"States_SaveSlot0", Implementations::States_SaveSlot0, NULL, NULL, false},
 		{"States_SaveSlot1", Implementations::States_SaveSlot1, NULL, NULL, false},
 		{"States_SaveSlot2", Implementations::States_SaveSlot2, NULL, NULL, false},
@@ -915,7 +874,7 @@ void Pcsx2App::InitDefaultGlobalAccelerators()
 	// At this early stage of startup, the application assumes installed mode, so portable mode custom keybindings may present issues.
 	// Relevant - https://github.com/PCSX2/pcsx2/blob/678829a5b2b8ca7a3e42d8edc9ab201bf00b0fe9/pcsx2/gui/AppInit.cpp#L479
 	// Compared to L990 of GlobalCommands.cpp which also does an init for the GlobalAccelerators.
-	// The idea was to have: Reading from the PCSX2_keys.ini in the ini folder based on PCSX2_keys.ini.default which get overridden. 
+	// The idea was to have: Reading from the PCSX2_keys.ini in the ini folder based on PCSX2_keys.ini.default which get overridden.
 	// We also need to make it easier to do custom hotkeys for both normal/portable PCSX2 in the GUI.
 	GlobalAccels->Map(AAC(WXK_TAB), "Framelimiter_TurboToggle");
 	GlobalAccels->Map(AAC(WXK_TAB).Shift(), "Framelimiter_SlomoToggle");

@@ -64,7 +64,7 @@ static __fi bool _add32_Overflow( s32 x, s32 y, s64 &ret )
 		cpuException(0x30, cpuRegs.branch);
 		return true;
 	}
-	
+
 	ret = result.SD[0];
 
 	return false;
@@ -201,7 +201,7 @@ static int __Deci2Call(int call, u32 *addr)
 				sprintf( reqaddr, "%x %x %x %x", addr[3], addr[2], addr[1], addr[0] );
 
 			if (!deci2addr) return 1;
-			
+
 			const u32* d2ptr = (u32*)PSM(deci2addr);
 
 			BIOS_LOG("deci2reqsend: %s: deci2addr: %x,%x,%x,buf=%x %x,%x,len=%x,%x",
@@ -667,7 +667,7 @@ void LD()
 	if( addr & 7 )
 		throw R5900Exception::AddressError( addr, false );
 
-	memRead64(addr, (u64*)gpr_GetWritePtr(_Rt_));
+	cpuRegs.GPR.r[_Rt_].UD[0] = memRead64(addr);
 }
 
 static const u64 LDL_MASK[8] =
@@ -688,8 +688,7 @@ void LDL()
 	u32 addr = cpuRegs.GPR.r[_Rs_].UL[0] + _Imm_;
 	u32 shift = addr & 7;
 
-	u64 mem;
-	memRead64(addr & ~7, &mem);
+	u64 mem = memRead64(addr & ~7);
 
 	if( !_Rt_ ) return;
 	cpuRegs.GPR.r[_Rt_].UD[0] =	(cpuRegs.GPR.r[_Rt_].UD[0] & LDL_MASK[shift]) |
@@ -701,8 +700,7 @@ void LDR()
 	u32 addr = cpuRegs.GPR.r[_Rs_].UL[0] + _Imm_;
 	u32 shift = addr & 7;
 
-	u64 mem;
-	memRead64(addr & ~7, &mem);
+	u64 mem = memRead64(addr & ~7);
 
 	if (!_Rt_) return;
 	cpuRegs.GPR.r[_Rt_].UD[0] =	(cpuRegs.GPR.r[_Rt_].UD[0] & LDR_MASK[shift]) |
@@ -798,7 +796,7 @@ void SD()
 	if( addr & 7 )
 		throw R5900Exception::AddressError( addr, true );
 
-    memWrite64(addr,&cpuRegs.GPR.r[_Rt_].UD[0]);
+    memWrite64(addr,cpuRegs.GPR.r[_Rt_].UD[0]);
 }
 
 static const u64 SDL_MASK[8] =
@@ -817,12 +815,10 @@ void SDL()
 {
 	u32 addr = cpuRegs.GPR.r[_Rs_].UL[0] + _Imm_;
 	u32 shift = addr & 7;
-	u64 mem;
-
-	memRead64(addr & ~7, &mem);
+	u64 mem = memRead64(addr & ~7);
 	mem = (cpuRegs.GPR.r[_Rt_].UD[0] >> SDL_SHIFT[shift]) |
 		  (mem & SDL_MASK[shift]);
-	memWrite64(addr & ~7, &mem);
+	memWrite64(addr & ~7, mem);
 }
 
 
@@ -830,12 +826,10 @@ void SDR()
 {
 	u32 addr = cpuRegs.GPR.r[_Rs_].UL[0] + _Imm_;
 	u32 shift = addr & 7;
-	u64 mem;
-
-	memRead64(addr & ~7, &mem);
+	u64 mem = memRead64(addr & ~7);
 	mem = (cpuRegs.GPR.r[_Rt_].UD[0] << SDR_SHIFT[shift]) |
 		  (mem & SDR_MASK[shift]);
-	memWrite64(addr & ~7, &mem );
+	memWrite64(addr & ~7, mem );
 }
 
 void SQ()
@@ -934,8 +928,12 @@ void SYSCALL()
 						case 0x53: mode = "SDTV   768x576 @ ??.???"; gsSetVideoMode(GS_VideoMode::SDTV_576P); break;
 						case 0x54: mode = "HDTV 1920x1080 @ ??.???"; gsSetVideoMode(GS_VideoMode::HDTV_1080P); break;
 
-						case 0x72: mode = "DVD NTSC 640x448 @ ??.???"; gsSetVideoMode(GS_VideoMode::DVD_NTSC); break;
-						case 0x73: mode = "DVD PAL 720x480 @ ??.???"; gsSetVideoMode(GS_VideoMode::DVD_PAL); break;
+						case 0x72:
+						case 0x82:
+							mode = "DVD NTSC 640x448 @ ??.???"; gsSetVideoMode(GS_VideoMode::DVD_NTSC); break;
+						case 0x73:
+						case 0x83:
+							mode = "DVD PAL 720x480 @ ??.???"; gsSetVideoMode(GS_VideoMode::DVD_PAL); break;
 
 						default:
 							DevCon.Error("Mode %x is not supported. Report me upstream", cpuRegs.GPR.n.a1.UC[0]);
@@ -952,7 +950,7 @@ void SYSCALL()
 			{
 				u32 memaddr = cpuRegs.GPR.n.a0.UL[0];
 				u8 params[16];
-			
+
 				cdvdReadLanguageParams(params);
 
 				u32 osdconf = 0;
@@ -979,7 +977,7 @@ void SYSCALL()
 
 				cdvdReadLanguageParams(params);
 
-				u32 osdconf2 = (u32)((params[3] & 0x78) << 1);  // Daylight Savings, 24hr clock, Date format
+				u32 osdconf2 = (((u32)params[3] & 0x78) << 9);  // Daylight Savings, 24hr clock, Date format
 
 				memWrite32(memaddr, osdconf2);
 				return;
@@ -1082,7 +1080,7 @@ void SYSCALL()
 
 				// Pretty much what this does is find instances of string arguments and remaps them.
 				// Instead of the addresse(s) being relative to the PS2 address space, make them relative to program memory.
-				// (This fixes issue #2865) 
+				// (This fixes issue #2865)
 				int curRegArg = 0;
 				for (int i = 0; 1; i++)
 				{
@@ -1113,7 +1111,7 @@ void SYSCALL()
 			}
 			break;
 		}
-		
+
 
 		default:
 			break;

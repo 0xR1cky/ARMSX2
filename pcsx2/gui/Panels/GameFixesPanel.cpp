@@ -67,6 +67,11 @@ Panels::GameFixesPanel::GameFixesPanel( wxWindow* parent )
 			)
 		},
 		{
+			_("Instant DMA hack. Try if all else fails."),
+			pxEt(L"Known to affect following games:\n * Fire Pro Wrestling Z (Bad ring graphics)"
+			)
+		},
+		{
 			_("Handle DMAC writes when it is busy."),
 			pxEt( L"Known to affect following games:\n * Mana Khemia 1 (Going \"off campus\"), Metal Saga (Intro FMV), Pilot Down Behind Enemy Lines\n"
 			)
@@ -174,9 +179,9 @@ void Panels::GameFixesPanel::ApplyConfigToGui( AppConfig& configToApply, int fla
 	const Pcsx2Config::GamefixOptions& opts( configToApply.EmuOptions.Gamefixes );
 	for (GamefixId i=GamefixId_FIRST; i < pxEnumEnd; ++i)
 		m_checkbox[i]->SetValue( opts.Get((GamefixId)i) );//apply the use/don't-use fix values
-	
+
 	m_check_Enable->SetValue( configToApply.EnableGameFixes );//main gamefixes checkbox
 	EnableStuff( &configToApply );// enable/disable the all the fixes controls according to the main one
-	
+
 	this->Enable(!configToApply.EnablePresets);
 }

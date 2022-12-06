@@ -18,6 +18,7 @@
 #include "GS/Renderers/Common/GSFunctionMap.h"
 #include "GSVertexSW.h"
 
+MULTI_ISA_UNSHARED_IMPL;
 using namespace Xbyak;
 
 // Ease the reading of the code
@@ -80,7 +81,7 @@ using namespace Xbyak;
 	#define _rip_local_d_p(x) _rip_local_d(x)
 #endif
 
-GSDrawScanlineCodeGenerator2::GSDrawScanlineCodeGenerator2(Xbyak::CodeGenerator* base, CPUInfo cpu, void* param, u64 key)
+GSDrawScanlineCodeGenerator2::GSDrawScanlineCodeGenerator2(Xbyak::CodeGenerator* base, const ProcessorFeatures& cpu, void* param, u64 key)
 	: _parent(base, cpu)
 	, m_local(*(GSScanlineLocalData*)param)
 	, m_rip(false)
@@ -95,7 +96,7 @@ GSDrawScanlineCodeGenerator2::GSDrawScanlineCodeGenerator2(Xbyak::CodeGenerator*
 	, t0(r8) , t1(r9)
 	, t2(rcx), t3(rsi)
 #endif
-	, _g_const(chooseLocal(&*g_const, _64_g_const))
+	, _g_const(chooseLocal(&g_const, _64_g_const))
 	, _m_local(chooseLocal(&m_local, _64_m_local))
 	, _m_local__gd(chooseLocal(m_local.gd, _64_m_local__gd))
 	, _m_local__gd__vm(chooseLocal(m_local.gd->vm, _64_m_local__gd__vm))
@@ -242,7 +243,7 @@ void GSDrawScanlineCodeGenerator2::alltrue(const XYm& test)
 	u32 mask = test.isYMM() ? 0xffffffff : 0xffff;
 	pmovmskb(eax, test);
 	cmp(eax, mask);
-	je("step", GSCodeGenerator::T_NEAR);
+	je("step", Xbyak::CodeGenerator::T_NEAR);
 }
 
 void GSDrawScanlineCodeGenerator2::blend(const XYm& a, const XYm& b, const XYm& mask)
@@ -366,7 +367,7 @@ void GSDrawScanlineCodeGenerator2::Generate()
 	mov(ptr[rsp + _64_rz_r14], r14);
 	mov(ptr[rsp + _64_rz_r15], r15);
 #endif
-	mov(_64_g_const, (size_t)&*g_const);
+	mov(_64_g_const, (size_t)&g_const);
 	if (!m_rip)
 	{
 		mov(_64_m_local, (size_t)&m_local);

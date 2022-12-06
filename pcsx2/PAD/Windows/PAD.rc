@@ -25,18 +25,18 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 // TEXTINCLUDE
 //
 
-1 TEXTINCLUDE 
+1 TEXTINCLUDE
 BEGIN
     "resource.h\0"
 END
 
-2 TEXTINCLUDE 
+2 TEXTINCLUDE
 BEGIN
     "#include <winres.h>\r\n"
     "\0"
 END
 
-3 TEXTINCLUDE 
+3 TEXTINCLUDE
 BEGIN
     "\r\n"
     "\0"
@@ -55,7 +55,7 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     CONTROL         "",IDC_BINDINGS_LIST,"SysListView32",LVS_REPORT | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_BORDER | WS_VSCROLL | WS_TABSTOP,7,7,183,237,WS_EX_CLIENTEDGE
-    // Input Bindings: 
+    // Input Bindings:
     PUSHBUTTON      "Select",ID_SELECT,328,34,34,15
     PUSHBUTTON      "Start",ID_START,366,34,34,15
     PUSHBUTTON      "Analog",ID_ANALOG,328,51,34,15
@@ -451,7 +451,7 @@ BEGIN
     GROUPBOX        "Game Device APIs",IDC_STATIC,16,59,191,62
     CONTROL         "DirectInput (Legacy)",IDC_G_DI,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,71,100,10
     CONTROL         "XInput (Modern)",IDC_G_XI,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,82,100,10
-    CONTROL         "DualShock 3 native mode (Requires libusb)",IDC_G_DS3,
+    CONTROL         "DualShock 3 native mode (Requires sixaxis)",IDC_G_DS3,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,94,155,10
     CONTROL         "Monitor when in background",IDC_BACKGROUND,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,22,105,107,10
     GROUPBOX        "Mouse API",IDC_STATIC,216,16,192,61

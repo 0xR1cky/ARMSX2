@@ -290,13 +290,9 @@ u32 readCache32(u32 mem)
 	return readCache<u32>(mem);
 }
 
-RETURNS_R64 readCache64(u32 mem)
+u64 readCache64(u32 mem)
 {
-	int way, idx;
-	void* addr = prepareCacheAccess<false, sizeof(u64)>(mem, &way, &idx);
-	r64 value = r64_load(addr);
-	CACHE_LOG("readCache64 %8.8x from %d, way %d, value %llx", mem, idx, way, *(u64*)&value);
-	return value;
+	return readCache<u64>(mem);
 }
 
 RETURNS_R128 readCache128(u32 mem)
@@ -341,7 +337,7 @@ void CACHE()
 	u32 addr = cpuRegs.GPR.r[_Rs_].UL[0] + _Imm_;
 	// CACHE_LOG("cpuRegs.GPR.r[_Rs_].UL[0] = %x, IMM = %x RT = %x", cpuRegs.GPR.r[_Rs_].UL[0], _Imm_, _Rt_);
 
-	switch (_Rt_) 
+	switch (_Rt_)
 	{
 		case 0x1a: //DHIN (Data Cache Hit Invalidate)
 			doCacheHitOp(addr, "DHIN", [](CacheLine line)

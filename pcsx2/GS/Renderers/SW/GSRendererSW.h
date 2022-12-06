@@ -18,6 +18,9 @@
 #include "GSTextureCacheSW.h"
 #include "GSDrawScanline.h"
 #include "GS/GSRingHeap.h"
+#include "GS/MultiISA.h"
+
+MULTI_ISA_UNSHARED_START
 
 class GSRendererSW final : public GSRenderer
 {
@@ -75,7 +78,8 @@ protected:
 	void Draw() override;
 	void Queue(GSRingHeap::SharedPtr<GSRasterizerData>& item);
 	void Sync(int reason);
-	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) override;
+	void ExpandTarget(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) override;
+	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool eewrite = false) override;
 	void InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool clut = false) override;
 
 	void UsePages(const GSOffset::PageLooper& pages, const int type);
@@ -94,3 +98,5 @@ public:
 
 	void Destroy() override;
 };
+
+MULTI_ISA_UNSHARED_END

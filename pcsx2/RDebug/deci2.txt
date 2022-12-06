@@ -1,18 +1,18 @@
-pcsx2 log->debugger tty mapping              
-ÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÍÑÍÍÑÍÍÍÄÄÄÂÄÄÄÂÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄ¿
-Bios                    ³EE³  0   ³IOP³  Bios           ³
-CPU & MMI & COP0 & FPU  ³EE³  1   ³IOP³  IOP cpu        ³
-VU0 & VUMicro           ³EE³  2   ³IOP³  HW             ³
-VIF                     ³EE³  3   ³IOP³  GTE            ³
-GIF                     ³EE³  4   ³IOP³  GPU            ³
-DMA                     ³EE³  5   ³IOP³  DMA            ³
-HW & Unknown Memory     ³EE³  6   ³IOP³  Unknown Memory ³
-ELF & Scratch pad       ³EE³  7   ³IOP³  PAD            ³
-IPU                     ³EE³  8   ³IOP³  CDR            ³
-SIF & RPC services      ³EE³  9   ³IOP³                 ³
-                        ³  ³      ³   ³                 ³
-SysMessage              ³EE³Kernel³IOP³  SysMessage     ³
-ÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÁÄÄÁÄÄÄÄÄÄÁÄÄÄÁÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÄÙ
+pcsx2 log->debugger tty mapping
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿
+Bios                    ï¿½EEï¿½  0   ï¿½IOPï¿½  Bios           ï¿½
+CPU & MMI & COP0 & FPU  ï¿½EEï¿½  1   ï¿½IOPï¿½  IOP cpu        ï¿½
+VU0 & VUMicro           ï¿½EEï¿½  2   ï¿½IOPï¿½  HW             ï¿½
+VIF                     ï¿½EEï¿½  3   ï¿½IOPï¿½  GTE            ï¿½
+GIF                     ï¿½EEï¿½  4   ï¿½IOPï¿½  GPU            ï¿½
+DMA                     ï¿½EEï¿½  5   ï¿½IOPï¿½  DMA            ï¿½
+HW & Unknown Memory     ï¿½EEï¿½  6   ï¿½IOPï¿½  Unknown Memory ï¿½
+ELF & Scratch pad       ï¿½EEï¿½  7   ï¿½IOPï¿½  PAD            ï¿½
+IPU                     ï¿½EEï¿½  8   ï¿½IOPï¿½  CDR            ï¿½
+SIF & RPC services      ï¿½EEï¿½  9   ï¿½IOPï¿½                 ï¿½
+                        ï¿½  ï¿½      ï¿½   ï¿½                 ï¿½
+SysMessage              ï¿½EEï¿½Kernelï¿½IOPï¿½  SysMessage     ï¿½
+ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 PRODG: 230,130,    120,121,122,110-119,11F,210-219,21F,410
 CW:    230,130,150,120,121,    210-219,21F,110-119,11F
 

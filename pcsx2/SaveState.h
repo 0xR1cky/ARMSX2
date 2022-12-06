@@ -15,9 +15,12 @@
 
 #pragma once
 
+#include <deque>
+#include <memory>
 #include <vector>
 
 #include "System.h"
+#include "common/Assertions.h"
 #include "common/Exceptions.h"
 
 enum class FreezeAction
@@ -33,7 +36,7 @@ enum class FreezeAction
 // [SAVEVERSION+]
 // This informs the auto updater that the users savestates will be invalidated.
 
-static const u32 g_SaveVersion = (0x9A2E << 16) | 0x0000;
+static const u32 g_SaveVersion = (0x9A34 << 16) | 0x0000;
 
 
 // the freezing data between submodules and core
@@ -44,8 +47,8 @@ static const u32 g_SaveVersion = (0x9A2E << 16) | 0x0000;
 // necessarily portable; we might want to investigate this in the future -- govanify
 struct freezeData
 {
-    int size;
-    u8 *data;
+	int size;
+	u8* data;
 };
 
 struct SaveStateScreenshotData
@@ -118,6 +121,36 @@ public:
 
 	void PrepBlock( int size );
 
+	template <typename T>
+	void FreezeDeque(std::deque<T>& q)
+	{
+		// overwritten when loading
+		u32 count = static_cast<u32>(q.size());
+		Freeze(count);
+
+		// have to use a temp array, because deque doesn't have a contiguous block of memory
+		std::unique_ptr<T[]> temp;
+		if (count > 0)
+		{
+			temp = std::make_unique<T[]>(count);
+			if (IsSaving())
+			{
+				u32 pos = 0;
+				for (const T& it : q)
+					temp[pos++] = it;
+			}
+
+			FreezeMem(temp.get(), static_cast<int>(sizeof(T) * count));
+		}
+
+		if (IsLoading())
+		{
+			q.clear();
+			for (u32 i = 0; i < count; i++)
+				q.push_back(temp[i]);
+		}
+	}
+
 	uint GetCurrentPos() const
 	{
 		return m_idx;
@@ -127,7 +160,7 @@ public:
 	{
 		return m_memory->GetPtr(m_idx);
 	}
-	
+
 	u8* GetPtrEnd() const
 	{
 		return m_memory->GetPtrEnd();

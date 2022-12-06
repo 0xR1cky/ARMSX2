@@ -142,12 +142,6 @@
     <Filter Include="Recording">
       <UniqueIdentifier>{7b917318-5a5e-44c0-8463-1dfab67f3b67}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Recording\gui">
-      <UniqueIdentifier>{93e36831-627f-4529-b709-1f4bad398512}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Recording\VirtualPad">
-      <UniqueIdentifier>{ae88cd9a-f9f2-4196-979c-7a16ed5e455e}</UniqueIdentifier>
-    </Filter>
     <Filter Include="System\Ps2\Iop\CDVD\Windows">
       <UniqueIdentifier>{be861049-a142-4650-85a5-a2fdd4eef011}</UniqueIdentifier>
     </Filter>
@@ -162,9 +156,6 @@
     </Filter>
     <Filter Include="Recording\Utilities">
       <UniqueIdentifier>{85c5a0d2-6404-439f-8756-d908a1442b96}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Recording\VirtualPad\Images">
-      <UniqueIdentifier>{ad528458-08eb-49a2-aefa-3c2b86ab8896}</UniqueIdentifier>
     </Filter>
     <Filter Include="System\Ps2\DEV9">
       <UniqueIdentifier>{8d5454f9-590c-4c53-aae1-8391c6465e50}</UniqueIdentifier>
@@ -656,9 +647,6 @@
     <ClCompile Include="IopMem.cpp">
       <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
-    <ClCompile Include="IopSio2.cpp">
-      <Filter>System\Ps2\Iop</Filter>
-    </ClCompile>
     <ClCompile Include="R3000A.cpp">
       <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
@@ -692,7 +680,7 @@
     <ClCompile Include="CDVD\CDVD.cpp">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClCompile>
-    <ClCompile Include="CDVD\CDVDaccess.cpp">
+    <ClCompile Include="CDVD\CDVDcommon.cpp">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClCompile>
     <ClCompile Include="CDVD\CDVDisoReader.cpp">
@@ -702,6 +690,9 @@
       <Filter>System\Ps2\IPU</Filter>
     </ClCompile>
     <ClCompile Include="IPU\IPU_Fifo.cpp">
+      <Filter>System\Ps2\IPU</Filter>
+    </ClCompile>
+    <ClCompile Include="IPU\IPU_MultiISA.cpp">
       <Filter>System\Ps2\IPU</Filter>
     </ClCompile>
     <ClCompile Include="IPU\yuv2rgb.cpp">
@@ -1052,23 +1043,11 @@
     <ClCompile Include="Recording\PadData.cpp">
       <Filter>Recording</Filter>
     </ClCompile>
-    <ClCompile Include="Recording\NewRecordingFrame.cpp">
-      <Filter>Recording\gui</Filter>
-    </ClCompile>
-    <ClCompile Include="Recording\VirtualPad\VirtualPad.cpp">
-      <Filter>Recording\VirtualPad</Filter>
-    </ClCompile>
     <ClCompile Include="IPU\IPUdither.cpp">
       <Filter>System\Ps2\IPU</Filter>
     </ClCompile>
     <ClCompile Include="Recording\InputRecordingControls.cpp">
       <Filter>Recording</Filter>
-    </ClCompile>
-    <ClCompile Include="Recording\VirtualPad\VirtualPadData.cpp">
-      <Filter>Recording\VirtualPad</Filter>
-    </ClCompile>
-    <ClCompile Include="Recording\VirtualPad\VirtualPadResources.cpp">
-      <Filter>Recording\VirtualPad</Filter>
     </ClCompile>
     <ClCompile Include="CDVD\CDVDdiscReader.cpp">
       <Filter>System\Ps2\Iop\CDVD</Filter>
@@ -1520,6 +1499,9 @@
     <ClCompile Include="GS\GSLocalMemory.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
+    <ClCompile Include="GS\GSLocalMemoryMultiISA.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
     <ClCompile Include="GS\GSPerfMon.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
@@ -1535,6 +1517,9 @@
     <ClCompile Include="GS\GSVector.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
+    <ClCompile Include="GS\GSXXH.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
     <ClCompile Include="GS\GSPng.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
@@ -1542,6 +1527,9 @@
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
     <ClCompile Include="GS\GSLzma.cpp">
+      <Filter>System\Ps2\GS</Filter>
+    </ClCompile>
+    <ClCompile Include="GS\MultiISA.cpp">
       <Filter>System\Ps2\GS</Filter>
     </ClCompile>
     <ClCompile Include="gui\Dialogs\PINEDialog.cpp">
@@ -1625,6 +1613,9 @@
     <ClCompile Include="GS\Renderers\HW\GSRendererHW.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClCompile>
+    <ClCompile Include="GS\Renderers\HW\GSRendererHWMultiISA.cpp">
+      <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
+    </ClCompile>
     <ClCompile Include="GS\Renderers\HW\GSTextureCache.cpp">
       <Filter>System\Ps2\GS\Renderers\Hardware</Filter>
     </ClCompile>
@@ -1644,6 +1635,9 @@
       <Filter>System\Ps2\GS\Renderers\Common</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\Common\GSVertexTrace.cpp">
+      <Filter>System\Ps2\GS\Renderers\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="GS\Renderers\Common\GSVertexTraceFMM.cpp">
       <Filter>System\Ps2\GS\Renderers\Common</Filter>
     </ClCompile>
     <ClCompile Include="GS\Renderers\Common\GSVertexList.cpp">
@@ -1795,6 +1789,15 @@
     </ClCompile>
     <ClCompile Include="gui\PathUtils.cpp">
       <Filter>AppHost</Filter>
+    </ClCompile>
+    <ClCompile Include="Frontend\ImGuiOverlays.cpp">
+      <Filter>Host</Filter>
+    </ClCompile>
+    <ClCompile Include="MemoryCardProtocol.cpp">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClCompile>
+    <ClCompile Include="MultitapProtocol.cpp">
+      <Filter>System\Ps2\Iop</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1975,9 +1978,6 @@
     <ClInclude Include="IopMem.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
-    <ClInclude Include="IopSio2.h">
-      <Filter>System\Ps2\Iop</Filter>
-    </ClInclude>
     <ClInclude Include="R3000A.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
@@ -2002,7 +2002,7 @@
     <ClInclude Include="CDVD\CDVD_internal.h">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClInclude>
-    <ClInclude Include="CDVD\CDVDaccess.h">
+    <ClInclude Include="CDVD\CDVDcommon.h">
       <Filter>System\Ps2\Iop\CDVD</Filter>
     </ClInclude>
     <ClInclude Include="CDVD\CDVDisoReader.h">
@@ -2012,6 +2012,9 @@
       <Filter>System\Ps2\IPU</Filter>
     </ClInclude>
     <ClInclude Include="IPU\IPU_Fifo.h">
+      <Filter>System\Ps2\IPU</Filter>
+    </ClInclude>
+    <ClInclude Include="IPU\IPU_MultiISA.h">
       <Filter>System\Ps2\IPU</Filter>
     </ClInclude>
     <ClInclude Include="IPU\yuv2rgb.h">
@@ -2245,9 +2248,6 @@
     <ClInclude Include="IopGte.h">
       <Filter>System\Ps2\Iop</Filter>
     </ClInclude>
-    <ClInclude Include="sio_internal.h">
-      <Filter>System\Ps2\Iop</Filter>
-    </ClInclude>
     <ClInclude Include="ps2\pgif.h">
       <Filter>System\Ps2</Filter>
     </ClInclude>
@@ -2263,20 +2263,8 @@
     <ClInclude Include="Recording\PadData.h">
       <Filter>Recording</Filter>
     </ClInclude>
-    <ClInclude Include="Recording\NewRecordingFrame.h">
-      <Filter>Recording\gui</Filter>
-    </ClInclude>
-    <ClInclude Include="Recording\VirtualPad\VirtualPad.h">
-      <Filter>Recording\VirtualPad</Filter>
-    </ClInclude>
     <ClInclude Include="Recording\InputRecordingControls.h">
       <Filter>Recording</Filter>
-    </ClInclude>
-    <ClInclude Include="Recording\VirtualPad\VirtualPadData.h">
-      <Filter>Recording\VirtualPad</Filter>
-    </ClInclude>
-    <ClInclude Include="Recording\VirtualPad\VirtualPadResources.h">
-      <Filter>Recording\VirtualPad</Filter>
     </ClInclude>
     <ClInclude Include="CDVD\CDVDdiscReader.h">
       <Filter>System\Ps2\Iop\CDVD</Filter>
@@ -2740,6 +2728,9 @@
     <ClInclude Include="GS\GSVector8.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
+    <ClInclude Include="GS\GSXXH.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
     <ClInclude Include="GS\config.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
@@ -2753,6 +2744,9 @@
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
     <ClInclude Include="GS\GSLzma.h">
+      <Filter>System\Ps2\GS</Filter>
+    </ClInclude>
+    <ClInclude Include="GS\MultiISA.h">
       <Filter>System\Ps2\GS</Filter>
     </ClInclude>
     <ClInclude Include="GS\Renderers\Common\GSFastList.h">
@@ -2990,6 +2984,18 @@
     <ClInclude Include="gui\StringHelpers.h">
       <Filter>AppHost</Filter>
     </ClInclude>
+    <ClInclude Include="Frontend\ImGuiOverlays.h">
+      <Filter>Host</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderCacheVersion.h">
+      <Filter>System\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="MemoryCardProtocol.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
+    <ClInclude Include="MultitapProtocol.h">
+      <Filter>System\Ps2\Iop</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="windows\wxResources.rc">
@@ -3088,63 +3094,6 @@
     </CustomBuild>
     <CustomBuild Include="gui\Resources\Logo.png">
       <Filter>AppHost\Resources</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\circlePressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\controllerFull.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\controllerHalf.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\controllerThreeQuarters.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\crossPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\downPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\l1Pressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\l2Pressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\l3Pressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\leftPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\startPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\r1Pressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\r2Pressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\r3Pressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\rightPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\selectPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\squarePressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\trianglePressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
-    </CustomBuild>
-    <CustomBuild Include="Recording\VirtualPad\img\upPressed.png">
-      <Filter>Recording\VirtualPad\Images</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

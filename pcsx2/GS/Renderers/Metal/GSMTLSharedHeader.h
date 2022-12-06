@@ -54,7 +54,25 @@ struct GSMTLPresentPSUniform
 
 struct GSMTLInterlacePSUniform
 {
-	vector_float2 ZrH;
+	vector_float4 ZrH;
+};
+
+struct GSMTLCASPSUniform
+{
+	vector_uint4 const0;
+	vector_uint4 const1;
+	vector_int2 srcOffset;
+};
+
+struct GSMTLMainVertex
+{
+	vector_float2 st;
+	vector_uchar4 rgba;
+	float q;
+	vector_ushort2 xy;
+	uint z;
+	vector_ushort2 uv;
+	unsigned char fog;
 };
 
 struct GSMTLMainVSUniform
@@ -111,13 +129,23 @@ enum GSMTLAttributes
 	GSMTLAttributeIndexF,
 };
 
+enum class GSMTLExpandType : unsigned char
+{
+	None = 0,
+	Point = 1,
+	Line = 2,
+	Sprite = 3,
+};
+
 enum GSMTLFnConstants
 {
+	GSMTLConstantIndex_CAS_SHARPEN_ONLY,
 	GSMTLConstantIndex_SCALING_FACTOR,
 	GSMTLConstantIndex_FRAMEBUFFER_FETCH,
 	GSMTLConstantIndex_FST,
 	GSMTLConstantIndex_IIP,
 	GSMTLConstantIndex_VS_POINT_SIZE,
+	GSMTLConstantIndex_VS_EXPAND_TYPE,
 	GSMTLConstantIndex_PS_AEM_FMT,
 	GSMTLConstantIndex_PS_PAL_FMT,
 	GSMTLConstantIndex_PS_DFMT,
@@ -144,6 +172,7 @@ enum GSMTLFnConstants
 	GSMTLConstantIndex_PS_HDR,
 	GSMTLConstantIndex_PS_COLCLIP,
 	GSMTLConstantIndex_PS_BLEND_MIX,
+	GSMTLConstantIndex_PS_FIXED_ONE_A,
 	GSMTLConstantIndex_PS_PABE,
 	GSMTLConstantIndex_PS_NO_COLOR,
 	GSMTLConstantIndex_PS_NO_COLOR1,

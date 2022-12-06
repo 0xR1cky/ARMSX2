@@ -26,7 +26,8 @@
 
 #include "MemoryCardSettingsWidget.h"
 #include "CreateMemoryCardDialog.h"
-#include "EmuThread.h"
+#include "QtHost.h"
+#include "MemoryCardConvertDialog.h"
 #include "QtUtils.h"
 #include "SettingWidgetBinder.h"
 #include "SettingsDialog.h"
@@ -50,7 +51,7 @@ MemoryCardSettingsWidget::MemoryCardSettingsWidget(SettingsDialog* dialog, QWidg
 	// since the group box hasn't been resized at that point.
 	m_ui.cardGroupBox->installEventFilter(this);
 	
-	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.directory, m_ui.browse, m_ui.open, m_ui.reset, "Folders", "MemoryCards", "memcards");
+	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.directory, m_ui.browse, m_ui.open, m_ui.reset, "Folders", "MemoryCards", Path::Combine(EmuFolders::DataRoot, "memcards"));
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.autoEject, "EmuCore", "McdEnableEjection", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.automaticManagement, "EmuCore", "McdFolderAutoManage", true);
 
@@ -69,6 +70,12 @@ MemoryCardSettingsWidget::MemoryCardSettingsWidget(SettingsDialog* dialog, QWidg
 	connect(m_ui.deleteCard, &QPushButton::clicked, this, &MemoryCardSettingsWidget::deleteCard);
 
 	refresh();
+
+	dialog->registerWidgetHelp(m_ui.autoEject, tr("Auto-eject memory cards when loading save states"), tr("Checked"),
+		tr("Avoids broken memory card saves. May not work with some games such as Guitar Hero."));
+
+	dialog->registerWidgetHelp(m_ui.automaticManagement, tr("Automatically manage saves based on running game"), tr("Checked"),
+		tr("(Folder type only / Card size: Auto) Loads only the relevant booted game saves, ignoring others. Avoids running out of space for saves."));
 }
 
 MemoryCardSettingsWidget::~MemoryCardSettingsWidget() = default;
@@ -183,9 +190,13 @@ QString MemoryCardSettingsWidget::getSelectedCard() const
 
 void MemoryCardSettingsWidget::updateCardActions()
 {
-	const bool hasSelection = !getSelectedCard().isEmpty();
+	QString selectedCard = getSelectedCard();
+	const bool hasSelection = !selectedCard.isEmpty();
+	
+	std::optional<AvailableMcdInfo> cardInfo = FileMcd_GetCardInfo(selectedCard.toStdString());
+	bool isPS1 = (cardInfo.has_value() ? cardInfo.value().file_type == MemoryCardFileType::PS1 : false);
 
-	m_ui.convertCard->setEnabled(hasSelection);
+	m_ui.convertCard->setEnabled(hasSelection && !isPS1);
 	m_ui.duplicateCard->setEnabled(hasSelection);
 	m_ui.renameCard->setEnabled(hasSelection);
 	m_ui.deleteCard->setEnabled(hasSelection);
@@ -263,10 +274,14 @@ void MemoryCardSettingsWidget::renameCard()
 void MemoryCardSettingsWidget::convertCard()
 {
 	const QString selectedCard(getSelectedCard());
+	
 	if (selectedCard.isEmpty())
 		return;
 
-	QMessageBox::critical(this, tr("Error"), tr("Not yet implemented."));
+	MemoryCardConvertDialog dialog(QtUtils::GetRootWidget(this), selectedCard);
+	
+	if (dialog.IsSetup() && dialog.exec() == QDialog::Accepted)
+		refresh();
 }
 
 void MemoryCardSettingsWidget::listContextMenuRequested(const QPoint& pos)

@@ -23,10 +23,6 @@
 
 #include <d3dcompiler.h>
 
-#ifdef _UWP
-#include <winrt/Windows.System.Profile.h>
-#endif
-
 using namespace D3D12;
 
 #pragma pack(push, 1)
@@ -45,22 +41,7 @@ struct CacheIndexEntry
 };
 #pragma pack(pop)
 
-static bool CanUsePipelineCache()
-{
-#ifdef _UWP
-	// GetCachedBlob crashes on XBox UWP for some reason...
-	const auto version_info = winrt::Windows::System::Profile::AnalyticsInfo::VersionInfo();
-	const auto device_family = version_info.DeviceFamily();
-	return (device_family != L"Windows.Xbox");
-#else
-	return true;
-#endif
-}
-
-ShaderCache::ShaderCache()
-	: m_use_pipeline_cache(CanUsePipelineCache())
-{
-}
+ShaderCache::ShaderCache() = default;
 
 ShaderCache::~ShaderCache()
 {
@@ -111,7 +92,7 @@ bool ShaderCache::Open(std::string_view base_path, D3D_FEATURE_LEVEL feature_lev
 			result = CreateNew(shader_index_filename, shader_blob_filename, m_shader_index_file, m_shader_blob_file);
 		}
 
-		if (m_use_pipeline_cache && result)
+		if (result)
 		{
 			const std::string base_pipelines_filename = GetCacheBaseFileName(base_path, "pipelines", feature_level, debug);
 			const std::string pipelines_index_filename = base_pipelines_filename + ".idx";
@@ -143,14 +124,11 @@ void ShaderCache::InvalidatePipelineCache()
 		m_pipeline_index_file = nullptr;
 	}
 
-	if (m_use_pipeline_cache)
-	{
-		const std::string base_pipelines_filename =
-			GetCacheBaseFileName(m_base_path, "pipelines", m_feature_level, m_debug);
-		const std::string pipelines_index_filename = base_pipelines_filename + ".idx";
-		const std::string pipelines_blob_filename = base_pipelines_filename + ".bin";
-		CreateNew(pipelines_index_filename, pipelines_blob_filename, m_pipeline_index_file, m_pipeline_blob_file);
-	}
+	const std::string base_pipelines_filename =
+		GetCacheBaseFileName(m_base_path, "pipelines", m_feature_level, m_debug);
+	const std::string pipelines_index_filename = base_pipelines_filename + ".idx";
+	const std::string pipelines_blob_filename = base_pipelines_filename + ".bin";
+	CreateNew(pipelines_index_filename, pipelines_blob_filename, m_pipeline_index_file, m_pipeline_blob_file);
 }
 
 bool ShaderCache::CreateNew(const std::string& index_filename, const std::string& blob_filename, std::FILE*& index_file,
@@ -409,6 +387,23 @@ ShaderCache::CacheIndexKey ShaderCache::GetPipelineCacheKey(const D3D12_GRAPHICS
 	return CacheIndexKey{h.low, h.high, 0, 0, 0, 0, length, EntryType::GraphicsPipeline};
 }
 
+ShaderCache::CacheIndexKey ShaderCache::GetPipelineCacheKey(const D3D12_COMPUTE_PIPELINE_STATE_DESC& gpdesc)
+{
+	MD5Digest digest;
+	u32 length = sizeof(D3D12_GRAPHICS_PIPELINE_STATE_DESC);
+
+	if (gpdesc.CS.BytecodeLength > 0)
+	{
+		digest.Update(gpdesc.CS.pShaderBytecode, static_cast<u32>(gpdesc.CS.BytecodeLength));
+		length += static_cast<u32>(gpdesc.CS.BytecodeLength);
+	}
+
+	MD5Hash h;
+	digest.Final(h.hash);
+
+	return CacheIndexKey{h.low, h.high, 0, 0, 0, 0, length, EntryType::ComputePipeline};
+}
+
 ShaderCache::ComPtr<ID3DBlob> ShaderCache::GetShaderBlob(EntryType type, std::string_view shader_code,
 	const D3D_SHADER_MACRO* macros /* = nullptr */, const char* entry_point /* = "main" */)
 {
@@ -463,6 +458,40 @@ ShaderCache::ComPtr<ID3D12PipelineState> ShaderCache::GetPipelineState(ID3D12Dev
 	return pso;
 }
 
+ShaderCache::ComPtr<ID3D12PipelineState> ShaderCache::GetPipelineState(ID3D12Device* device,
+	const D3D12_COMPUTE_PIPELINE_STATE_DESC& desc)
+{
+	const auto key = GetPipelineCacheKey(desc);
+
+	auto iter = m_pipeline_index.find(key);
+	if (iter == m_pipeline_index.end())
+		return CompileAndAddPipeline(device, key, desc);
+
+	ComPtr<ID3DBlob> blob;
+	HRESULT hr = D3DCreateBlob(iter->second.blob_size, blob.put());
+	if (FAILED(hr) || std::fseek(m_pipeline_blob_file, iter->second.file_offset, SEEK_SET) != 0 ||
+		std::fread(blob->GetBufferPointer(), 1, iter->second.blob_size, m_pipeline_blob_file) != iter->second.blob_size)
+	{
+		Console.Error("Read blob from file failed");
+		return {};
+	}
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC desc_with_blob(desc);
+	desc_with_blob.CachedPSO.pCachedBlob = blob->GetBufferPointer();
+	desc_with_blob.CachedPSO.CachedBlobSizeInBytes = blob->GetBufferSize();
+
+	ComPtr<ID3D12PipelineState> pso;
+	hr = device->CreateComputePipelineState(&desc_with_blob, IID_PPV_ARGS(pso.put()));
+	if (FAILED(hr))
+	{
+		Console.Warning("Creating cached PSO failed: %08X. Invalidating cache.", hr);
+		InvalidatePipelineCache();
+		pso = CompileAndAddPipeline(device, key, desc);
+	}
+
+	return pso;
+}
+
 ShaderCache::ComPtr<ID3DBlob> ShaderCache::CompileAndAddShaderBlob(const CacheIndexKey& key, std::string_view shader_code,
 	const D3D_SHADER_MACRO* macros, const char* entry_point)
 {
@@ -478,6 +507,9 @@ ShaderCache::ComPtr<ID3DBlob> ShaderCache::CompileAndAddShaderBlob(const CacheIn
 			break;
 		case EntryType::PixelShader:
 			blob = D3D11::ShaderCompiler::CompileShader(D3D11::ShaderCompiler::Type::Pixel, m_feature_level, m_debug, shader_code, macros, entry_point);
+			break;
+		case EntryType::ComputeShader:
+			blob = D3D11::ShaderCompiler::CompileShader(D3D11::ShaderCompiler::Type::Compute, m_feature_level, m_debug, shader_code, macros, entry_point);
 			break;
 		default:
 			break;
@@ -529,15 +561,37 @@ ShaderCache::CompileAndAddPipeline(ID3D12Device* device, const CacheIndexKey& ke
 		return {};
 	}
 
+	AddPipelineToBlob(key, pso.get());
+	return pso;
+}
+
+ShaderCache::ComPtr<ID3D12PipelineState>
+ShaderCache::CompileAndAddPipeline(ID3D12Device* device, const CacheIndexKey& key,
+	const D3D12_COMPUTE_PIPELINE_STATE_DESC& gpdesc)
+{
+	ComPtr<ID3D12PipelineState> pso;
+	HRESULT hr = device->CreateComputePipelineState(&gpdesc, IID_PPV_ARGS(pso.put()));
+	if (FAILED(hr))
+	{
+		Console.Error("Creating cached compute PSO failed: %08X", hr);
+		return {};
+	}
+
+	AddPipelineToBlob(key, pso.get());
+	return pso;
+}
+
+bool ShaderCache::AddPipelineToBlob(const CacheIndexKey& key, ID3D12PipelineState* pso)
+{
 	if (!m_pipeline_blob_file || std::fseek(m_pipeline_blob_file, 0, SEEK_END) != 0)
-		return pso;
+		return false;
 
 	ComPtr<ID3DBlob> blob;
-	hr = pso->GetCachedBlob(blob.put());
+	HRESULT hr = pso->GetCachedBlob(blob.put());
 	if (FAILED(hr))
 	{
 		Console.Warning("Failed to get cached PSO data: %08X", hr);
-		return pso;
+		return false;
 	}
 
 	CacheIndexData data;
@@ -557,9 +611,9 @@ ShaderCache::CompileAndAddPipeline(ID3D12Device* device, const CacheIndexKey& ke
 		std::fflush(m_pipeline_index_file) != 0)
 	{
 		Console.Error("Failed to write pipeline blob to file");
-		return pso;
+		return false;
 	}
 
 	m_shader_index.emplace(key, data);
-	return pso;
+	return true;
 }

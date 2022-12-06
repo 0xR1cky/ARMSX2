@@ -98,8 +98,7 @@ public:
 		// Performance note: 64B align to reduce cache miss penalty in `find`
 		if ((m_bucket[b] = (nVifBlock*)pcsx2_aligned_realloc(m_bucket[b], sizeof(nVifBlock) * (size + 2), 64, sizeof(nVifBlock) * (size + 1))) == NULL)
 		{
-			throw Exception::OutOfMemory(
-				fmt::format("HashBucket Chain (bucket size={})", size + 2));
+			pxFailRel("Failed to allocate HashBucket Chain");
 		}
 
 		// Replace the empty cell by the new block and create a new empty cell
@@ -138,9 +137,9 @@ public:
 		// Allocate an empty cell for all buckets
 		for (auto& bucket : m_bucket)
 		{
-			if ((bucket = (nVifBlock*)_aligned_malloc(sizeof(nVifBlock), 64)) == nullptr)
+			if ((bucket = (nVifBlock*)_aligned_malloc(sizeof(nVifBlock), 16)) == nullptr)
 			{
-				throw Exception::OutOfMemory(fmt::format("HashBucket Chain (bucket size=%d)", 1));
+				pxFailRel("Failed to allocate HashBucket Chain on reset");
 			}
 
 			memset(bucket, 0, sizeof(nVifBlock));

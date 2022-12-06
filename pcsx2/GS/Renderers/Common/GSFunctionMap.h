@@ -20,8 +20,6 @@
 #include "GS/Renderers/SW/GSScanlineEnvironment.h"
 #include "common/emitter/tools.h"
 
-#include <xbyak/xbyak_util.h>
-
 template <class KEY, class VALUE>
 class GSFunctionMap
 {
@@ -144,18 +142,6 @@ public:
 	}
 };
 
-class GSCodeGenerator : public Xbyak::CodeGenerator
-{
-protected:
-	Xbyak::util::Cpu m_cpu;
-
-public:
-	GSCodeGenerator(void* code, size_t maxsize)
-		: Xbyak::CodeGenerator(maxsize, code)
-	{
-	}
-};
-
 template <class CG, class KEY, class VALUE>
 class GSCodeGeneratorFunctionMap : public GSFunctionMap<KEY, VALUE>
 {
@@ -219,7 +205,7 @@ public:
 
 			// if(iJIT_IsProfilingActive()) // always > 0
 			{
-				std::string name = format("%s<%016llx>()", m_name.c_str(), (u64)key);
+				std::string name = fmt::format("%s<%016llx>()", m_name.c_str(), (u64)key);
 
 				iJIT_Method_Load ml;
 

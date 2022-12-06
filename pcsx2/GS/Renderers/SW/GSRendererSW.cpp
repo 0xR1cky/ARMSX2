@@ -18,14 +18,18 @@
 #include "GS/GSGL.h"
 #include "common/StringUtil.h"
 
+MULTI_ISA_UNSHARED_IMPL;
+
+GSRenderer* CURRENT_ISA::makeGSRendererSW(int threads)
+{
+	return new GSRendererSW(threads);
+}
+
 #define LOG 0
 
 static FILE* s_fp = LOG ? fopen("c:\\temp1\\_.txt", "w") : NULL;
 
-CONSTINIT const GSVector4 GSVertexSW::m_pos_scale = GSVector4::cxpr(1.0f / 16, 1.0f / 16, 1.0f, 128.0f);
-#if _M_SSE >= 0x501
-CONSTINIT const GSVector8 GSVertexSW::m_pos_scale2 = GSVector8::cxpr(1.0f / 16, 1.0f / 16, 1.0f, 128.0f, 1.0f / 16, 1.0f / 16, 1.0f, 128.0f);
-#endif
+static constexpr GSVector4 s_pos_scale = GSVector4::cxpr(1.0f / 16, 1.0f / 16, 1.0f, 128.0f);
 
 GSRendererSW::GSRendererSW(int threads)
 	: GSRenderer(), m_fzb(NULL)
@@ -132,7 +136,7 @@ GSTexture* GSRendererSW::GetOutput(int i, int& y_offset)
 	const int display_offset = GetResolutionOffset(i).y;
 	const GSVector4i offsets = !GSConfig.PCRTCOverscan ? VideoModeOffsets[videomode] : VideoModeOffsetsOverscan[videomode];
 	const int display_height = offsets.y * ((isinterlaced() && !m_regs->SMODE2.FFMD) ? 2 : 1);
-	int h = std::min(GetFramebufferHeight(), display_height) + DISPFB.DBY;
+	int h = std::min(GetFramebufferHeight(), display_height);
 
 	// If there is a negative vertical offset on the picture, we need to read more.
 	if (display_offset < 0)
@@ -142,15 +146,60 @@ GSTexture* GSRendererSW::GetOutput(int i, int& y_offset)
 
 	if (g_gs_device->ResizeTarget(&m_texture[i], w, h))
 	{
-		static int pitch = 1024 * 4;
+		constexpr int pitch = 1024 * 4;
+		const int off_x = DISPFB.DBX & 0x7ff;
+		const int off_y = DISPFB.DBY & 0x7ff;
+		const GSVector4i out_r(0, 0, w, h);
+		GSVector4i r(off_x, off_y, w + off_x, h + off_y);
+		GSVector4i rh(off_x, off_y, w + off_x, (h + off_y) & 0x7FF);
+		GSVector4i rw(off_x, off_y, (w + off_x) & 0x7FF, h + off_y);
+		bool h_wrap = false;
+		bool w_wrap = false;
 
-		GSVector4i r(0, 0, w, h);
+		// Need to read it in 2 parts, since you can't do a split rect.
+		if (r.bottom >= 2048)
+		{
+			r.bottom = 2048;
+			rw.bottom = 2048;
+			rh.top = 0;
+			h_wrap = true;
+		}
+
+		if (r.right >= 2048)
+		{
+			r.right = 2048;
+			rh.right = 2048;
+			rw.left = 0;
+			w_wrap = true;
+		}
 
 		const GSLocalMemory::psm_t& psm = GSLocalMemory::m_psm[DISPFB.PSM];
 
-		(m_mem.*psm.rtx)(m_mem.GetOffset(DISPFB.Block(), DISPFB.FBW, DISPFB.PSM), r.ralign<Align_Outside>(psm.bs), m_output, pitch, m_env.TEXA);
+		// Top left rect
+		psm.rtx(m_mem, m_mem.GetOffset(DISPFB.Block(), DISPFB.FBW, DISPFB.PSM), r.ralign<Align_Outside>(psm.bs), m_output, pitch, m_env.TEXA);
 
-		m_texture[i]->Update(r, m_output, pitch);
+		int top = (h_wrap) ? ((r.bottom - r.top) * pitch) : 0;
+		int left = (w_wrap) ? (r.right - r.left) * (GSLocalMemory::m_psm[DISPFB.PSM].bpp / 8) : 0;
+
+		// The following only happen if the DBX/DBY wrap around at 2048.
+
+		// Top right rect
+		if (w_wrap)
+			psm.rtx(m_mem, m_mem.GetOffset(DISPFB.Block(), DISPFB.FBW, DISPFB.PSM), rw.ralign<Align_Outside>(psm.bs), &m_output[left], pitch, m_env.TEXA);
+
+		// Bottom left rect
+		if (h_wrap)
+			psm.rtx(m_mem, m_mem.GetOffset(DISPFB.Block(), DISPFB.FBW, DISPFB.PSM), rh.ralign<Align_Outside>(psm.bs), &m_output[top], pitch, m_env.TEXA);
+
+		// Bottom right rect
+		if (h_wrap && w_wrap)
+		{
+			// Needs also rw with the start/end height of rh, fills in the bottom right rect which will be missing if both overflow.
+			const GSVector4i rwh(rw.left, rh.top, rw.right, rh.bottom);
+			psm.rtx(m_mem, m_mem.GetOffset(DISPFB.Block(), DISPFB.FBW, DISPFB.PSM), rwh.ralign<Align_Outside>(psm.bs), &m_output[top + left], pitch, m_env.TEXA);
+		}
+
+		m_texture[i]->Update(out_r, m_output, pitch);
 
 		if (s_dump)
 		{
@@ -178,9 +227,20 @@ GSTexture* GSRendererSW::GetFeedbackOutput()
 	return nullptr;
 }
 
+MULTI_ISA_DEF(void GSVertexSWInitStatic();)
+
+#if MULTI_ISA_COMPILE_ONCE
+GSVertexSW::ConvertVertexBufferPtr GSVertexSW::s_cvb[4][2][2][2];
+void GSVertexSW::InitStatic()
+{
+	MULTI_ISA_SELECT(GSVertexSWInitStatic)();
+}
+#endif
+
+MULTI_ISA_UNSHARED_START
 
 template <u32 primclass, u32 tme, u32 fst, u32 q_div>
-void GSVertexSW::ConvertVertexBuffer(GSDrawingContext* RESTRICT ctx, GSVertexSW* RESTRICT dst, const GSVertex* RESTRICT src, size_t count)
+void ConvertVertexBuffer(const GSDrawingContext* RESTRICT ctx, GSVertexSW* RESTRICT dst, const GSVertex* RESTRICT src, size_t count)
 {
 	// FIXME q_div wasn't added to AVX2 code path.
 
@@ -229,7 +289,7 @@ void GSVertexSW::ConvertVertexBuffer(GSDrawingContext* RESTRICT ctx, GSVertexSW*
 
 		if (primclass == GS_SPRITE_CLASS)
 		{
-			dst->p = GSVector4(xy).xyyw(GSVector4(xyzuvf)) * m_pos_scale;
+			dst->p = GSVector4(xy).xyyw(GSVector4(xyzuvf)) * s_pos_scale;
 
 			xyzuvf = xyzuvf.min_u32(z_max);
 			t = t.insert32<1, 3>(GSVector4::cast(xyzuvf));
@@ -237,7 +297,7 @@ void GSVertexSW::ConvertVertexBuffer(GSDrawingContext* RESTRICT ctx, GSVertexSW*
 		else
 		{
 			double z = static_cast<double>(static_cast<u32>(xyzuvf.extract32<1>()));
-			dst->p = (GSVector4(xy) * m_pos_scale).upld(GSVector4::f64(z, 0.0));
+			dst->p = (GSVector4(xy) * s_pos_scale).upld(GSVector4::f64(z, 0.0));
 			t = t.blend32<8>(GSVector4(xyzuvf << 7));
 		}
 
@@ -251,22 +311,23 @@ void GSVertexSW::ConvertVertexBuffer(GSDrawingContext* RESTRICT ctx, GSVertexSW*
 	}
 }
 
-// clang-format off
-GSVertexSW::ConvertVertexBufferPtr GSVertexSW::s_cvb[4][2][2][2] = {
-#define InitCVB3(P, T, F) { &GSVertexSW::ConvertVertexBuffer<P, T, F, 0>, &GSVertexSW::ConvertVertexBuffer<P, T, F, 1> }
-#define InitCVB2(P, T) { InitCVB3(P, T, 0), InitCVB3(P, T, 1) }
-#define InitCVB(P) { InitCVB2(static_cast<u32>(P), 0), InitCVB2(static_cast<u32>(P), 1) }
-
-	InitCVB(GS_POINT_CLASS),
-	InitCVB(GS_LINE_CLASS),
-	InitCVB(GS_TRIANGLE_CLASS),
-	InitCVB(GS_SPRITE_CLASS)
-
-#undef InitCVB
+void GSVertexSWInitStatic()
+{
+#define InitCVB4(P, T, F, Q) GSVertexSW::s_cvb[P][T][F][Q] = ConvertVertexBuffer<P, T, F, Q>;
+#define InitCVB3(P, T, F) InitCVB4(P, T, F, 0) InitCVB4(P, T, F, 1)
+#define InitCVB2(P, T) InitCVB3(P, T, 0) InitCVB3(P, T, 1)
+#define InitCVB1(P) InitCVB2(P, 0) InitCVB2(P, 1)
+	InitCVB1(GS_POINT_CLASS)
+	InitCVB1(GS_LINE_CLASS)
+	InitCVB1(GS_TRIANGLE_CLASS)
+	InitCVB1(GS_SPRITE_CLASS)
+#undef InitCVB1
 #undef InitCVB2
 #undef InitCVB3
-};
-// clang-format on
+#undef InitCVB4
+}
+
+MULTI_ISA_UNSHARED_END
 
 void GSRendererSW::Draw()
 {
@@ -322,8 +383,6 @@ void GSRendererSW::Draw()
 	}
 
 	GSVector4i r = bbox.rintersect(scissor);
-
-	scissor.z = std::min<int>(scissor.z, (int)context->FRAME.FBW * 64); // TODO: find a game that overflows and check which one is the right behaviour
 
 	sd->scissor = scissor;
 	sd->bbox = bbox;
@@ -573,7 +632,9 @@ void GSRendererSW::Sync(int reason)
 	g_perfmon.Put(GSPerfMon::Fillrate, pixels);
 }
 
-void GSRendererSW::InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r)
+void  GSRendererSW::ExpandTarget(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) {}
+
+void GSRendererSW::InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool eewrite)
 {
 	if (LOG)
 	{
@@ -971,7 +1032,7 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 	bool zwrite = zm != 0xffffffff;
 	bool ztest = context->TEST.ZTE && context->TEST.ZTST > ZTST_ALWAYS;
 	/*
-	printf("%05x %d %05x %d %05x %d %dx%d\n", 
+	printf("%05x %d %05x %d %05x %d %dx%d\n",
 		fwrite || ftest ? m_context->FRAME.Block() : 0xfffff, m_context->FRAME.PSM,
 		zwrite || ztest ? m_context->ZBUF.Block() : 0xfffff, m_context->ZBUF.PSM,
 		PRIM->TME ? m_context->TEX0.TBP0 : 0xfffff, m_context->TEX0.PSM, (int)m_context->TEX0.TW, (int)m_context->TEX0.TH);
@@ -1168,6 +1229,11 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 			u16 tw = 1u << TEX0.TW;
 			u16 th = 1u << TEX0.TH;
 
+			if (tw > 1024)
+				tw = 1;
+			if (th > 1024)
+				th = 1;
+
 			switch (context->CLAMP.WMS)
 			{
 				case CLAMP_REPEAT:
@@ -1181,13 +1247,16 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 					gd.t.mask.U32[0] = 0;
 					break;
 				case CLAMP_REGION_CLAMP:
+					// REGION_CLAMP ignores the actual texture size, but tw is already optimised in GetFixedTEX0Size.
+					// It's important we don't go off MAXU (if bigger) here as the sw renderer can attempt to draw pixels outside the triangle which can cause out of bounds issues.
 					gd.t.min.U16[0] = gd.t.minmax.U16[0] = std::min<u16>(context->CLAMP.MINU, tw - 1);
 					gd.t.max.U16[0] = gd.t.minmax.U16[2] = std::min<u16>(context->CLAMP.MAXU, tw - 1);
 					gd.t.mask.U32[0] = 0;
 					break;
 				case CLAMP_REGION_REPEAT:
+					// MINU is restricted to MINU or texture size, whichever is smaller, MAXU is an offset in the texture (Can be bigger than the texture).
 					gd.t.min.U16[0] = gd.t.minmax.U16[0] = context->CLAMP.MINU & (tw - 1);
-					gd.t.max.U16[0] = gd.t.minmax.U16[2] = context->CLAMP.MAXU & (tw - 1);
+					gd.t.max.U16[0] = gd.t.minmax.U16[2] = context->CLAMP.MAXU;
 					gd.t.mask.U32[0] = 0xffffffff;
 					break;
 				default:
@@ -1207,13 +1276,16 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 					gd.t.mask.U32[2] = 0;
 					break;
 				case CLAMP_REGION_CLAMP:
+					// REGION_CLAMP ignores the actual texture size, but th is already optimised in GetFixedTEX0Size
+					// It's important we don't go off MAXV (if bigger) here as the sw renderer can attempt to draw pixels outside the triangle which can cause out of bounds issues.
 					gd.t.min.U16[4] = gd.t.minmax.U16[1] = std::min<u16>(context->CLAMP.MINV, th - 1);
 					gd.t.max.U16[4] = gd.t.minmax.U16[3] = std::min<u16>(context->CLAMP.MAXV, th - 1); // ffx anima summon scene, when the anchor appears (th = 256, maxv > 256)
 					gd.t.mask.U32[2] = 0;
 					break;
 				case CLAMP_REGION_REPEAT:
+					// MINV is restricted to MINV or texture size, whichever is smaller, MAXV is an offset in the texture (Can be bigger than the texture).
 					gd.t.min.U16[4] = gd.t.minmax.U16[1] = context->CLAMP.MINV & (th - 1); // skygunner main menu water texture 64x64, MINV = 127
-					gd.t.max.U16[4] = gd.t.minmax.U16[3] = context->CLAMP.MAXV & (th - 1);
+					gd.t.max.U16[4] = gd.t.minmax.U16[3] = context->CLAMP.MAXV;
 					gd.t.mask.U32[2] = 0xffffffff;
 					break;
 				default:
@@ -1250,7 +1322,7 @@ bool GSRendererSW::GetScanlineGlobalData(SharedData* data)
 				gd.sel.pabe = 1;
 			}
 
-			if (GSConfig.AA1 && PRIM->AA1 && (primclass == GS_LINE_CLASS || primclass == GS_TRIANGLE_CLASS))
+			if (PRIM->AA1 && (primclass == GS_LINE_CLASS || primclass == GS_TRIANGLE_CLASS))
 			{
 				gd.sel.aa1 = 1;
 			}

@@ -35,7 +35,8 @@ enum class ShaderConvert
 	RGBA8_TO_16_BITS,
 	DATM_1,
 	DATM_0,
-	MOD_256,
+	HDR_INIT,
+	HDR_RESOLVE,
 	TRANSPARENCY_FILTER,
 	FLOAT32_TO_16_BITS,
 	FLOAT32_TO_32_BITS,
@@ -45,11 +46,74 @@ enum class ShaderConvert
 	RGBA8_TO_FLOAT24,
 	RGBA8_TO_FLOAT16,
 	RGB5A1_TO_FLOAT16,
+	RGBA8_TO_FLOAT32_BILN,
+	RGBA8_TO_FLOAT24_BILN,
+	RGBA8_TO_FLOAT16_BILN,
+	RGB5A1_TO_FLOAT16_BILN,
 	DEPTH_COPY,
 	RGBA_TO_8I,
 	YUV,
 	Count
 };
+
+static inline bool HasDepthOutput(ShaderConvert shader)
+{
+	switch (shader)
+	{
+		case ShaderConvert::RGBA8_TO_FLOAT32:
+		case ShaderConvert::RGBA8_TO_FLOAT24:
+		case ShaderConvert::RGBA8_TO_FLOAT16:
+		case ShaderConvert::RGB5A1_TO_FLOAT16:
+		case ShaderConvert::RGBA8_TO_FLOAT32_BILN:
+		case ShaderConvert::RGBA8_TO_FLOAT24_BILN:
+		case ShaderConvert::RGBA8_TO_FLOAT16_BILN:
+		case ShaderConvert::RGB5A1_TO_FLOAT16_BILN:
+		case ShaderConvert::DEPTH_COPY:
+			return true;
+		default:
+			return false;
+	}
+}
+
+static inline bool HasStencilOutput(ShaderConvert shader)
+{
+	switch (shader)
+	{
+		case ShaderConvert::DATM_0:
+		case ShaderConvert::DATM_1:
+			return true;
+		default:
+			return false;
+	}
+}
+
+static inline bool SupportsNearest(ShaderConvert shader)
+{
+	switch (shader)
+	{
+		case ShaderConvert::RGBA8_TO_FLOAT32_BILN:
+		case ShaderConvert::RGBA8_TO_FLOAT24_BILN:
+		case ShaderConvert::RGBA8_TO_FLOAT16_BILN:
+		case ShaderConvert::RGB5A1_TO_FLOAT16_BILN:
+			return false;
+		default:
+			return true;
+	}
+}
+
+static inline bool SupportsBilinear(ShaderConvert shader)
+{
+	switch (shader)
+	{
+		case ShaderConvert::RGBA8_TO_FLOAT32:
+		case ShaderConvert::RGBA8_TO_FLOAT24:
+		case ShaderConvert::RGBA8_TO_FLOAT16:
+		case ShaderConvert::RGB5A1_TO_FLOAT16:
+			return false;
+		default:
+			return true;
+	}
+}
 
 enum class PresentShader
 {
@@ -127,20 +191,8 @@ public:
 class InterlaceConstantBuffer
 {
 public:
-	GSVector2 ZrH;
-	float _pad[2];
-
+	GSVector4 ZrH; // data passed to the shader
 	InterlaceConstantBuffer() { memset(this, 0, sizeof(*this)); }
-};
-
-class ExternalFXConstantBuffer
-{
-public:
-	GSVector2 xyFrame;
-	GSVector4 rcpFrame;
-	GSVector4 rcpFrameOpt;
-
-	ExternalFXConstantBuffer() { memset(this, 0, sizeof(*this)); }
 };
 
 #pragma pack(pop)
@@ -183,6 +235,13 @@ struct alignas(16) GSHWDrawConfig
 		Triangle,
 		Sprite,
 	};
+	enum class VSExpand: u8
+	{
+		None,
+		Point,
+		Line,
+		Sprite,
+	};
 #pragma pack(push, 1)
 	struct GSSelector
 	{
@@ -193,6 +252,7 @@ struct alignas(16) GSHWDrawConfig
 				GSTopology topology : 2;
 				bool expand : 1;
 				bool iip : 1;
+				bool forward_primid : 1;
 			};
 			u8 key;
 		};
@@ -209,7 +269,8 @@ struct alignas(16) GSHWDrawConfig
 				u8 tme : 1;
 				u8 iip : 1;
 				u8 point_size : 1;		///< Set when points need to be expanded without geometry shader.
-				u8 _free : 1;
+				VSExpand expand : 2;
+				u8 _free : 2;
 			};
 			u8 key;
 		};
@@ -241,7 +302,7 @@ struct alignas(16) GSHWDrawConfig
 				// Flat/goround shading
 				u32 iip : 1;
 				// Pixel test
-				u32 date : 4;
+				u32 date : 3;
 				u32 atst : 3;
 				// Color sampling
 				u32 fst : 1; // Investigate to do it on the VS
@@ -264,10 +325,11 @@ struct alignas(16) GSHWDrawConfig
 				u32 blend_b     : 2;
 				u32 blend_c     : 2;
 				u32 blend_d     : 2;
+				u32 fixed_one_a : 1;
 				u32 clr_hw      : 3;
 				u32 hdr         : 1;
 				u32 colclip     : 1;
-				u32 blend_mix   : 1;
+				u32 blend_mix   : 2;
 				u32 pabe        : 1;
 				u32 no_color    : 1; // disables color output entirely (depth only)
 				u32 no_color1   : 1; // disables second color output (when unnecessary)
@@ -574,8 +636,8 @@ struct alignas(16) GSHWDrawConfig
 	GSTexture* ds;        ///< Depth stencil
 	GSTexture* tex;       ///< Source texture
 	GSTexture* pal;       ///< Palette texture
-	GSVertex* verts;      ///< Vertices to draw
-	u32* indices;         ///< Indices to draw
+	const GSVertex* verts;///< Vertices to draw
+	const u32* indices;   ///< Indices to draw
 	u32 nverts;           ///< Number of vertices
 	u32 nindices;         ///< Number of indices
 	u32 indices_per_prim; ///< Number of indices that make up one primitive
@@ -626,7 +688,8 @@ public:
 	{
 		bool broken_point_sampler : 1; ///< Issue with AMD cards, see tfx shader for details
 		bool geometry_shader      : 1; ///< Supports geometry shader
-		bool image_load_store     : 1; ///< Supports atomic min and max on images (for use with prim tracking destination alpha algorithm)
+		bool vs_expand            : 1; ///< Supports expanding points/lines/sprites in the vertex shader
+		bool primitive_id         : 1; ///< Supports primitive ID for use with prim tracking destination alpha algorithm
 		bool texture_barrier      : 1; ///< Supports sampling rt and hopefully texture barrier
 		bool provoking_vertex_last: 1; ///< Supports using the last vertex in a primitive as the value for flat shading.
 		bool point_expand         : 1; ///< Supports point expansion in hardware without using geometry shaders.
@@ -637,6 +700,7 @@ public:
 		bool framebuffer_fetch    : 1; ///< Can sample from the framebuffer without texture barriers.
 		bool dual_source_blend    : 1; ///< Can use alpha output as a blend factor.
 		bool stencil_buffer       : 1; ///< Supports stencil buffer, and can use for DATE.
+		bool cas_sharpening       : 1; ///< Supports sufficient functionality for contrast adaptive sharpening.
 		FeatureSupport()
 		{
 			memset(this, 0, sizeof(*this));
@@ -664,15 +728,20 @@ private:
 	static const std::array<u8, 16> m_replaceDualSrcBlendMap;
 
 protected:
-	static constexpr u32 MAX_POOLED_TEXTURES = 300;
-
-	HostDisplay* m_display = nullptr;
+	static constexpr int   NUM_INTERLACE_SHADERS = 5;
+	static constexpr float MAD_SENSITIVITY = 0.08f;
+	static constexpr u32   MAX_POOLED_TEXTURES = 300;
+	static constexpr u32   NUM_CAS_CONSTANTS = 12; // 8 plus src offset x/y, 16 byte alignment
 
 	GSTexture* m_merge = nullptr;
 	GSTexture* m_weavebob = nullptr;
 	GSTexture* m_blend = nullptr;
+	GSTexture* m_mad = nullptr;
 	GSTexture* m_target_tmp = nullptr;
 	GSTexture* m_current = nullptr;
+	GSTexture* m_cas = nullptr;
+	GSTexture* m_temp_snapshot = nullptr; // No need to delete this, only ever points to m_current.
+
 	struct
 	{
 		size_t stride, start, count, limit;
@@ -689,16 +758,20 @@ protected:
 	GSTexture* FetchSurface(GSTexture::Type type, int width, int height, int levels, GSTexture::Format format, bool clear, bool prefer_reuse);
 
 	virtual void DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c) = 0;
-	virtual void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset) = 0;
+	virtual void DoInterlace(GSTexture* sTex, GSTexture* dTex, int shader, bool linear, float yoffset, int bufIdx) = 0;
 	virtual void DoFXAA(GSTexture* sTex, GSTexture* dTex) {}
 	virtual void DoShadeBoost(GSTexture* sTex, GSTexture* dTex, const float params[4]) {}
-	virtual void DoExternalFX(GSTexture* sTex, GSTexture* dTex) {}
+
+	/// Resolves CAS shader includes for the specified source.
+	static bool GetCASShaderSource(std::string* source);
+
+	/// Applies CAS and writes to the destination texture, which should be a RWTexture.
+	virtual bool DoCAS(GSTexture* sTex, GSTexture* dTex, bool sharpen_only, const std::array<u32, NUM_CAS_CONSTANTS>& constants) = 0;
 
 public:
 	GSDevice();
 	virtual ~GSDevice();
 
-	__fi HostDisplay* GetDisplay() const { return m_display; }
 	__fi unsigned int GetFrameNumber() const { return m_frame; }
 
 	void Recycle(GSTexture* t);
@@ -719,7 +792,7 @@ public:
 		Performance
 	};
 
-	virtual bool Create(HostDisplay* display);
+	virtual bool Create();
 	virtual void Destroy();
 
 	virtual void ResetAPIState();
@@ -727,9 +800,6 @@ public:
 
 	virtual void BeginScene() {}
 	virtual void EndScene();
-
-	virtual bool HasDepthSparse() { return false; }
-	virtual bool HasColorSparse() { return false; }
 
 	virtual void ClearRenderTarget(GSTexture* t, const GSVector4& c) {}
 	virtual void ClearRenderTarget(GSTexture* t, u32 c) {}
@@ -741,11 +811,9 @@ public:
 	virtual void PopDebugGroup() {}
 	virtual void InsertDebugMessage(DebugMessageCategory category, const char* fmt, ...) {}
 
-	GSTexture* CreateSparseRenderTarget(int w, int h, GSTexture::Format format, bool clear = true);
-	GSTexture* CreateSparseDepthStencil(int w, int h, GSTexture::Format format, bool clear = true);
 	GSTexture* CreateRenderTarget(int w, int h, GSTexture::Format format, bool clear = true);
 	GSTexture* CreateDepthStencil(int w, int h, GSTexture::Format format, bool clear = true);
-	GSTexture* CreateTexture(int w, int h, bool mipmap, GSTexture::Format format, bool prefer_reuse = false);
+	GSTexture* CreateTexture(int w, int h, int mipmap_levels, GSTexture::Format format, bool prefer_reuse = false);
 	GSTexture* CreateOffscreen(int w, int h, GSTexture::Format format);
 	GSTexture::Format GetDefaultTextureFormat(GSTexture::Type type);
 
@@ -773,13 +841,17 @@ public:
 
 	__fi FeatureSupport Features() const { return m_features; }
 	__fi GSTexture* GetCurrent() const { return m_current; }
+	__fi GSTexture* GetSnapshot() const { return m_temp_snapshot; }
 
 	void ClearCurrent();
+	void SetSnapshot();
 	void Merge(GSTexture* sTex[3], GSVector4* sRect, GSVector4* dRect, const GSVector2i& fs, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c);
 	void Interlace(const GSVector2i& ds, int field, int mode, float yoffset);
 	void FXAA();
 	void ShadeBoost();
-	void ExternalFX();
+	void Resize(int width, int height);
+
+	void CAS(GSTexture*& tex, GSVector4i& src_rect, GSVector4& src_uv, const GSVector4& draw_rect, bool sharpen_only);
 
 	bool ResizeTexture(GSTexture** t, GSTexture::Type type, int w, int h, bool clear = true, bool prefer_reuse = false);
 	bool ResizeTexture(GSTexture** t, int w, int h, bool prefer_reuse = false);

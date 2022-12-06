@@ -28,9 +28,12 @@
 
 #include "Host.h"
 #include "HostDisplay.h"
+#include "IconsFontAwesome5.h"
 
 #ifndef PCSX2_CORE
 #include "gui/Dialogs/ModalPopups.h"
+#else
+#include "VMManager.h"
 #endif
 
 // Uncomment this to enable profiling of the GS RingBufferCopy function.
@@ -135,7 +138,7 @@ void SysMtgsThread::ThreadEntryPoint()
 
 			m_sem_event.WaitForWork();
 		}
-		
+
 		// try initializing.. this could fail
 		const bool opened = TryOpenGS();
 		m_open_flag.store(opened, std::memory_order_release);
@@ -242,9 +245,13 @@ void SysMtgsThread::PostVsyncStart(bool registers_written)
 
 void SysMtgsThread::InitAndReadFIFO(u8* mem, u32 qwc)
 {
-	if (EmuConfig.GS.HWDisableReadbacks && GSConfig.UseHardwareRenderer())
+	if (EmuConfig.GS.HWDownloadMode >= GSHardwareDownloadMode::Unsynchronized && GSConfig.UseHardwareRenderer())
 	{
-		GSReadLocalMemoryUnsync(mem, qwc, vif1.BITBLTBUF._u64, vif1.TRXPOS._u64, vif1.TRXREG._u64);
+		if (EmuConfig.GS.HWDownloadMode == GSHardwareDownloadMode::Unsynchronized)
+			GSReadLocalMemoryUnsync(mem, qwc, vif1.BITBLTBUF._u64, vif1.TRXPOS._u64, vif1.TRXREG._u64);
+		else
+			std::memset(mem, 0, qwc * 16);
+
 		return;
 	}
 
@@ -296,9 +303,23 @@ void SysMtgsThread::MainLoop()
 		// is very optimized (only 1 instruction test in most cases), so no point in trying
 		// to avoid it.
 
+#ifdef PCSX2_CORE
+		if (m_run_idle_flag.load(std::memory_order_acquire) && VMManager::GetState() != VMState::Running)
+		{
+			if (!m_sem_event.CheckForWork())
+				GSPresentCurrentFrame();
+		}
+		else
+		{
+			mtvu_lock.unlock();
+			m_sem_event.WaitForWork();
+			mtvu_lock.lock();
+		}
+#else
 		mtvu_lock.unlock();
 		m_sem_event.WaitForWork();
 		mtvu_lock.lock();
+#endif
 
 		if (!m_open_flag.load(std::memory_order_acquire))
 			break;
@@ -596,7 +617,7 @@ void SysMtgsThread::WaitGS(bool syncRegs, bool weakWait, bool isMTVU)
 	// we don't want to access the content of the queue
 
 	SetEvent();
-	if (weakWait)
+	if (weakWait && isMTVU)
 	{
 		// On weakWait we will stop waiting on the MTGS thread if the
 		// MTGS thread has processed a vu1 xgkick packet, or is pending on
@@ -623,9 +644,10 @@ void SysMtgsThread::WaitGS(bool syncRegs, bool weakWait, bool isMTVU)
 			pxFailRel("MTGS Thread Died");
 	}
 
+	assert(!(weakWait && syncRegs) && "No synchronization for this!");
+
 	if (syncRegs)
 	{
-		std::unique_lock lock(m_mtx_WaitGS);
 		// Completely synchronize GS and MTGS register states.
 		memcpy(RingBuffer.Regs, PS2MEM_GS, sizeof(RingBuffer.Regs));
 	}
@@ -915,14 +937,14 @@ void SysMtgsThread::ApplySettings()
 
 	RunOnGSThread([opts = EmuConfig.GS]() {
 		GSUpdateConfig(opts);
+		g_host_display->SetVSync(Host::GetEffectiveVSyncMode());
 	});
 
 	// We need to synchronize the thread when changing any settings when the download mode
 	// is unsynchronized, because otherwise we might potentially read in the middle of
 	// the GS renderer being reopened.
-	if (EmuConfig.GS.HWDisableReadbacks)
+	if (EmuConfig.GS.HWDownloadMode == GSHardwareDownloadMode::Unsynchronized)
 		WaitGS(false, false, false);
-
 }
 
 void SysMtgsThread::ResizeDisplayWindow(int width, int height, float scale)
@@ -932,6 +954,12 @@ void SysMtgsThread::ResizeDisplayWindow(int width, int height, float scale)
 		GSResetAPIState();
 		Host::ResizeHostDisplay(width, height, scale);
 		GSRestoreAPIState();
+
+#ifdef PCSX2_CORE
+		// If we're paused, re-present the current frame at the new window size.
+		if (VMManager::GetState() == VMState::Paused)
+			GSPresentCurrentFrame();
+#endif
 	});
 }
 
@@ -942,16 +970,28 @@ void SysMtgsThread::UpdateDisplayWindow()
 		GSResetAPIState();
 		Host::UpdateHostDisplay();
 		GSRestoreAPIState();
+
+#ifdef PCSX2_CORE
+		// If we're paused, re-present the current frame at the new window size.
+		if (VMManager::GetState() == VMState::Paused)
+			GSPresentCurrentFrame();
+#endif
 	});
 }
 
-void SysMtgsThread::SetVSync(VsyncMode mode)
+void SysMtgsThread::SetVSyncMode(VsyncMode mode)
 {
 	pxAssertRel(IsOpen(), "MTGS is running");
 
 	RunOnGSThread([mode]() {
-		Host::GetHostDisplay()->SetVSync(mode);
+		Console.WriteLn("Vsync is %s", mode == VsyncMode::Off ? "OFF" : (mode == VsyncMode::Adaptive ? "ADAPTIVE" : "ON"));
+		g_host_display->SetVSync(mode);
 	});
+}
+
+void SysMtgsThread::UpdateVSyncMode()
+{
+	SetVSyncMode(Host::GetEffectiveVSyncMode());
 }
 
 void SysMtgsThread::SwitchRenderer(GSRendererType renderer, bool display_message /* = true */)
@@ -960,8 +1000,8 @@ void SysMtgsThread::SwitchRenderer(GSRendererType renderer, bool display_message
 
 	if (display_message)
 	{
-		Host::AddKeyedFormattedOSDMessage("SwitchRenderer", 10.0f, "Switching to %s renderer...",
-			Pcsx2Config::GSOptions::GetRendererName(renderer));
+		Host::AddIconOSDMessage("SwitchRenderer", ICON_FA_MAGIC, fmt::format("Switching to {} renderer...",
+			Pcsx2Config::GSOptions::GetRendererName(renderer)), Host::OSD_INFO_DURATION);
 	}
 
 	RunOnGSThread([renderer]() {
@@ -969,7 +1009,7 @@ void SysMtgsThread::SwitchRenderer(GSRendererType renderer, bool display_message
 	});
 
 	// See note in ApplySettings() for reasoning here.
-	if (EmuConfig.GS.HWDisableReadbacks)
+	if (EmuConfig.GS.HWDownloadMode == GSHardwareDownloadMode::Unsynchronized)
 		WaitGS(false, false, false);
 }
 
@@ -981,7 +1021,7 @@ void SysMtgsThread::SetSoftwareRendering(bool software, bool display_message /* 
 		new_renderer = EmuConfig.GS.UseHardwareRenderer() ? EmuConfig.GS.Renderer : GSRendererType::Auto;
 	else
 		new_renderer = GSRendererType::SW;
-		
+
 	SwitchRenderer(new_renderer, display_message);
 }
 
@@ -1003,5 +1043,19 @@ bool SysMtgsThread::SaveMemorySnapshot(u32 width, u32 height, std::vector<u32>* 
 
 void SysMtgsThread::PresentCurrentFrame()
 {
-	GSPresentCurrentFrame();
+	if (m_run_idle_flag.load(std::memory_order_relaxed))
+	{
+		// If we're running idle, we're going to re-present anyway.
+		return;
+	}
+
+	RunOnGSThread([]() {
+		GSPresentCurrentFrame();
+	});
+}
+
+void SysMtgsThread::SetRunIdle(bool enabled)
+{
+	// NOTE: Should only be called on the GS thread.
+	m_run_idle_flag.store(enabled, std::memory_order_release);
 }

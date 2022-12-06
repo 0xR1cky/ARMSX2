@@ -120,6 +120,16 @@ const xRegisterSSE
     xmm12(12), xmm13(13),
     xmm14(14), xmm15(15);
 
+const xRegisterSSE
+    ymm0(0, xRegisterYMMTag()), ymm1(1, xRegisterYMMTag()),
+    ymm2(2, xRegisterYMMTag()), ymm3(3, xRegisterYMMTag()),
+    ymm4(4, xRegisterYMMTag()), ymm5(5, xRegisterYMMTag()),
+    ymm6(6, xRegisterYMMTag()), ymm7(7, xRegisterYMMTag()),
+    ymm8(8, xRegisterYMMTag()), ymm9(9, xRegisterYMMTag()),
+    ymm10(10, xRegisterYMMTag()), ymm11(11, xRegisterYMMTag()),
+    ymm12(12, xRegisterYMMTag()), ymm13(13, xRegisterYMMTag()),
+    ymm14(14, xRegisterYMMTag()), ymm15(15, xRegisterYMMTag());
+
 const xAddressReg
     rax(0), rbx(3),
     rcx(1), rdx(2),
@@ -150,7 +160,13 @@ const xRegister8
     al(0),
     dl(2), bl(3),
     ah(4), ch(5),
-    dh(6), bh(7);
+    dh(6), bh(7),
+    spl(4, true), bpl(5, true),
+    sil(6, true), dil(7, true),
+    r8b(8), r9b(9),
+    r10b(10), r11b(11),
+    r12b(12), r13b(13),
+    r14b(14), r15b(15);
 
 #if defined(_WIN32)
 const xAddressReg
@@ -426,10 +442,10 @@ const xRegister32
 	}
 
 	//////////////////////////////////////////////////////////////////////////////////////////
-	__emitinline static void EmitRex(bool w, bool r, bool x, bool b)
+	__emitinline static void EmitRex(bool w, bool r, bool x, bool b, bool ext8bit = false)
 	{
 		const u8 rex = 0x40 | (w << 3) | (r << 2) | (x << 1) | (u8)b;
-		if (rex != 0x40)
+		if (rex != 0x40 || ext8bit)
 			xWrite8(rex);
 	}
 
@@ -463,16 +479,16 @@ const xRegister32
 		bool r = false;
 		bool x = false;
 		bool b = reg2.IsExtended();
-		EmitRex(w, r, x, b);
+		EmitRex(w, r, x, b, reg2.IsExtended8Bit());
 	}
 
 	void EmitRex(const xRegisterBase& reg1, const xRegisterBase& reg2)
 	{
-		bool w = reg1.IsWide();
+		bool w = reg1.IsWide() || reg2.IsWide();
 		bool r = reg1.IsExtended();
 		bool x = false;
 		bool b = reg2.IsExtended();
-		EmitRex(w, r, x, b);
+		EmitRex(w, r, x, b, reg2.IsExtended8Bit());
 	}
 
 	void EmitRex(const xRegisterBase& reg1, const void* src)
@@ -482,12 +498,12 @@ const xRegister32
 		bool r = reg1.IsExtended();
 		bool x = false;
 		bool b = false; // FIXME src.IsExtended();
-		EmitRex(w, r, x, b);
+		EmitRex(w, r, x, b, reg1.IsExtended8Bit());
 	}
 
 	void EmitRex(const xRegisterBase& reg1, const xIndirectVoid& sib)
 	{
-		bool w = reg1.IsWide();
+		bool w = reg1.IsWide() || sib.IsWide();
 		bool r = reg1.IsExtended();
 		bool x = sib.Index.IsExtended();
 		bool b = sib.Base.IsExtended();
@@ -496,7 +512,7 @@ const xRegister32
 			b = x;
 			x = false;
 		}
-		EmitRex(w, r, x, b);
+		EmitRex(w, r, x, b, reg1.IsExtended8Bit());
 	}
 
 	// For use by instructions that are implicitly wide

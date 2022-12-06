@@ -18,6 +18,7 @@
 #include "Common.h"
 #include "Gif.h"
 #include "GS/GS.h"
+#include "SingleRegisterTypes.h"
 #include <atomic>
 #include <functional>
 #include <mutex>
@@ -339,10 +340,9 @@ public:
 	std::atomic<bool> m_VsyncSignalListener;
 
 	std::mutex m_mtx_RingBufferBusy2; // Gets released on semaXGkick waiting...
-	std::mutex m_mtx_WaitGS;
 	Threading::WorkSema m_sem_event;
-	Threading::KernelSemaphore m_sem_OnRingReset;
-	Threading::KernelSemaphore m_sem_Vsync;
+	Threading::UserspaceSemaphore m_sem_OnRingReset;
+	Threading::UserspaceSemaphore m_sem_Vsync;
 
 	// used to keep multiple threads from sending packets to the ringbuffer concurrently.
 	// (currently not used or implemented -- is a planned feature for a future threaded VU1)
@@ -367,7 +367,8 @@ public:
 	Threading::ThreadHandle m_thread_handle;
 	std::atomic_bool m_open_flag{false};
 	std::atomic_bool m_shutdown_flag{false};
-	Threading::KernelSemaphore m_open_or_close_done;
+	std::atomic_bool m_run_idle_flag{false};
+	Threading::UserspaceSemaphore m_open_or_close_done;
 
 public:
 	SysMtgsThread();
@@ -383,7 +384,7 @@ public:
 	void ShutdownThread();
 
 	/// Re-presents the current frame. Call when things like window resizes happen to re-display
-	/// the current frame with the correct proportions. Should only be called on the GS thread.
+	/// the current frame with the correct proportions. Should only be called from the CPU thread.
 	void PresentCurrentFrame();
 
 	// Waits for the GS to empty out the entire ring buffer contents.
@@ -411,11 +412,13 @@ public:
 	void ApplySettings();
 	void ResizeDisplayWindow(int width, int height, float scale);
 	void UpdateDisplayWindow();
-	void SetVSync(VsyncMode mode);
+	void SetVSyncMode(VsyncMode mode);
+	void UpdateVSyncMode();
 	void SwitchRenderer(GSRendererType renderer, bool display_message = true);
 	void SetSoftwareRendering(bool software, bool display_message = true);
 	void ToggleSoftwareRendering();
 	bool SaveMemorySnapshot(u32 width, u32 height, std::vector<u32>* pixels);
+	void SetRunIdle(bool enabled);
 
 protected:
 	bool TryOpenGS();
@@ -449,13 +452,13 @@ extern void gsWrite8(u32 mem, u8 value);
 extern void gsWrite16(u32 mem, u16 value);
 extern void gsWrite32(u32 mem, u32 value);
 
-extern void gsWrite64_page_00(u32 mem, const mem64_t* value);
-extern void gsWrite64_page_01(u32 mem, const mem64_t* value);
-extern void gsWrite64_generic(u32 mem, const mem64_t* value);
+extern void gsWrite64_page_00(u32 mem, u64 value);
+extern void gsWrite64_page_01(u32 mem, u64 value);
+extern void gsWrite64_generic(u32 mem, u64 value);
 
-extern void gsWrite128_page_00(u32 mem, const mem128_t* value);
-extern void gsWrite128_page_01(u32 mem, const mem128_t* value);
-extern void gsWrite128_generic(u32 mem, const mem128_t* value);
+extern void TAKES_R128 gsWrite128_page_00(u32 mem, r128 value);
+extern void TAKES_R128 gsWrite128_page_01(u32 mem, r128 value);
+extern void TAKES_R128 gsWrite128_generic(u32 mem, r128 value);
 
 extern u8 gsRead8(u32 mem);
 extern u16 gsRead16(u32 mem);

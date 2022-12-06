@@ -111,10 +111,16 @@ fragment float4 ps_primid_init_datm1(float4 p [[position]], DirectReadTextureIn<
 	return tex.read(p).a < (127.5f / 255.f) ? -1 : FLT_MAX;
 }
 
-fragment float4 ps_mod256(float4 p [[position]], DirectReadTextureIn<float> tex)
+fragment float4 ps_hdr_init(float4 p [[position]], DirectReadTextureIn<float> tex)
 {
-	float4 c = round(tex.read(p) * 255.f);
-	return (c - 256.f * floor(c / 256.f)) / 255.f;
+	float4 in = tex.read(p);
+	return float4(round(in.rgb * 255.f) / 65535.f, in.a);
+}
+
+fragment float4 ps_hdr_resolve(float4 p [[position]], DirectReadTextureIn<float> tex)
+{
+	float4 in = tex.read(p);
+	return float4(float3(uint3(in.rgb * 65535.5f) & 255) / 255.f, in.a);
 }
 
 fragment float4 ps_filter_transparency(ConvertShaderData data [[stage_in]], ConvertPSRes res)
@@ -150,35 +156,98 @@ fragment DepthOut ps_depth_copy(ConvertShaderData data [[stage_in]], ConvertPSDe
 	return res.sample(data.t);
 }
 
-static float pack_rgba8_depth(float4 unorm)
+static float rgba8_to_depth32(half4 unorm)
 {
-	return float(as_type<uint>(uchar4(unorm * 255.f + 0.5f))) * 0x1p-32f;
+	return float(as_type<uint>(uchar4(unorm * 255.5h))) * 0x1p-32f;
 }
 
-fragment DepthOut ps_convert_rgba8_float32(ConvertShaderData data [[stage_in]], ConvertPSRes res)
+static float rgba8_to_depth24(half4 unorm)
 {
-	return pack_rgba8_depth(res.sample(data.t));
+	return rgba8_to_depth32(half4(unorm.rgb, 0));
 }
 
-fragment DepthOut ps_convert_rgba8_float24(ConvertShaderData data [[stage_in]], ConvertPSRes res)
+static float rgba8_to_depth16(half4 unorm)
 {
-	// Same as above but without the alpha channel (24 bits Z)
-	return pack_rgba8_depth(float4(res.sample(data.t).rgb, 0));
+	return float(as_type<ushort>(uchar2(unorm.rg * 255.5h))) * 0x1p-32f;
 }
 
-fragment DepthOut ps_convert_rgba8_float16(ConvertShaderData data [[stage_in]], ConvertPSRes res)
+static float rgb5a1_to_depth16(half4 unorm)
 {
-	return float(as_type<ushort>(uchar2(res.sample(data.t).rg * 255.f + 0.5f))) * 0x1p-32;
-}
-
-fragment DepthOut ps_convert_rgb5a1_float16(ConvertShaderData data [[stage_in]], ConvertPSRes res)
-{
-	uint4 cu = uint4(res.sample(data.t) * 255.f + 0.5f);
+	uint4 cu = uint4(unorm * 255.5h);
 	uint out = (cu.x >> 3) | ((cu.y << 2) & 0x03e0) | ((cu.z << 7) & 0x7c00) | ((cu.w << 8) & 0x8000);
-	return float(out) * 0x1p-32;
+	return float(out) * 0x1p-32f;
 }
 
-fragment float4 ps_convert_rgba_8i(ConvertShaderData data [[stage_in]], ConvertPSRes res,
+struct ConvertToDepthRes
+{
+	texture2d<half> texture [[texture(GSMTLTextureIndexNonHW)]];
+	half4 sample(float2 coord)
+	{
+		// RGBA bilinear on a depth texture is a bad idea, and should never be used
+		// Might as well let the compiler optimize a bit by telling it exactly what sampler we'll be using here
+		constexpr sampler s(coord::normalized, filter::nearest, address::clamp_to_edge);
+		return texture.sample(s, coord);
+	}
+
+	/// Manual bilinear sampling where we do the bilinear *after* rgba → depth conversion
+	template <float (&convert)(half4)>
+	float sample_biln(float2 coord)
+	{
+		uint2 dimensions = uint2(texture.get_width(), texture.get_height());
+		float2 top_left_f = coord * float2(dimensions) - 0.5f;
+		int2 top_left = int2(floor(top_left_f));
+		uint4 coords = uint4(clamp(int4(top_left, top_left + 1), 0, int2(dimensions - 1).xyxy));
+		float2 mix_vals = fract(top_left_f);
+
+		float depthTL = convert(texture.read(coords.xy));
+		float depthTR = convert(texture.read(coords.zy));
+		float depthBL = convert(texture.read(coords.xw));
+		float depthBR = convert(texture.read(coords.zw));
+		return mix(mix(depthTL, depthTR, mix_vals.x), mix(depthBL, depthBR, mix_vals.x), mix_vals.y);
+	}
+};
+
+fragment DepthOut ps_convert_rgba8_float32(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return rgba8_to_depth32(res.sample(data.t));
+}
+
+fragment DepthOut ps_convert_rgba8_float24(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return rgba8_to_depth24(res.sample(data.t));
+}
+
+fragment DepthOut ps_convert_rgba8_float16(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return rgba8_to_depth16(res.sample(data.t));
+}
+
+fragment DepthOut ps_convert_rgb5a1_float16(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return rgb5a1_to_depth16(res.sample(data.t));
+}
+
+fragment DepthOut ps_convert_rgba8_float32_biln(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return res.sample_biln<rgba8_to_depth32>(data.t);
+}
+
+fragment DepthOut ps_convert_rgba8_float24_biln(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return res.sample_biln<rgba8_to_depth24>(data.t);
+}
+
+fragment DepthOut ps_convert_rgba8_float16_biln(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return res.sample_biln<rgba8_to_depth16>(data.t);
+}
+
+fragment DepthOut ps_convert_rgb5a1_float16_biln(ConvertShaderData data [[stage_in]], ConvertToDepthRes res)
+{
+	return res.sample_biln<rgb5a1_to_depth16>(data.t);
+}
+
+fragment float4 ps_convert_rgba_8i(ConvertShaderData data [[stage_in]], DirectReadTextureIn<float> res,
 	constant GSMTLConvertPSUniform& uniform [[buffer(GSMTLBufferIndexUniforms)]])
 {
 	// Convert a RGBA texture into a 8 bits packed texture
@@ -190,60 +259,28 @@ fragment float4 ps_convert_rgba_8i(ConvertShaderData data [[stage_in]], ConvertP
 	// 1: 8 R | 8 B
 	// 2: 8 G | 8 A
 	// 3: 8 G | 8 A
-	float c;
+	uint2 pos = uint2(data.p.xy);
 
-	uint2 sel = uint2(data.p.xy) % uint2(16, 16);
-	uint2 tb  = (uint2(data.p.xy) & ~uint2(15, 3)) >> 1;
+	// Collapse separate R G B A areas into their base pixel
+	uint2 block = (pos & ~uint2(15, 3)) >> 1;
+	uint2 subblock = pos & uint2(7, 1);
+	uint2 coord = block | subblock;
 
-	uint ty  = tb.y | (uint(data.p.y) & 1);
-	uint txN = tb.x | (uint(data.p.x) & 7);
-	uint txH = tb.x | ((uint(data.p.x) + 4) & 7);
+	// Apply offset to cols 1 and 2
+	uint is_col23 = pos.y & 4;
+	uint is_col13 = pos.y & 2;
+	uint is_col12 = is_col23 ^ (is_col13 << 1);
+	coord.x ^= is_col12; // If cols 1 or 2, flip bit 3 of x
 
-	txN *= SCALING_FACTOR.x;
-	txH *= SCALING_FACTOR.x;
-	ty  *= SCALING_FACTOR.y;
-
-	// TODO investigate texture gather
-	float4 cN = res.texture.read(uint2(txN, ty));
-	float4 cH = res.texture.read(uint2(txH, ty));
-
-	if ((sel.y & 4) == 0)
-	{
-		// Column 0 and 2
-		if ((sel.y & 2) == 0)
-		{
-			if ((sel.x & 8) == 0)
-				c = cN.r;
-			else
-				c = cN.b;
-		}
-		else
-		{
-			if ((sel.x & 8) == 0)
-				c = cH.g;
-			else
-				c = cH.a;
-		}
-	}
+	if (any(floor(SCALING_FACTOR) != SCALING_FACTOR))
+		coord = uint2(float2(coord) * SCALING_FACTOR);
 	else
-	{
-		// Column 1 and 3
-		if ((sel.y & 2) == 0)
-		{
-			if ((sel.x & 8) == 0)
-				c = cH.r;
-			else
-				c = cH.b;
-		}
-		else
-		{
-			if ((sel.x & 8) == 0)
-				c = cN.g;
-			else
-				c = cN.a;
-		}
-	}
-	return float4(c);
+		coord = mul24(coord, uint2(SCALING_FACTOR));
+
+	float4 pixel = res.tex.read(coord);
+	float2 sel0 = (pos.y & 2) == 0 ? pixel.rb : pixel.ga;
+	float  sel1 = (pos.x & 8) == 0 ? sel0.x : sel0.y;
+	return float4(sel1);
 }
 
 fragment float4 ps_yuv(ConvertShaderData data [[stage_in]], ConvertPSRes res,

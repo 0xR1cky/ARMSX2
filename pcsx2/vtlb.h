@@ -26,15 +26,15 @@ static const uptr VTLB_AllocUpperBounds = _1gb * 2;
 typedef  mem8_t vtlbMemR8FP(u32 addr);
 typedef  mem16_t vtlbMemR16FP(u32 addr);
 typedef  mem32_t vtlbMemR32FP(u32 addr);
-typedef  RETURNS_R64 vtlbMemR64FP(u32 addr);
+typedef  mem64_t vtlbMemR64FP(u32 addr);
 typedef  RETURNS_R128 vtlbMemR128FP(u32 addr);
 
 // Specialized function pointers for each write type
 typedef  void vtlbMemW8FP(u32 addr,mem8_t data);
 typedef  void vtlbMemW16FP(u32 addr,mem16_t data);
 typedef  void vtlbMemW32FP(u32 addr,mem32_t data);
-typedef  void vtlbMemW64FP(u32 addr,const mem64_t* data);
-typedef  void vtlbMemW128FP(u32 addr,const mem128_t* data);
+typedef  void vtlbMemW64FP(u32 addr,mem64_t data);
+typedef  void TAKES_R128 vtlbMemW128FP(u32 addr,r128 data);
 
 template <size_t Width, bool Write> struct vtlbMemFP;
 
@@ -55,9 +55,9 @@ extern void vtlb_Core_Alloc();
 extern void vtlb_Core_Free();
 extern void vtlb_Alloc_Ppmap();
 extern void vtlb_Init();
+extern void vtlb_Shutdown();
 extern void vtlb_Reset();
-extern void vtlb_Term();
-
+extern void vtlb_ResetFastmem();
 
 extern vtlbHandler vtlb_NewHandler();
 
@@ -83,18 +83,25 @@ extern void vtlb_DynV2P();
 extern void vtlb_VMap(u32 vaddr,u32 paddr,u32 sz);
 extern void vtlb_VMapBuffer(u32 vaddr,void* buffer,u32 sz);
 extern void vtlb_VMapUnmap(u32 vaddr,u32 sz);
+extern bool vtlb_ResolveFastmemMapping(uptr* addr);
+extern bool vtlb_GetGuestAddress(uptr host_addr, u32* guest_addr);
+extern void vtlb_UpdateFastmemProtection(u32 paddr, u32 size, const PageProtectionMode& prot);
+extern bool vtlb_BackpatchLoadStore(uptr code_address, uptr fault_address);
+
+extern void vtlb_ClearLoadStoreInfo();
+extern void vtlb_AddLoadStoreInfo(uptr code_address, u32 code_size, u32 guest_pc, u32 gpr_bitmask, u32 fpr_bitmask, u8 address_register, u8 data_register, u8 size_in_bits, bool is_signed, bool is_load, bool is_fpr);
+extern void vtlb_DynBackpatchLoadStore(uptr code_address, u32 code_size, u32 guest_pc, u32 guest_addr, u32 gpr_bitmask, u32 fpr_bitmask, u8 address_register, u8 data_register, u8 size_in_bits, bool is_signed, bool is_load, bool is_fpr);
+extern bool vtlb_IsFaultingPC(u32 guest_pc);
 
 //Memory functions
 
 template< typename DataType >
 extern DataType vtlb_memRead(u32 mem);
-extern RETURNS_R64 vtlb_memRead64(u32 mem);
 extern RETURNS_R128 vtlb_memRead128(u32 mem);
 
 template< typename DataType >
 extern void vtlb_memWrite(u32 mem, DataType value);
-extern void vtlb_memWrite64(u32 mem, const mem64_t* value);
-extern void vtlb_memWrite128(u32 mem, const mem128_t* value);
+extern void TAKES_R128 vtlb_memWrite128(u32 mem, r128 value);
 
 // "Safe" variants of vtlb, designed for external tools.
 // These routines only access the various RAM, and will not call handlers
@@ -104,32 +111,26 @@ extern DataType vtlb_ramRead(u32 mem);
 template <typename DataType>
 extern bool vtlb_ramWrite(u32 mem, const DataType& value);
 
-extern void vtlb_DynGenWrite(u32 sz);
-extern void vtlb_DynGenRead32(u32 bits, bool sign);
-extern int  vtlb_DynGenRead64(u32 sz, int gpr);
+using vtlb_ReadRegAllocCallback = int(*)();
+extern int vtlb_DynGenReadNonQuad(u32 bits, bool sign, bool xmm, int addr_reg, vtlb_ReadRegAllocCallback dest_reg_alloc = nullptr);
+extern int vtlb_DynGenReadNonQuad_Const(u32 bits, bool sign, bool xmm, u32 addr_const, vtlb_ReadRegAllocCallback dest_reg_alloc = nullptr);
+extern int vtlb_DynGenReadQuad(u32 bits, int addr_reg, vtlb_ReadRegAllocCallback dest_reg_alloc = nullptr);
+extern int vtlb_DynGenReadQuad_Const(u32 bits, u32 addr_const, vtlb_ReadRegAllocCallback dest_reg_alloc = nullptr);
 
-extern void vtlb_DynGenWrite_Const( u32 bits, u32 addr_const );
-extern int  vtlb_DynGenRead64_Const( u32 bits, u32 addr_const, int gpr );
-extern void vtlb_DynGenRead32_Const( u32 bits, bool sign, u32 addr_const );
+extern void vtlb_DynGenWrite(u32 sz, bool xmm, int addr_reg, int value_reg);
+extern void vtlb_DynGenWrite_Const(u32 bits, bool xmm, u32 addr_const, int value_reg);
 
 // --------------------------------------------------------------------------------------
 //  VtlbMemoryReserve
 // --------------------------------------------------------------------------------------
-class VtlbMemoryReserve
+class VtlbMemoryReserve : public VirtualMemoryReserve
 {
-protected:
-	VirtualMemoryReserve	m_reserve;
-
 public:
-	VtlbMemoryReserve( std::string name, size_t size );
+	VtlbMemoryReserve(std::string name);
 
-	void Reserve( VirtualMemoryManagerPtr allocator, sptr offset );
+	void Assign(VirtualMemoryManagerPtr allocator, size_t offset, size_t size);
 
-	virtual void Commit();
 	virtual void Reset();
-	virtual void Decommit();
-
-	bool IsCommitted() const;
 };
 
 // --------------------------------------------------------------------------------------
@@ -143,9 +144,9 @@ public:
 	eeMemoryReserve();
 	~eeMemoryReserve();
 
-	void Reserve(VirtualMemoryManagerPtr allocator);
-	void Commit() override;
-	void Decommit() override;
+	void Assign(VirtualMemoryManagerPtr allocator);
+	void Release();
+
 	void Reset() override;
 };
 
@@ -158,10 +159,11 @@ class iopMemoryReserve : public VtlbMemoryReserve
 
 public:
 	iopMemoryReserve();
+	~iopMemoryReserve();
 
-	void Reserve(VirtualMemoryManagerPtr allocator);
-	void Commit() override;
-	void Decommit() override;
+	void Assign(VirtualMemoryManagerPtr allocator);
+	void Release();
+
 	void Reset() override;
 };
 
@@ -176,7 +178,8 @@ public:
 	vuMemoryReserve();
 	~vuMemoryReserve();
 
-	void Reserve(VirtualMemoryManagerPtr allocator);
+	void Assign(VirtualMemoryManagerPtr allocator);
+	void Release();
 
 	void Reset() override;
 };
@@ -261,10 +264,13 @@ namespace vtlb_private
 
 		u32* ppmap;               //4MB (allocated by vtlb_init) // PS2 virtual to PS2 physical
 
+		uptr fastmem_base;
+
 		MapData()
 		{
 			vmap = NULL;
 			ppmap = NULL;
+			fastmem_base = 0;
 		}
 	};
 

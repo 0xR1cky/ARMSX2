@@ -19,10 +19,14 @@
 #include "common/RedtapeWindows.h"
 #include "common/Exceptions.h"
 #include "common/StringUtil.h"
+#include "common/General.h"
+#include "common/WindowInfo.h"
 
 #include "fmt/core.h"
 
-#pragma comment(lib, "User32.lib")
+#include <mmsystem.h>
+#include <timeapi.h>
+#include <VersionHelpers.h>
 
 alignas(16) static LARGE_INTEGER lfreq;
 
@@ -60,60 +64,31 @@ std::string GetOSVersionString()
 	SYSTEM_INFO si;
 	GetNativeSystemInfo(&si);
 
-	if (!IsWindows8Point1OrGreater())
-	{
-		retval = "Unsupported Operating System!";
-	}
-	else
+	if (IsWindows10OrGreater())
 	{
 		retval = "Microsoft ";
-
-		if (IsWindows10OrGreater())
-			retval += IsWindowsServer() ? "Windows Server 2016" : "Windows 10";
-		else // IsWindows8Point1OrGreater()
-			retval += IsWindowsServer() ? "Windows Server 2012 R2" : "Windows 8.1";
+		retval += IsWindowsServer() ? "Windows Server 2016+" : "Windows 10+";
+		
 	}
+	else
+		retval = "Unsupported Operating System!";
 
 	return retval;
 }
 
-// --------------------------------------------------------------------------------------
-//  Exception::WinApiError   (implementations)
-// --------------------------------------------------------------------------------------
-Exception::WinApiError::WinApiError()
-{
-	ErrorId = GetLastError();
-	m_message_diag = "Unspecified Windows API error.";
-}
-
-std::string Exception::WinApiError::GetMsgFromWindows() const
-{
-	if (!ErrorId)
-		return "No valid error number was assigned to this exception!";
-
-	const DWORD BUF_LEN = 2048;
-	wchar_t t_Msg[BUF_LEN];
-	if (FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, 0, ErrorId, 0, t_Msg, BUF_LEN, 0))
-		return fmt::format("Win32 Error #{}: {}", ErrorId, StringUtil::WideStringToUTF8String(t_Msg));
-
-	return fmt::format("Win32 Error #{} (no text msg available)", ErrorId);
-}
-
-std::string Exception::WinApiError::FormatDisplayMessage() const
-{
-	return m_message_user + "\n\n" + GetMsgFromWindows();
-}
-
-std::string Exception::WinApiError::FormatDiagnosticMessage() const
-{
-	return m_message_diag + "\n\t" + GetMsgFromWindows();
-}
-
-void ScreensaverAllow(bool allow)
+bool WindowInfo::InhibitScreensaver(const WindowInfo& wi, bool inhibit)
 {
 	EXECUTION_STATE flags = ES_CONTINUOUS;
-	if (!allow)
+	if (inhibit)
 		flags |= ES_DISPLAY_REQUIRED;
 	SetThreadExecutionState(flags);
+	return true;
 }
+
+bool Common::PlaySoundAsync(const char* path)
+{
+	const std::wstring wpath(StringUtil::UTF8StringToWideString(path));
+	return PlaySoundW(wpath.c_str(), NULL, SND_ASYNC | SND_NODEFAULT);
+}
+
 #endif

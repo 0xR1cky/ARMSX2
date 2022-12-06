@@ -98,6 +98,43 @@ void Pcsx2App::PostMenuAction( MenuIdentifiers menu_id ) const
 		mainFrame->GetEventHandler()->AddPendingEvent( joe );
 }
 
+#ifdef _WIN32
+
+// --------------------------------------------------------------------------------------
+//  Exception::WinApiError   (implementations)
+// --------------------------------------------------------------------------------------
+Exception::WinApiError::WinApiError()
+{
+	ErrorId = GetLastError();
+	m_message_diag = "Unspecified Windows API error.";
+}
+
+std::string Exception::WinApiError::GetMsgFromWindows() const
+{
+	if (!ErrorId)
+		return "No valid error number was assigned to this exception!";
+
+	const DWORD BUF_LEN = 2048;
+	wchar_t t_Msg[BUF_LEN];
+	if (FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM, 0, ErrorId, 0, t_Msg, BUF_LEN, 0))
+		return fmt::format("Win32 Error #{}: {}", ErrorId, StringUtil::WideStringToUTF8String(t_Msg));
+
+	return fmt::format("Win32 Error #{} (no text msg available)", ErrorId);
+}
+
+std::string Exception::WinApiError::FormatDisplayMessage() const
+{
+	return m_message_user + "\n\n" + GetMsgFromWindows();
+}
+
+std::string Exception::WinApiError::FormatDiagnosticMessage() const
+{
+	return m_message_diag + "\n\t" + GetMsgFromWindows();
+}
+
+#endif
+
+
 // --------------------------------------------------------------------------------------
 //  Pcsx2AppMethodEvent
 // --------------------------------------------------------------------------------------
@@ -128,18 +165,18 @@ public:
 	{
 		m_Method = method;
 	}
-	
+
 	Pcsx2AppMethodEvent( const Pcsx2AppMethodEvent& src )
 		: pxActionEvent( src )
 	{
 		m_Method = src.m_Method;
 	}
-		
+
 	void SetMethod( FnPtr_Pcsx2App method )
 	{
 		m_Method = method;
 	}
-	
+
 protected:
 	void InvokeEvent()
 	{
@@ -359,7 +396,7 @@ wxAppTraits* Pcsx2App::CreateTraits()
 // ----------------------------------------------------------------------------
 
 // LogicalVsync - Event received from the AppCoreThread (EEcore) for each vsync,
-// roughly 50/60 times a second when frame limiting is enabled, and up to 10,000 
+// roughly 50/60 times a second when frame limiting is enabled, and up to 10,000
 // times a second if not (ok, not quite, but you get the idea... I hope.)
 void Pcsx2App::LogicalVsync()
 {
@@ -374,7 +411,7 @@ void Pcsx2App::LogicalVsync()
 	{
 		if( ev->key == 0 ) break;
 
-		// in the past, in the plugin api, all plugins would have a first chance at treating the 
+		// in the past, in the plugin api, all plugins would have a first chance at treating the
 		// input here, with the ui eventually dealing with it otherwise. Obviously this solution
 		// sucked and we had multiple components battling for input processing. I managed to make
 		// most of them go away during the plugin merge but GS still needs to process the inputs,
@@ -413,23 +450,6 @@ void Pcsx2App::HandleEvent(wxEvtHandler* handler, wxEventFunction func, wxEvent&
 {
 	try
 	{
-		if (g_Conf->EmuOptions.EnableRecordingTools)
-		{
-			if (g_InputRecordingControls.IsPaused())
-			{
-				// When the GSFrame CoreThread is paused, so is the logical VSync
-				// Meaning that we have to grab the user-input through here to potentially
-				// resume emulation.
-				if (const HostKeyEvent* ev = PADkeyEvent() )
-				{
-					if( ev->key != 0 )
-					{
-						PadKeyDispatch( *ev );
-					}
-				}
-			}
-			g_InputRecordingControls.ResumeCoreThreadIfStarted();
-		}
 		(handler->*func)(event);
 	}
 	// ----------------------------------------------------------------------------
@@ -444,9 +464,6 @@ void Pcsx2App::HandleEvent(wxEvtHandler* handler, wxEventFunction func, wxEvent&
 		// Saved state load failed prior to the system getting corrupted (ie, file not found
 		// or some zipfile error) -- so log it and resume emulation.
 		Console.Warning( ex.FormatDiagnosticMessage() );
-		if (g_InputRecording.IsInitialLoad())
-			g_InputRecording.FailedSavestate();
-
 		CoreThread.Resume();
 	}
 	// ----------------------------------------------------------------------------
@@ -456,17 +473,17 @@ void Pcsx2App::HandleEvent(wxEvtHandler* handler, wxEventFunction func, wxEvent&
 		// [TODO]  Bind a listener to the CoreThread status, and automatically close the dialog
 		// if the thread starts responding while we're waiting (not hard in fact, but I'm getting
 		// a little tired, so maybe later!)  --air
-	
+
 		Console.Warning( ex.FormatDiagnosticMessage() );
 		wxDialogWithHelpers dialog( NULL, _("PCSX2 Unresponsive Thread"), wxVERTICAL );
-		
+
 		dialog += dialog.Heading( ex.FormatDisplayMessage() + L"\n\n" +
 			pxE( L"'Ignore' to continue waiting for the thread to respond.\n'Cancel' to attempt to cancel the thread.\n'Terminate' to quit PCSX2 immediately.\n"
 			)
 		);
 
 		int result = pxIssueConfirmation( dialog, MsgButtons().Ignore().Cancel().Custom( _("Terminate") ) );
-		
+
 		if( result == pxID_CUSTOM )
 		{
 			// fastest way to kill the process! (works in Linux and win32, thanks to windows having very
@@ -565,7 +582,7 @@ void Pcsx2App::enterDebugMode()
 	if (dlg)
 		dlg->setDebugMode(true,false);
 }
-	
+
 void Pcsx2App::leaveDebugMode()
 {
 	DisassemblyDialog* dlg = GetDisassemblyPtr();
@@ -716,7 +733,7 @@ void Pcsx2App::OpenGsPanel()
 		//
 		// FIXME: GS memory leaks in DX10 have been fixed.  This code may not be needed
 		// anymore.
-		
+
 		const wxSize oldsize( gsFrame->GetSize() );
 		wxSize newsize( oldsize );
 		newsize.DecBy(1);
@@ -731,15 +748,6 @@ void Pcsx2App::OpenGsPanel()
 	std::optional<WindowInfo> wi = gsFrame->GetViewport()->GetWindowInfo();
 	pxAssertDev(wi.has_value(), "GS frame has a valid native window");
 	g_gs_window_info = std::move(*wi);
-
-	// Enable New & Play after the first game load of the session
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_New, !g_InputRecording.IsActive());
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_Play, true);
-
-	// Enable recording menu options as the game is now running
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_FrameAdvance, true);
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_TogglePause, true);
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_ToggleRecordingMode, g_InputRecording.IsActive());
 }
 
 
@@ -779,11 +787,6 @@ void Pcsx2App::OnGsFrameDestroyed(wxWindowID id)
 
 	m_id_GsFrame = wxID_ANY;
 	g_gs_window_info = {};
-
-	// Disable recording controls that only make sense if the game is running
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_FrameAdvance, false);
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_TogglePause, false);
-	sMainFrame.enableRecordingMenuItem(MenuId_Recording_ToggleRecordingMode, false);
 }
 
 void Pcsx2App::OnProgramLogClosed( wxWindowID id )
@@ -797,11 +800,6 @@ void Pcsx2App::OnProgramLogClosed( wxWindowID id )
 
 void Pcsx2App::OnMainFrameClosed( wxWindowID id )
 {
-	if (g_InputRecording.IsActive())
-	{
-		g_InputRecording.Stop();
-	}
-
 	// Nothing threaded depends on the mainframe (yet) -- it all passes through the main wxApp
 	// message handler.  But that might change in the future.
 	if( m_id_MainFrame != id ) return;
@@ -832,7 +830,7 @@ public:
 	{
 		return _("Executing PS2 Virtual Machine...");
 	}
-	
+
 	SysExecEvent_Execute()
 		: m_UseCDVDsrc(false)
 		, m_UseELFOverride(false)
@@ -896,10 +894,6 @@ void Pcsx2App::SysExecute( CDVD_SourceType cdvdsrc, const wxString& elf_override
 		return;
 
 	SysExecutorThread.PostEvent( new SysExecEvent_Execute(cdvdsrc, elf_override) );
-	if (g_Conf->EmuOptions.EnableRecordingTools)
-	{
-		g_InputRecording.RecordingReset();
-	}
 }
 
 // Returns true if there is a "valid" virtual machine state from the user's perspective.  This

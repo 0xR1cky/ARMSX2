@@ -18,9 +18,6 @@
 #include "Common.h"
 #include "COP0.h"
 
-u32 s_iLastCOP0Cycle = 0;
-u32 s_iLastPERFCycle[2] = { 0, 0 };
-
 // Updates the CPU's mode of operation (either, Kernel, Supervisor, or User modes).
 // Currently the different modes are not implemented.
 // Given this function is called so much, it's commented out for now. (rama)
@@ -127,8 +124,8 @@ __fi void COP0_UpdatePCCR()
 	// or the counting function is not enabled (CTE)
 	if (cpuRegs.CP0.n.Status.b.ERL || !cpuRegs.PERF.n.pccr.b.CTE)
 	{
-		s_iLastPERFCycle[0] = cpuRegs.cycle;
-		s_iLastPERFCycle[1] = s_iLastPERFCycle[0];
+		cpuRegs.lastPERFCycle[0] = cpuRegs.cycle;
+		cpuRegs.lastPERFCycle[1] = cpuRegs.lastPERFCycle[0];
 		return;
 	}
 
@@ -142,13 +139,13 @@ __fi void COP0_UpdatePCCR()
 
 		if( PERF_ShouldCountEvent( cpuRegs.PERF.n.pccr.b.Event0 ) )
 		{
-			u32 incr = cpuRegs.cycle - s_iLastPERFCycle[0];
+			u32 incr = cpuRegs.cycle - cpuRegs.lastPERFCycle[0];
 			if( incr == 0 ) incr++;
 
 			// use prev/XOR method for one-time exceptions (but likely less correct)
 			//u32 prev = cpuRegs.PERF.n.pcr0;
 			cpuRegs.PERF.n.pcr0 += incr;
-			s_iLastPERFCycle[0] = cpuRegs.cycle;
+			cpuRegs.lastPERFCycle[0] = cpuRegs.cycle;
 
 			//prev ^= (1UL<<31);		// XOR is fun!
 			//if( (prev & cpuRegs.PERF.n.pcr0) & (1UL<<31) )
@@ -193,11 +190,11 @@ __fi void COP0_UpdatePCCR()
 
 		if( PERF_ShouldCountEvent( cpuRegs.PERF.n.pccr.b.Event1 ) )
 		{
-			u32 incr = cpuRegs.cycle - s_iLastPERFCycle[1];
+			u32 incr = cpuRegs.cycle - cpuRegs.lastPERFCycle[1];
 			if( incr == 0 ) incr++;
 
 			cpuRegs.PERF.n.pcr1 += incr;
-			s_iLastPERFCycle[1] = cpuRegs.cycle;
+			cpuRegs.lastPERFCycle[1] = cpuRegs.cycle;
 
 			if( (cpuRegs.PERF.n.pcr1 & 0x80000000))
 			{
@@ -238,81 +235,81 @@ __fi void COP0_UpdatePCCR()
 //
 
 
-void MapTLB(int i)
+void MapTLB(const tlbs& t, int i)
 {
 	u32 mask, addr;
 	u32 saddr, eaddr;
 
 	COP0_LOG("MAP TLB %d: 0x%08X-> [0x%08X 0x%08X] S=%d G=%d ASID=%d Mask=0x%03X EntryLo0 PFN=%x EntryLo0 Cache=%x EntryLo1 PFN=%x EntryLo1 Cache=%x VPN2=%x",
-		i, tlb[i].VPN2, tlb[i].PFN0, tlb[i].PFN1, tlb[i].S >> 31, tlb[i].G, tlb[i].ASID,
-		tlb[i].Mask, tlb[i].EntryLo0 >> 6, (tlb[i].EntryLo0 & 0x38) >> 3, tlb[i].EntryLo1 >> 6, (tlb[i].EntryLo1 & 0x38) >> 3, tlb[i].VPN2);
+		i, t.VPN2, t.PFN0, t.PFN1, t.S >> 31, t.G, t.ASID,
+		t.Mask, t.EntryLo0 >> 6, (t.EntryLo0 & 0x38) >> 3, t.EntryLo1 >> 6, (t.EntryLo1 & 0x38) >> 3, t.VPN2);
 
-	if (tlb[i].S)
+	if (t.S)
 	{
-		vtlb_VMapBuffer(tlb[i].VPN2, eeMem->Scratch, Ps2MemSize::Scratch);
+		vtlb_VMapBuffer(t.VPN2, eeMem->Scratch, Ps2MemSize::Scratch);
 	}
 
-	if (tlb[i].VPN2 == 0x70000000) return; //uh uhh right ...
-	if (tlb[i].EntryLo0 & 0x2) {
-		mask  = ((~tlb[i].Mask) << 1) & 0xfffff;
-		saddr = tlb[i].VPN2 >> 12;
-		eaddr = saddr + tlb[i].Mask + 1;
+	if (t.VPN2 == 0x70000000) return; //uh uhh right ...
+	if (t.EntryLo0 & 0x2) {
+		mask  = ((~t.Mask) << 1) & 0xfffff;
+		saddr = t.VPN2 >> 12;
+		eaddr = saddr + t.Mask + 1;
 
 		for (addr=saddr; addr<eaddr; addr++) {
-			if ((addr & mask) == ((tlb[i].VPN2 >> 12) & mask)) { //match
-				memSetPageAddr(addr << 12, tlb[i].PFN0 + ((addr - saddr) << 12));
+			if ((addr & mask) == ((t.VPN2 >> 12) & mask)) { //match
+				memSetPageAddr(addr << 12, t.PFN0 + ((addr - saddr) << 12));
 				Cpu->Clear(addr << 12, 0x400);
 			}
 		}
 	}
 
-	if (tlb[i].EntryLo1 & 0x2) {
-		mask  = ((~tlb[i].Mask) << 1) & 0xfffff;
-		saddr = (tlb[i].VPN2 >> 12) + tlb[i].Mask + 1;
-		eaddr = saddr + tlb[i].Mask + 1;
+	if (t.EntryLo1 & 0x2) {
+		mask  = ((~t.Mask) << 1) & 0xfffff;
+		saddr = (t.VPN2 >> 12) + t.Mask + 1;
+		eaddr = saddr + t.Mask + 1;
 
 		for (addr=saddr; addr<eaddr; addr++) {
-			if ((addr & mask) == ((tlb[i].VPN2 >> 12) & mask)) { //match
-				memSetPageAddr(addr << 12, tlb[i].PFN1 + ((addr - saddr) << 12));
+			if ((addr & mask) == ((t.VPN2 >> 12) & mask)) { //match
+				memSetPageAddr(addr << 12, t.PFN1 + ((addr - saddr) << 12));
 				Cpu->Clear(addr << 12, 0x400);
 			}
 		}
 	}
 }
 
-void UnmapTLB(int i)
+void UnmapTLB(const tlbs& t, int i)
 {
-	//Console.WriteLn("Clear TLB %d: %08x-> [%08x %08x] S=%d G=%d ASID=%d Mask= %03X", i,tlb[i].VPN2,tlb[i].PFN0,tlb[i].PFN1,tlb[i].S,tlb[i].G,tlb[i].ASID,tlb[i].Mask);
+	//Console.WriteLn("Clear TLB %d: %08x-> [%08x %08x] S=%d G=%d ASID=%d Mask= %03X", i,t.VPN2,t.PFN0,t.PFN1,t.S,t.G,t.ASID,t.Mask);
 	u32 mask, addr;
 	u32 saddr, eaddr;
 
-	if (tlb[i].S)
+	if (t.S)
 	{
-		vtlb_VMapUnmap(tlb[i].VPN2,0x4000);
+		vtlb_VMapUnmap(t.VPN2,0x4000);
 		return;
 	}
 
-	if (tlb[i].EntryLo0 & 0x2)
+	if (t.EntryLo0 & 0x2)
 	{
-		mask  = ((~tlb[i].Mask) << 1) & 0xfffff;
-		saddr = tlb[i].VPN2 >> 12;
-		eaddr = saddr + tlb[i].Mask + 1;
+		mask  = ((~t.Mask) << 1) & 0xfffff;
+		saddr = t.VPN2 >> 12;
+		eaddr = saddr + t.Mask + 1;
 	//	Console.WriteLn("Clear TLB: %08x ~ %08x",saddr,eaddr-1);
 		for (addr=saddr; addr<eaddr; addr++) {
-			if ((addr & mask) == ((tlb[i].VPN2 >> 12) & mask)) { //match
+			if ((addr & mask) == ((t.VPN2 >> 12) & mask)) { //match
 				memClearPageAddr(addr << 12);
 				Cpu->Clear(addr << 12, 0x400);
 			}
 		}
 	}
 
-	if (tlb[i].EntryLo1 & 0x2) {
-		mask  = ((~tlb[i].Mask) << 1) & 0xfffff;
-		saddr = (tlb[i].VPN2 >> 12) + tlb[i].Mask + 1;
-		eaddr = saddr + tlb[i].Mask + 1;
+	if (t.EntryLo1 & 0x2) {
+		mask  = ((~t.Mask) << 1) & 0xfffff;
+		saddr = (t.VPN2 >> 12) + t.Mask + 1;
+		eaddr = saddr + t.Mask + 1;
 	//	Console.WriteLn("Clear TLB: %08x ~ %08x",saddr,eaddr-1);
 		for (addr=saddr; addr<eaddr; addr++) {
-			if ((addr & mask) == ((tlb[i].VPN2 >> 12) & mask)) { //match
+			if ((addr & mask) == ((t.VPN2 >> 12) & mask)) { //match
 				memClearPageAddr(addr << 12);
 				Cpu->Clear(addr << 12, 0x400);
 			}
@@ -336,7 +333,7 @@ void WriteTLB(int i)
 	tlb[i].PFN1 = (((cpuRegs.CP0.n.EntryLo1 >> 6) & 0xFFFFF) & (~tlb[i].Mask)) << 12;
 	tlb[i].S = cpuRegs.CP0.n.EntryLo0&0x80000000;
 
-	MapTLB(i);
+	MapTLB(tlb[i], i);
 }
 
 namespace R5900 {
@@ -366,7 +363,7 @@ void TLBWI() {
 			cpuRegs.CP0.n.Index,    cpuRegs.CP0.n.PageMask, cpuRegs.CP0.n.EntryHi,
 			cpuRegs.CP0.n.EntryLo0, cpuRegs.CP0.n.EntryLo1);
 
-	UnmapTLB(j);
+	UnmapTLB(tlb[j], j);
 	tlb[j].PageMask = cpuRegs.CP0.n.PageMask;
 	tlb[j].EntryHi = cpuRegs.CP0.n.EntryHi;
 	tlb[j].EntryLo0 = cpuRegs.CP0.n.EntryLo0;
@@ -385,7 +382,7 @@ DevCon.Warning("COP0_TLBWR %d:%x,%x,%x,%x\n",
 
 	//if (j > 48) return;
 
-	UnmapTLB(j);
+	UnmapTLB(tlb[j], j);
 	tlb[j].PageMask = cpuRegs.CP0.n.PageMask;
 	tlb[j].EntryHi = cpuRegs.CP0.n.EntryHi;
 	tlb[j].EntryLo0 = cpuRegs.CP0.n.EntryLo0;
@@ -456,16 +453,16 @@ void MFC0()
 
 		case 9:
 		{
-			u32 incr = cpuRegs.cycle-s_iLastCOP0Cycle;
+			u32 incr = cpuRegs.cycle - cpuRegs.lastCOP0Cycle;
 			if( incr == 0 ) incr++;
 			cpuRegs.CP0.n.Count += incr;
-			s_iLastCOP0Cycle = cpuRegs.cycle;
+			cpuRegs.lastCOP0Cycle = cpuRegs.cycle;
 			if( !_Rt_ ) break;
 		}
 			[[fallthrough]];
 
 		default:
-			cpuRegs.GPR.r[_Rt_].UD[0] = (s64)cpuRegs.CP0.r[_Rd_];
+			cpuRegs.GPR.r[_Rt_].SD[0] = (s32)cpuRegs.CP0.r[_Rd_];
 	}
 }
 
@@ -475,7 +472,7 @@ void MTC0()
 	switch (_Rd_)
 	{
 		case 9:
-			s_iLastCOP0Cycle = cpuRegs.cycle;
+			cpuRegs.lastCOP0Cycle = cpuRegs.cycle;
 			cpuRegs.CP0.r[9] = cpuRegs.GPR.r[_Rt_].UL[0];
 		break;
 
@@ -506,12 +503,12 @@ void MTC0()
 			else if (0 == (_Imm_ & 2)) // MTPC 0, only LSB of register matters
 			{
 				cpuRegs.PERF.n.pcr0 = cpuRegs.GPR.r[_Rt_].UL[0];
-				s_iLastPERFCycle[0] = cpuRegs.cycle;
+				cpuRegs.lastPERFCycle[0] = cpuRegs.cycle;
 			}
 			else // MTPC 1
 			{
 				cpuRegs.PERF.n.pcr1 = cpuRegs.GPR.r[_Rt_].UL[0];
-				s_iLastPERFCycle[1] = cpuRegs.cycle;
+				cpuRegs.lastPERFCycle[1] = cpuRegs.cycle;
 			}
 		break;
 

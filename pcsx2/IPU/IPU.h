@@ -275,7 +275,7 @@ union tIPU_cmd
 			u32 current;
 		};
 	};
-	
+
 	u128 _u128[2];
 
 	void clear();
@@ -288,14 +288,18 @@ union tIPU_cmd
 
 static IPUregisters& ipuRegs = (IPUregisters&)eeHw[0x2000];
 
+extern bool FMVstarted;
+extern bool EnableFMV;
+
 alignas(16) extern tIPU_cmd ipu_cmd;
+extern uint eecount_on_last_vdec;
 extern int coded_block_pattern;
 extern bool CommandExecuteQueued;
 
 extern void ipuReset();
 
 extern u32 ipuRead32(u32 mem);
-extern RETURNS_R64 ipuRead64(u32 mem);
+extern u64 ipuRead64(u32 mem);
 extern bool ipuWrite32(u32 mem,u32 value);
 extern bool ipuWrite64(u32 mem,u64 value);
 

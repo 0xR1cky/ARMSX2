@@ -16,6 +16,7 @@
 #pragma once
 
 #include "PAD/Host/PAD.h"
+#include <tuple>
 
 namespace PAD
 {
@@ -30,6 +31,8 @@ namespace PAD
 		{
 			u8 lx, ly;
 			u8 rx, ry;
+			u8 invert_lx, invert_ly;
+			u8 invert_rx, invert_ry;
 		};
 
 		PAD::ControllerType m_type[NUM_CONTROLLER_PORTS] = {};
@@ -39,12 +42,21 @@ namespace PAD
 		float m_axis_scale[NUM_CONTROLLER_PORTS][2];
 		float m_vibration_scale[NUM_CONTROLLER_PORTS][2];
 		float m_pressure_modifier[NUM_CONTROLLER_PORTS];
+		float m_button_deadzone[NUM_CONTROLLER_PORTS];
 
 	public:
 		KeyStatus();
 		void Init();
 
 		void Set(u32 pad, u32 index, float value);
+
+		__fi void SetRawAnalogs(const u32 pad, const std::tuple<u8, u8> left, const std::tuple<u8, u8> right)
+		{
+			m_analog[pad].lx = std::get<0>(left);
+			m_analog[pad].ly = std::get<1>(left);
+			m_analog[pad].rx = std::get<0>(right);
+			m_analog[pad].ry = std::get<1>(right);
+		}
 
 		__fi PAD::ControllerType GetType(u32 pad) { return m_type[pad]; }
 		__fi void SetType(u32 pad, PAD::ControllerType type) { m_type[pad] = type; }
@@ -58,6 +70,22 @@ namespace PAD
 		__fi void SetVibrationScale(u32 pad, u32 motor, float scale) { m_vibration_scale[pad][motor] = scale; }
 		__fi float GetPressureModifier(u32 pad) const { return m_pressure_modifier[pad]; }
 		__fi void SetPressureModifier(u32 pad, float mod) { m_pressure_modifier[pad] = mod; }
+		__fi void SetButtonDeadzone(u32 pad, float deadzone) { m_button_deadzone[pad] = deadzone; }
+		__fi void SetAnalogInvertL(u32 pad, bool x, bool y)
+		{
+			m_analog[pad].invert_lx = x;
+			m_analog[pad].invert_ly = y;
+		}
+		__fi void SetAnalogInvertR(u32 pad, bool x, bool y)
+		{
+			m_analog[pad].invert_rx = x;
+			m_analog[pad].invert_ry = y;
+		}
+
+		__fi u8 GetRawPressure(u32 pad, u32 index) const { return m_button_pressure[pad][index]; }
+
+		__fi std::tuple<u8, u8> GetRawLeftAnalog(u32 pad) const { return {m_analog[pad].lx, m_analog[pad].ly}; }
+		__fi std::tuple<u8, u8> GetRawRightAnalog(u32 pad) const { return {m_analog[pad].rx, m_analog[pad].ry}; }
 
 		u32 GetButtons(u32 pad);
 		u8 GetPressure(u32 pad, u32 index);

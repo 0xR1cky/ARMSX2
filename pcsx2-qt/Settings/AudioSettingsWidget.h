@@ -30,6 +30,9 @@ public:
 	~AudioSettingsWidget();
 
 private Q_SLOTS:
+	void expansionModeChanged();
+	void outputModuleChanged();
+	void outputBackendChanged();
 	void updateVolumeLabel();
 	void updateLatencyLabel();
 	void updateTimestretchSequenceLengthLabel();
@@ -38,5 +41,6 @@ private Q_SLOTS:
 	void resetTimestretchDefaults();
 
 private:
+	SettingsDialog* m_dialog;
 	Ui::AudioSettingsWidget m_ui;
 };

@@ -1,6 +1,7 @@
 ﻿#include "PrecompiledHeader.h"
 
 #include "VulkanHostDisplay.h"
+#include "ShaderCacheVersion.h"
 #include "common/Align.h"
 #include "common/Assertions.h"
 #include "common/Console.h"
@@ -14,8 +15,6 @@
 #include "imgui.h"
 #include "imgui_impl_vulkan.h"
 #include <array>
-
-static constexpr u32 SHADER_CACHE_VERSION = 4;
 
 class VulkanHostDisplayTexture : public HostDisplayTexture
 {
@@ -61,33 +60,33 @@ VulkanHostDisplay::~VulkanHostDisplay()
 	}
 }
 
-HostDisplay::RenderAPI VulkanHostDisplay::GetRenderAPI() const
+RenderAPI VulkanHostDisplay::GetRenderAPI() const
 {
-	return HostDisplay::RenderAPI::Vulkan;
+	return RenderAPI::Vulkan;
 }
 
-void* VulkanHostDisplay::GetRenderDevice() const
-{
-	return nullptr;
-}
-
-void* VulkanHostDisplay::GetRenderContext() const
+void* VulkanHostDisplay::GetDevice() const
 {
 	return nullptr;
 }
 
-void* VulkanHostDisplay::GetRenderSurface() const
+void* VulkanHostDisplay::GetContext() const
+{
+	return nullptr;
+}
+
+void* VulkanHostDisplay::GetSurface() const
 {
 	return m_swap_chain.get();
 }
 
-bool VulkanHostDisplay::ChangeRenderWindow(const WindowInfo& new_wi)
+bool VulkanHostDisplay::ChangeWindow(const WindowInfo& new_wi)
 {
 	g_vulkan_context->WaitForGPUIdle();
 
 	if (new_wi.type == WindowInfo::Type::Surfaceless)
 	{
-		g_vulkan_context->ExecuteCommandBuffer(true);
+		g_vulkan_context->ExecuteCommandBuffer(Vulkan::Context::WaitType::Sleep);
 		m_swap_chain.reset();
 		m_window_info = new_wi;
 		return true;
@@ -126,7 +125,7 @@ bool VulkanHostDisplay::ChangeRenderWindow(const WindowInfo& new_wi)
 	return true;
 }
 
-void VulkanHostDisplay::ResizeRenderWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
+void VulkanHostDisplay::ResizeWindow(s32 new_window_width, s32 new_window_height, float new_window_scale)
 {
 	if (m_swap_chain->GetWidth() == static_cast<u32>(new_window_width) && m_swap_chain->GetHeight() == static_cast<u32>(new_window_height))
 	{
@@ -167,7 +166,7 @@ HostDisplay::AdapterAndModeList VulkanHostDisplay::GetAdapterAndModeList()
 	return StaticGetAdapterAndModeList(m_window_info.type != WindowInfo::Type::Surfaceless ? &m_window_info : nullptr);
 }
 
-void VulkanHostDisplay::DestroyRenderSurface()
+void VulkanHostDisplay::DestroySurface()
 {
 	g_vulkan_context->WaitForGPUIdle();
 	m_swap_chain.reset();
@@ -201,14 +200,16 @@ static bool UploadBufferToTexture(
 	Vulkan::Texture* texture, VkCommandBuffer cmdbuf, u32 width, u32 height, const void* data, u32 data_stride)
 {
 	const u32 texel_size = Vulkan::Util::GetTexelSize(texture->GetFormat());
-	const u32 upload_stride = Common::AlignUpPow2(texel_size * width, g_vulkan_context->GetBufferCopyRowPitchAlignment());
+	const u32 row_size = texel_size * width;
+	const u32 upload_stride = Common::AlignUpPow2(row_size, g_vulkan_context->GetBufferCopyRowPitchAlignment());
 	const u32 upload_size = upload_stride * height;
+	pxAssert(row_size <= data_stride);
 
 	Vulkan::StreamBuffer& buf = g_vulkan_context->GetTextureUploadBuffer();
 	if (!buf.ReserveMemory(upload_size, g_vulkan_context->GetBufferCopyOffsetAlignment()))
 	{
 		Console.WriteLn("Executing command buffer for UploadBufferToTexture()");
-		g_vulkan_context->ExecuteCommandBuffer(false);
+		g_vulkan_context->ExecuteCommandBuffer(Vulkan::Context::WaitType::None);
 		if (!buf.ReserveMemory(upload_size, g_vulkan_context->GetBufferCopyOffsetAlignment()))
 		{
 			Console.WriteLn("Failed to allocate %u bytes in stream buffer for UploadBufferToTexture()", upload_size);
@@ -218,10 +219,10 @@ static bool UploadBufferToTexture(
 	}
 
 	const u32 buf_offset = buf.GetCurrentOffset();
-	StringUtil::StrideMemCpy(buf.GetCurrentHostPointer(), upload_stride, data, data_stride, upload_stride, height);
+	StringUtil::StrideMemCpy(buf.GetCurrentHostPointer(), upload_stride, data, data_stride, row_size, height);
 	buf.CommitMemory(upload_size);
 
-	texture->UpdateFromBuffer(cmdbuf, 0, 0, 0, 0, width, height, upload_stride / texel_size, buf.GetBuffer(), buf_offset);
+	texture->UpdateFromBuffer(cmdbuf, 0, 0, 0, 0, width, height, height, upload_stride / texel_size, buf.GetBuffer(), buf_offset);
 	return true;
 }
 
@@ -273,14 +274,13 @@ void VulkanHostDisplay::SetVSync(VsyncMode mode)
 	m_vsync_mode = mode;
 }
 
-bool VulkanHostDisplay::CreateRenderDevice(
-	const WindowInfo& wi, std::string_view adapter_name, VsyncMode vsync, bool threaded_presentation, bool debug_device)
+bool VulkanHostDisplay::CreateDevice(const WindowInfo& wi)
 {
-	// debug_device = true;
-
 	WindowInfo local_wi(wi);
-	if (!Vulkan::Context::Create(adapter_name, &local_wi, &m_swap_chain, GetPreferredPresentModeForVsyncMode(vsync), threaded_presentation,
-			debug_device, debug_device))
+	const VsyncMode vsync = Host::GetEffectiveVSyncMode();
+	const bool debug_device = EmuConfig.GS.UseDebugDevice;
+	if (!Vulkan::Context::Create(EmuConfig.GS.Adapter, &local_wi, &m_swap_chain, GetPreferredPresentModeForVsyncMode(vsync),
+			EmuConfig.GS.ThreadedPresentation, debug_device, debug_device))
 	{
 		Console.Error("Failed to create Vulkan context");
 		m_window_info = {};
@@ -293,25 +293,30 @@ bool VulkanHostDisplay::CreateRenderDevice(
 	return true;
 }
 
-bool VulkanHostDisplay::InitializeRenderDevice(std::string_view shader_cache_directory, bool debug_device)
+bool VulkanHostDisplay::SetupDevice()
 {
-	Vulkan::ShaderCache::Create(shader_cache_directory, SHADER_CACHE_VERSION, debug_device);
+	Vulkan::ShaderCache::Create(EmuFolders::Cache, SHADER_CACHE_VERSION, EmuConfig.GS.UseDebugDevice);
 	return true;
 }
 
-bool VulkanHostDisplay::HasRenderDevice() const
+bool VulkanHostDisplay::HasDevice() const
 {
 	return static_cast<bool>(g_vulkan_context);
 }
 
-bool VulkanHostDisplay::HasRenderSurface() const
+bool VulkanHostDisplay::HasSurface() const
 {
 	return static_cast<bool>(m_swap_chain);
 }
 
 bool VulkanHostDisplay::CreateImGuiContext()
 {
-	return ImGui_ImplVulkan_Init(m_swap_chain->GetClearRenderPass());
+	const VkRenderPass render_pass =
+		m_swap_chain ? m_swap_chain->GetClearRenderPass() : g_vulkan_context->GetRenderPass(VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_UNDEFINED);
+	if (render_pass == VK_NULL_HANDLE)
+		return false;
+
+	return ImGui_ImplVulkan_Init(render_pass);
 }
 
 void VulkanHostDisplay::DestroyImGuiContext()
@@ -325,12 +330,12 @@ bool VulkanHostDisplay::UpdateImGuiFontTexture()
 	return ImGui_ImplVulkan_CreateFontsTexture();
 }
 
-bool VulkanHostDisplay::MakeRenderContextCurrent()
+bool VulkanHostDisplay::MakeCurrent()
 {
 	return true;
 }
 
-bool VulkanHostDisplay::DoneRenderContextCurrent()
+bool VulkanHostDisplay::DoneCurrent()
 {
 	return true;
 }
@@ -351,7 +356,7 @@ bool VulkanHostDisplay::BeginPresent(bool frame_skip)
 	{
 		if (res == VK_SUBOPTIMAL_KHR || res == VK_ERROR_OUT_OF_DATE_KHR)
 		{
-			ResizeRenderWindow(0, 0, m_window_info.surface_scale);
+			ResizeWindow(0, 0, m_window_info.surface_scale);
 			res = m_swap_chain->AcquireNextImage();
 		}
 		else if (res == VK_ERROR_SURFACE_LOST_KHR)
@@ -360,7 +365,7 @@ bool VulkanHostDisplay::BeginPresent(bool frame_skip)
 			if (!m_swap_chain->RecreateSurface(m_window_info))
 			{
 				Console.Error("Failed to recreate surface after loss");
-				g_vulkan_context->ExecuteCommandBuffer(false);
+				g_vulkan_context->ExecuteCommandBuffer(Vulkan::Context::WaitType::None);
 				return false;
 			}
 
@@ -373,7 +378,7 @@ bool VulkanHostDisplay::BeginPresent(bool frame_skip)
 		{
 			// Still submit the command buffer, otherwise we'll end up with several frames waiting.
 			LOG_VULKAN_ERROR(res, "vkAcquireNextImageKHR() failed: ");
-			g_vulkan_context->ExecuteCommandBuffer(false);
+			g_vulkan_context->ExecuteCommandBuffer(Vulkan::Context::WaitType::None);
 			return false;
 		}
 	}

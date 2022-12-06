@@ -18,8 +18,10 @@
 #include <QtWidgets/QMessageBox>
 #include <algorithm>
 
+#include "pcsx2/SPU2/Global.h"
+
 #include "AudioSettingsWidget.h"
-#include "EmuThread.h"
+#include "QtHost.h"
 #include "QtUtils.h"
 #include "SettingWidgetBinder.h"
 #include "SettingsDialog.h"
@@ -27,6 +29,7 @@
 static constexpr s32 DEFAULT_INTERPOLATION_MODE = 5;
 static constexpr s32 DEFAULT_SYNCHRONIZATION_MODE = 0;
 static constexpr s32 DEFAULT_EXPANSION_MODE = 0;
+static constexpr s32 DEFAULT_DPL_DECODING_LEVEL = 0;
 static const char* DEFAULT_OUTPUT_MODULE = "cubeb";
 static constexpr s32 DEFAULT_OUTPUT_LATENCY = 100;
 static constexpr s32 DEFAULT_VOLUME = 100;
@@ -53,6 +56,7 @@ static const char* s_output_module_values[] = {
 
 AudioSettingsWidget::AudioSettingsWidget(SettingsDialog* dialog, QWidget* parent)
 	: QWidget(parent)
+	, m_dialog(dialog)
 {
 	SettingsInterface* sif = dialog->getSettingsInterface();
 
@@ -61,10 +65,16 @@ AudioSettingsWidget::AudioSettingsWidget(SettingsDialog* dialog, QWidget* parent
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.interpolation, "SPU2/Mixing", "Interpolation", DEFAULT_INTERPOLATION_MODE);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.syncMode, "SPU2/Output", "SynchMode", DEFAULT_SYNCHRONIZATION_MODE);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.expansionMode, "SPU2/Output", "SpeakerConfiguration", DEFAULT_EXPANSION_MODE);
+	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.dplLevel, "SPU2/Output", "DplDecodingLevel", DEFAULT_DPL_DECODING_LEVEL);
+	connect(m_ui.expansionMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AudioSettingsWidget::expansionModeChanged);
+	expansionModeChanged();
 
 	SettingWidgetBinder::BindWidgetToEnumSetting(sif, m_ui.outputModule, "SPU2/Output", "OutputModule", s_output_module_entries, s_output_module_values, DEFAULT_OUTPUT_MODULE);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.latency, "SPU2/Output", "Latency", DEFAULT_OUTPUT_LATENCY);
+	connect(m_ui.outputModule, &QComboBox::currentIndexChanged, this, &AudioSettingsWidget::outputModuleChanged);
+	connect(m_ui.backend, &QComboBox::currentIndexChanged, this, &AudioSettingsWidget::outputBackendChanged);
 	connect(m_ui.latency, &QSlider::valueChanged, this, &AudioSettingsWidget::updateLatencyLabel);
+	outputModuleChanged();
 
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.volume, "SPU2/Mixing", "FinalVolume", DEFAULT_VOLUME);
 	connect(m_ui.volume, &QSlider::valueChanged, this, &AudioSettingsWidget::updateVolumeLabel);
@@ -75,6 +85,10 @@ AudioSettingsWidget::AudioSettingsWidget(SettingsDialog* dialog, QWidget* parent
 	connect(m_ui.seekWindowSize, &QSlider::valueChanged, this, &AudioSettingsWidget::updateTimestretchSeekwindowLengthLabel);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.overlap, "Soundtouch", "OverlapMS", DEFAULT_SOUNDTOUCH_OVERLAP);
 	connect(m_ui.overlap, &QSlider::valueChanged, this, &AudioSettingsWidget::updateTimestretchOverlapLabel);
+	connect(m_ui.resetTimestretchDefaults, &QPushButton::clicked, this, &AudioSettingsWidget::resetTimestretchDefaults);
+
+	m_ui.label_3b->setVisible(false);
+	m_ui.dplLevel->setVisible(false);
 
 	updateVolumeLabel();
 	updateLatencyLabel();
@@ -84,6 +98,65 @@ AudioSettingsWidget::AudioSettingsWidget(SettingsDialog* dialog, QWidget* parent
 }
 
 AudioSettingsWidget::~AudioSettingsWidget() = default;
+
+void AudioSettingsWidget::expansionModeChanged()
+{
+	const bool expansion51 = m_dialog->getEffectiveIntValue("SPU2/Output", "SpeakerConfiguration", 0) == 2;
+	m_ui.dplLevel->setDisabled(!expansion51);
+}
+
+void AudioSettingsWidget::outputModuleChanged()
+{
+	const std::string module_name(m_dialog->getEffectiveStringValue("SPU2/Output", "OutputModule", DEFAULT_OUTPUT_MODULE));
+	const char* const* backend_names = GetOutputModuleBackends(module_name.c_str());
+
+	const std::string backend_name(m_dialog->getEffectiveStringValue("SPU2/Output", "BackendName", ""));
+
+	QSignalBlocker sb(m_ui.backend);
+	m_ui.backend->clear();
+
+	if (m_dialog->isPerGameSettings())
+	{
+		const QString global_backend(QString::fromStdString(Host::GetStringSettingValue("SPU2/Output", "BackendName", "")));
+		m_ui.backend->addItem(tr("Use Global Setting [%1]").arg(global_backend.isEmpty() ? tr("Default") : global_backend));
+	}
+
+	m_ui.backend->setEnabled(backend_names != nullptr);
+	m_ui.backend->addItem(tr("(Default)"));
+	if (!backend_names || backend_name.empty())
+		m_ui.backend->setCurrentIndex(0);
+
+	if (backend_names)
+	{
+		for (u32 i = 0; backend_names[i] != nullptr; i++)
+		{
+			const int index = m_ui.backend->count();
+			m_ui.backend->addItem(QString::fromUtf8(backend_names[i]));
+			if (backend_name == backend_names[i])
+				m_ui.backend->setCurrentIndex(index);
+		}
+	}
+}
+
+void AudioSettingsWidget::outputBackendChanged()
+{
+	int index = m_ui.backend->currentIndex();
+	if (m_dialog->isPerGameSettings())
+	{
+		if (index == 0)
+		{
+			m_dialog->setStringSettingValue("SPU2/Output", "BackendName", std::nullopt);
+			return;
+		}
+
+		index--;
+	}
+
+	if (index == 0)
+		m_dialog->setStringSettingValue("SPU2/Output", "BackendName", "");
+	else
+		m_dialog->setStringSettingValue("SPU2/Output", "BackendName", m_ui.backend->currentText().toUtf8().constData());
+}
 
 void AudioSettingsWidget::updateVolumeLabel()
 {

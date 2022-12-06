@@ -108,13 +108,13 @@ __fi void vif0SetupTransfer()
 			ret = VIF0transfer((u32*)&masked_tag + 2, 2, true);  //Transfer Tag
 			//ret = VIF0transfer((u32*)ptag + 2, 2);  //Transfer Tag
 		}
-				
+
 		if (!ret && vif0.irqoffset.enabled)
 		{
 			vif0.inprogress = 0; // Better clear this so it has to do it again (Jak 1)
 			vif0ch.qwc = 0; // Gumball 3000 pauses the DMA when the tag stalls so we need to reset the QWC, it'll be gotten again later
 			return;        // IRQ set by VIFTransfer
-					
+
 		}
 	}
 
@@ -139,6 +139,7 @@ __fi void vif0VUFinish()
 	if (VU0.VI[REG_VPU_STAT].UL & 0x5)
 	{
 		CPU_INT(VIF_VU0_FINISH, 128);
+		CPU_SET_DMASTALL(VIF_VU0_FINISH, true);
 		return;
 	}
 
@@ -149,7 +150,8 @@ __fi void vif0VUFinish()
 		vu0Finish();
 		_cycles = VU0.cycle - _cycles;
 		//DevCon.Warning("Finishing VU0 %d cycles", _cycles);
-		CPU_INT(VIF_VU0_FINISH, _cycles * BIAS); 
+		CPU_INT(VIF_VU0_FINISH, _cycles * BIAS);
+		CPU_SET_DMASTALL(VIF_VU0_FINISH, true);
 		return;
 	}
 	vif0Regs.stat.VEW = false;
@@ -177,6 +179,7 @@ __fi void vif0Interrupt()
 	if(vif0.waitforvu)
 	{
 		CPU_INT(VIF_VU0_FINISH, 16);
+		CPU_SET_DMASTALL(DMAC_VIF0, true);
 		return;
 	}
 	if (vif0Regs.stat.VGW)
@@ -208,6 +211,7 @@ __fi void vif0Interrupt()
 			{
 				vif0Regs.stat.VPS = VPS_DECODING; //If there's more data you need to say it's decoding the next VIF CMD (Onimusha - Blade Warriors)
 				VIF_LOG("VIF0 Stalled");
+				CPU_SET_DMASTALL(DMAC_VIF0, true);
 				return;
 			}
 		}
@@ -216,11 +220,11 @@ __fi void vif0Interrupt()
 	vif0.vifstalled.enabled = false;
 
 	//Must go after the Stall, incase it's still in progress, GTC africa likes to see it still transferring.
-	if (vif0.cmd) 
+	if (vif0.cmd)
 	{
 		if(vif0.done && vif0ch.qwc == 0)	vif0Regs.stat.VPS = VPS_WAITING;
 	}
-	else		 
+	else
 	{
 		vif0Regs.stat.VPS = VPS_IDLE;
 	}
@@ -266,6 +270,7 @@ __fi void vif0Interrupt()
 	if(vif0.queued_program) vifExecQueue(0);
 	g_vif0Cycles = 0;
 	hwDmacIrq(DMAC_VIF0);
+	CPU_SET_DMASTALL(DMAC_VIF0, false);
 	vif0Regs.stat.FQC = 0;
 	DMA_LOG("VIF0 DMA End");
 }
@@ -278,7 +283,8 @@ void dmaVIF0()
 	        vif0ch.tadr, vif0ch.asr0, vif0ch.asr1);
 
 	g_vif0Cycles = 0;
-		
+	CPU_SET_DMASTALL(DMAC_VIF0, false);
+
 	if (vif0ch.qwc > 0)   // Normal Mode
 	{
 		if (vif0ch.chcr.MOD == CHAIN_MODE)

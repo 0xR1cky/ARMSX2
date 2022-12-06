@@ -23,6 +23,7 @@
 #include "common/Console.h"
 #include "common/FileSystem.h"
 #include "common/Path.h"
+#include "common/SettingsInterface.h"
 #include "common/StringUtil.h"
 #include "common/Timer.h"
 
@@ -36,7 +37,7 @@
 // Used on both Windows and Linux.
 #ifdef _WIN32
 static const wchar_t s_console_colors[][ConsoleColors_Count] = {
-#define CC(x) L ## x
+#define CC(x) L##x
 #else
 static const char s_console_colors[][ConsoleColors_Count] = {
 #define CC(x) x
@@ -65,6 +66,7 @@ static const char s_console_colors[][ConsoleColors_Count] = {
 };
 #undef CC
 
+static bool s_block_system_console = false;
 static Common::Timer::Value s_log_start_timestamp = Common::Timer::GetCurrentValue();
 static bool s_log_timestamps = false;
 static std::mutex s_log_mutex;
@@ -153,7 +155,6 @@ static void ConsoleQt_DoWrite(const char* fmt)
 	}
 #else
 	std::fputs(fmt, stdout);
-	std::fputc('\n', stdout);
 #endif
 
 	if (emuLog)
@@ -167,10 +168,10 @@ static void ConsoleQt_DoWriteLn(const char* fmt)
 	std::unique_lock lock(s_log_mutex);
 
 	// find time since start of process, but save a syscall if we're not writing timestamps
-	float message_time = s_log_timestamps ?
-							 static_cast<float>(
-								 Common::Timer::ConvertValueToSeconds(Common::Timer::GetCurrentValue() - s_log_start_timestamp)) :
-                             0.0f;
+	float message_time =
+		s_log_timestamps ?
+			static_cast<float>(Common::Timer::ConvertValueToSeconds(Common::Timer::GetCurrentValue() - s_log_start_timestamp)) :
+            0.0f;
 
 	// split newlines up
 	const char* start = fmt;
@@ -253,15 +254,14 @@ static void ConsoleQt_Newline()
 	ConsoleQt_DoWriteLn("");
 }
 
-static const IConsoleWriter ConsoleWriter_WinQt =
-	{
-		ConsoleQt_DoWrite,
-		ConsoleQt_DoWriteLn,
-		ConsoleQt_DoSetColor,
+static const IConsoleWriter ConsoleWriter_WinQt = {
+	ConsoleQt_DoWrite,
+	ConsoleQt_DoWriteLn,
+	ConsoleQt_DoSetColor,
 
-		ConsoleQt_DoWrite,
-		ConsoleQt_Newline,
-		ConsoleQt_SetTitle,
+	ConsoleQt_DoWrite,
+	ConsoleQt_Newline,
+	ConsoleQt_SetTitle,
 };
 
 static void UpdateLoggingSinks(bool system_console, bool file_log)
@@ -343,7 +343,9 @@ static void UpdateLoggingSinks(bool system_console, bool file_log)
 	{
 		if (!emuLog)
 		{
-			emuLogName = Path::Combine(EmuFolders::Logs, "emulog.txt");
+			if (emuLogName.empty())
+				emuLogName = Path::Combine(EmuFolders::Logs, "emulog.txt");
+
 			emuLog = FileSystem::OpenCFile(emuLogName.c_str(), "wb");
 			file_log = (emuLog != nullptr);
 		}
@@ -365,26 +367,63 @@ static void UpdateLoggingSinks(bool system_console, bool file_log)
 		Console_SetActiveHandler(ConsoleWriter_Null);
 }
 
-void Host::InitializeEarlyConsole()
+void CommonHost::SetFileLogPath(std::string path)
+{
+	if (emuLogName == path)
+		return;
+
+	emuLogName = std::move(path);
+
+	// reopen on change
+	if (emuLog)
+	{
+		std::fclose(emuLog);
+		if (!emuLogName.empty())
+			emuLog = FileSystem::OpenCFile(emuLogName.c_str(), "wb");
+	}
+}
+
+void CommonHost::SetBlockSystemConsole(bool block)
+{
+	s_block_system_console = block;
+}
+
+void CommonHost::InitializeEarlyConsole()
 {
 	UpdateLoggingSinks(true, false);
 }
 
-void Host::UpdateLogging()
+void CommonHost::UpdateLogging(SettingsInterface& si)
 {
-	const bool system_console_enabled = Host::GetBaseBoolSettingValue("Logging", "EnableSystemConsole", false);
-	const bool file_logging_enabled = Host::GetBaseBoolSettingValue("Logging", "EnableFileLogging", false);
+	const bool system_console_enabled = !s_block_system_console && si.GetBoolValue("Logging", "EnableSystemConsole", false);
+	const bool file_logging_enabled = si.GetBoolValue("Logging", "EnableFileLogging", false);
 
-	s_log_timestamps = Host::GetBaseBoolSettingValue("Logging", "EnableTimestamps", true);
+	s_log_timestamps = si.GetBoolValue("Logging", "EnableTimestamps", true);
 
 	const bool any_logging_sinks = system_console_enabled || file_logging_enabled;
-	DevConWriterEnabled = any_logging_sinks && (IsDevBuild || Host::GetBaseBoolSettingValue("Logging", "EnableVerbose", false));
-	SysConsole.eeConsole.Enabled = any_logging_sinks && Host::GetBaseBoolSettingValue("Logging", "EnableEEConsole", false);
-	SysConsole.iopConsole.Enabled = any_logging_sinks && Host::GetBaseBoolSettingValue("Logging", "EnableIOPConsole", false);
-    
+	DevConWriterEnabled = any_logging_sinks && (IsDevBuild || si.GetBoolValue("Logging", "EnableVerbose", false));
+	SysConsole.eeConsole.Enabled = any_logging_sinks && si.GetBoolValue("Logging", "EnableEEConsole", false);
+	SysConsole.iopConsole.Enabled = any_logging_sinks && si.GetBoolValue("Logging", "EnableIOPConsole", false);
+	SysTrace.IOP.R3000A.Enabled = true;
+	SysTrace.IOP.COP2.Enabled = true;
+	SysTrace.IOP.Memory.Enabled = true;
+	SysTrace.SIF.Enabled = true;
+
 	// Input Recording Logs
-	SysConsole.recordingConsole.Enabled = any_logging_sinks && Host::GetBaseBoolSettingValue("Logging", "EnableInputRecordingLogs", true);
-	SysConsole.controlInfo.Enabled = any_logging_sinks && Host::GetBaseBoolSettingValue("Logging", "EnableControllerLogs", false);
+	SysConsole.recordingConsole.Enabled = any_logging_sinks && si.GetBoolValue("Logging", "EnableInputRecordingLogs", true);
+	SysConsole.controlInfo.Enabled = any_logging_sinks && si.GetBoolValue("Logging", "EnableControllerLogs", false);
 
 	UpdateLoggingSinks(system_console_enabled, file_logging_enabled);
+}
+
+void CommonHost::SetDefaultLoggingSettings(SettingsInterface& si)
+{
+	si.SetBoolValue("Logging", "EnableSystemConsole", false);
+	si.SetBoolValue("Logging", "EnableFileLogging", false);
+	si.SetBoolValue("Logging", "EnableTimestamps", true);
+	si.SetBoolValue("Logging", "EnableVerbose", false);
+	si.SetBoolValue("Logging", "EnableEEConsole", false);
+	si.SetBoolValue("Logging", "EnableIOPConsole", false);
+	si.SetBoolValue("Logging", "EnableInputRecordingLogs", true);
+	si.SetBoolValue("Logging", "EnableControllerLogs", false);
 }

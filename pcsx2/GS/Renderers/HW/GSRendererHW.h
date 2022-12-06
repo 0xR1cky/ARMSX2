@@ -20,18 +20,19 @@
 #include "GS/Renderers/Common/GSRenderer.h"
 #include "GS/Renderers/SW/GSTextureCacheSW.h"
 #include "GS/GSState.h"
+#include "GS/MultiISA.h"
 
-class GSRasterizer;
+class GSRendererHW;
+MULTI_ISA_DEF(class GSRendererHWFunctions;)
+MULTI_ISA_DEF(void GSRendererHWPopulateFunctions(GSRendererHW& renderer);)
 
 class GSRendererHW : public GSRenderer
 {
+	MULTI_ISA_FRIEND(GSRendererHWFunctions);
 public:
 	static constexpr int MAX_FRAMEBUFFER_HEIGHT = 1280;
 
 private:
-	int m_width;
-	int m_height;
-
 	static constexpr float SSR_UV_TOLERANCE = 1.0f;
 
 #pragma region hacks
@@ -42,8 +43,8 @@ private:
 
 	// Require special argument
 	bool OI_BlitFMV(GSTextureCache::Target* _rt, GSTextureCache::Source* t, const GSVector4i& r_draw);
-	void OI_GsMemClear(); // always on
-	void OI_DoubleHalfClear(GSTexture* rt, GSTexture* ds); // always on
+	bool OI_GsMemClear(); // always on
+	void OI_DoubleHalfClear(GSTextureCache::Target*& rt, GSTextureCache::Target*& ds); // always on
 
 	bool OI_BigMuthaTruckers(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
 	bool OI_DBZBTGames(GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t);
@@ -108,16 +109,13 @@ private:
 
 		std::list<HackEntry<OI_Ptr>> m_oi_list;
 		std::list<HackEntry<OO_Ptr>> m_oo_list;
-		std::list<HackEntry<CU_Ptr>> m_cu_list;
 
 		FunctionMap<OI_Ptr> m_oi_map;
 		FunctionMap<OO_Ptr> m_oo_map;
-		FunctionMap<CU_Ptr> m_cu_map;
 
 	public:
 		OI_Ptr m_oi;
 		OO_Ptr m_oo;
-		CU_Ptr m_cu;
 
 		Hacks();
 
@@ -133,8 +131,10 @@ private:
 	void SwSpriteRender();
 	bool CanUseSwSpriteRender();
 
+	bool PossibleCLUTDraw();
+	bool PossibleCLUTDrawAggressive();
 	bool CanUseSwPrimRender(bool no_rt, bool no_ds, bool draw_sprite_tex);
-	bool SwPrimRender();
+	bool (*SwPrimRender)(GSRendererHW&);
 
 	template <bool linear>
 	void RoundSpriteOffset();
@@ -157,6 +157,7 @@ private:
 	GSTextureCache::Source* m_src;
 
 	bool m_reset;
+	bool m_tex_is_fb;
 	bool m_channel_shuffle;
 	bool m_userhacks_tcoffset;
 	float m_userhacks_tcoffset_x;
@@ -169,7 +170,7 @@ private:
 	// software sprite renderer state
 	std::vector<GSVertexSW> m_sw_vertex_buffer;
 	std::unique_ptr<GSTextureCacheSW::Texture> m_sw_texture;
-	std::unique_ptr<GSRasterizer> m_sw_rasterizer;
+	std::unique_ptr<GSVirtualAlignedClass<32>> m_sw_rasterizer;
 
 public:
 	GSRendererHW();
@@ -182,17 +183,18 @@ public:
 
 	void SetGameCRC(u32 crc, int options) override;
 	bool CanUpscale() override;
-	int GetUpscaleMultiplier() override;
-	void SetScaling();
+	float GetUpscaleMultiplier() override;
 	void Lines2Sprites();
+	bool VerifyIndices();
+	template <GSHWDrawConfig::VSExpand Expand> void ExpandIndices();
 	void EmulateAtst(GSVector4& FogColor_AREF, u8& atst, const bool pass_2);
 	void ConvertSpriteTextureShuffle(bool& write_ba, bool& read_ba);
 	GSVector4 RealignTargetTextureCoordinate(const GSTextureCache::Source* tex);
 	GSVector4i ComputeBoundingBox(const GSVector2& rtscale, const GSVector2i& rtsize);
 	void MergeSprite(GSTextureCache::Source* tex);
-	GSVector2 GetTextureScaleFactor(const bool force_upscaling);
 	GSVector2 GetTextureScaleFactor() override;
-	GSVector2i GetTargetSize();
+	GSVector2i GetOutputSize(int real_h);
+	GSVector2i GetTargetSize(GSVector2i* unscaled_size = nullptr);
 
 	void Reset(bool hardware_reset) override;
 	void UpdateSettings(const Pcsx2Config::GSOptions& old_config) override;
@@ -200,7 +202,8 @@ public:
 
 	GSTexture* GetOutput(int i, int& y_offset) override;
 	GSTexture* GetFeedbackOutput() override;
-	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) override;
+	void ExpandTarget(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r) override;
+	void InvalidateVideoMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool eewrite = false) override;
 	void InvalidateLocalMem(const GIFRegBITBLTBUF& BITBLTBUF, const GSVector4i& r, bool clut = false) override;
 	void Move() override;
 	void Draw() override;
@@ -208,8 +211,8 @@ public:
 	void PurgeTextureCache() override;
 
 	// Called by the texture cache to know if current texture is useful
-	bool IsDummyTexture() const;
+	bool UpdateTexIsFB(GSTextureCache::Target* src, const GIFRegTEX0& TEX0);
 
 	// Called by the texture cache when optimizing the copy range for sources
-	bool IsPossibleTextureShuffle(GSTextureCache::Source* src) const;
+	bool IsPossibleTextureShuffle(GSTextureCache::Target* dst, const GIFRegTEX0& TEX0) const;
 };

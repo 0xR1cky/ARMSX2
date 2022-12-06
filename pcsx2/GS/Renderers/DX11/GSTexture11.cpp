@@ -18,6 +18,7 @@
 #include "GSTexture11.h"
 #include "GS/GSPng.h"
 #include "GS/GSPerfMon.h"
+#include "common/Align.h"
 
 GSTexture11::GSTexture11(wil::com_ptr_nothrow<ID3D11Texture2D> texture, const D3D11_TEXTURE2D_DESC& desc,
 	GSTexture::Type type, GSTexture::Format format)
@@ -44,7 +45,10 @@ bool GSTexture11::Update(const GSVector4i& r, const void* data, int pitch, int l
 
 	g_perfmon.Put(GSPerfMon::TextureUploads, 1);
 
-	const D3D11_BOX box = {(UINT)r.left, (UINT)r.top, 0U, (UINT)r.right, (UINT)r.bottom, 1U};
+	const u32 bs = GetCompressedBlockSize();
+	
+	const D3D11_BOX box = {Common::AlignDownPow2((u32)r.left, bs), Common::AlignDownPow2((u32)r.top, bs), 0U,
+		Common::AlignUpPow2((u32)r.right, bs), Common::AlignUpPow2((u32)r.bottom, bs), 1U};
 	const UINT subresource = layer; // MipSlice + (ArraySlice * MipLevels).
 
 	GSDevice11::GetInstance()->GetD3DContext()->UpdateSubresource(m_texture.get(), subresource, &box, data, pitch, 0);
@@ -256,6 +260,14 @@ GSTexture11::operator ID3D11DepthStencilView*()
 	}
 
 	return m_dsv.get();
+}
+
+GSTexture11::operator ID3D11UnorderedAccessView*()
+{
+	if (!m_uav)
+		GSDevice11::GetInstance()->GetD3DDevice()->CreateUnorderedAccessView(m_texture.get(), nullptr, m_uav.put());
+
+	return m_uav.get();
 }
 
 bool GSTexture11::Equal(GSTexture11* tex)

@@ -179,14 +179,14 @@ static __ri const char* _eelog_GetHwName( u32 addr, T val )
 		EasyCase(fromSPR_MADR);
 		EasyCase(fromSPR_QWC);
 		EasyCase(fromSPR_SADR);
-		
+
 		EasyCase(toSPR_CHCR);
 		EasyCase(toSPR_MADR);
 		EasyCase(toSPR_QWC);
 		EasyCase(toSPR_TADR);
 		EasyCase(toSPR_SADR);
 
-		// DMAC!		
+		// DMAC!
 		EasyCase(DMAC_CTRL);
 		EasyCase(DMAC_STAT);
 		EasyCase(DMAC_PCR);
@@ -288,11 +288,11 @@ static __ri void eeHwTraceLog( u32 addr, T val, bool mode )
 	}
 	else if constexpr (sizeof(T) == 8)
 	{
-		valStr = fmt::format("0x{:08x}.{:08x}", ((u32*)&val)[1], ((u32*)&val)[0]);
+		valStr = fmt::format("0x{:08x}.{:08x}", static_cast<u32>(val >> 32), static_cast<u32>(val));
 	}
 	else if constexpr (sizeof(T) == 16)
 	{
-		valStr = StringUtil::U128ToString((u128&)val);
+		valStr = StringUtil::U128ToString(r128_to_u128(val));
 	}
 
 	static const char* temp = "%-12s @ 0x%08X/%-16s %s %s";

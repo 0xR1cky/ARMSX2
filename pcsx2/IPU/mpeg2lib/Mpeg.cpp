@@ -33,7 +33,11 @@
 #include "Mpeg.h"
 #include "Vlc.h"
 
+#include "GS/MultiISA.h"
+
 #include "common/MemsetFast.inl"
+
+#if MULTI_ISA_COMPILE_ONCE
 
 const int non_linear_quantizer_scale [] =
 {
@@ -42,6 +46,10 @@ const int non_linear_quantizer_scale [] =
 	24, 28, 32, 36, 40, 44,  48,  52,
 	56, 64, 72, 80, 88, 96, 104, 112
 };
+
+#endif
+
+MULTI_ISA_UNSHARED_START
 
 /* Bitstream and buffer needs to be reallocated in order for successful
 	reading of the old data. Here the old data stored in the 2nd slot
@@ -236,7 +244,7 @@ int __fi get_dmv()
 int get_macroblock_address_increment()
 {
 	const MBAtab *mba;
-	
+
 	u16 code = UBITS(16);
 
 	if (code >= 4096)
@@ -287,7 +295,7 @@ static __fi int get_luma_dc_dct_diff()
 
 		// 9 bits max
 	}
-	
+
 	if (size==0)
 		dc_diff = 0;
 	else
@@ -347,7 +355,7 @@ static bool get_intra_block()
 	const u8 (&quant_matrix)[64] = decoder.iq;
 	int quantizer_scale = decoder.quantizer_scale;
 	s16 * dest = decoder.DCTblock;
-	u16 code; 
+	u16 code;
 
 	/* decode AC coefficients */
   for (int i=1 + ipu_cmd.pos[4]; ; i++)
@@ -428,7 +436,7 @@ static bool get_intra_block()
 			ipu_cmd.pos[4] = 0;
 			return true;
 		}
-		
+
 		i += (tab->run == 65) ? GETBITS(6) : tab->run;
 		if (i >= 64)
 		{
@@ -528,7 +536,7 @@ static bool get_non_intra_block(int * last)
 					tab = &DCT.first[(code >> 12) - 4];
 				}
 				else
-				{			
+				{
 					tab = &DCT.next[(code >> 12)- 4];
 				}
 			}
@@ -537,7 +545,7 @@ static bool get_non_intra_block(int * last)
 				tab = &DCT.tab0[(code >> 8) - 4];
 			}
 			else if (code >= 512)
-			{		
+			{
 				tab = &DCT.tab1[(code >> 6) - 8];
 			}
 
@@ -547,23 +555,23 @@ static bool get_non_intra_block(int * last)
 			// have lots of room to spare.
 
 			else if (code >= 256)
-			{		
+			{
 				tab = &DCT.tab2[(code >> 4) - 16];
 			}
 			else if (code >= 128)
-			{		
+			{
 				tab = &DCT.tab3[(code >> 3) - 16];
 			}
 			else if (code >= 64)
-			{		
+			{
 				tab = &DCT.tab4[(code >> 2) - 16];
 			}
 			else if (code >= 32)
-			{		
+			{
 				tab = &DCT.tab5[(code >> 1) - 16];
 			}
 			else if (code >= 16)
-			{		
+			{
 				tab = &DCT.tab6[code - 16];
 			}
 			else
@@ -884,7 +892,7 @@ __fi bool mpeg2sliceIDEC()
 
 						default:	/* end of slice/frame, or error? */
 						{
-							goto finish_idec;	
+							goto finish_idec;
 						}
 					}
 				}
@@ -990,7 +998,7 @@ __fi bool mpeg2_slice()
 			decoder.dc_dct_pred[1] =
 			decoder.dc_dct_pred[2] = 128 << decoder.intra_dc_precision;
 		}
-			
+
 		ipuRegs.ctrl.ECD = 0;
 		ipuRegs.top = 0;
 		memzero_sse_a(mb8);
@@ -1236,7 +1244,7 @@ __fi bool mpeg2_slice()
 			g_BP.Align();
 			do
 			{
-				if (!g_BP.FillBuffer(24)) 
+				if (!g_BP.FillBuffer(24))
 				{
 					ipu_cmd.pos[0] = 4;
 					return false;
@@ -1273,3 +1281,5 @@ __fi bool mpeg2_slice()
 
 	return true;
 }
+
+MULTI_ISA_UNSHARED_END

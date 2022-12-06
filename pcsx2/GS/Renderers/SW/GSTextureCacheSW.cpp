@@ -135,15 +135,14 @@ void GSTextureCacheSW::IncAge()
 //
 
 GSTextureCacheSW::Texture::Texture(u32 tw0, const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA)
-	: m_buff(NULL)
+	: m_TEX0(TEX0)
+	, m_TEXA(TEXA)
+	, m_buff(NULL)
 	, m_tw(tw0)
 	, m_age(0)
 	, m_complete(false)
 	, m_p2t(NULL)
 {
-	m_TEX0 = TEX0;
-	m_TEXA = TEXA;
-
 	if (m_tw == 0)
 	{
 		m_tw = std::max<int>(m_TEX0.TW, GSLocalMemory::m_psm[m_TEX0.PSM].pal == 0 ? 3 : 5); // makes one row 32 bytes at least, matches the smallest block size that is allocated for m_buff
@@ -280,7 +279,7 @@ bool GSTextureCacheSW::Texture::Update(const GSVector4i& rect)
 				{
 					m_valid[row] |= col;
 
-					(mem.*rtxbP)(block, &dst[bn.blkX() << shift], pitch, m_TEXA);
+					rtxbP(mem, block, &dst[bn.blkX() << shift], pitch, m_TEXA);
 
 					blocks++;
 				}
@@ -302,7 +301,7 @@ bool GSTextureCacheSW::Texture::Update(const GSVector4i& rect)
 				{
 					m_valid[row] |= col;
 
-					(mem.*rtxbP)(block, &dst[bn.blkX() << shift], pitch, m_TEXA);
+					rtxbP(mem, block, &dst[bn.blkX() << shift], pitch, m_TEXA);
 
 					blocks++;
 				}

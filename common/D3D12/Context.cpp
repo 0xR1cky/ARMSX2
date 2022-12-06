@@ -17,6 +17,7 @@
 
 #include "common/D3D12/Context.h"
 #include "common/Assertions.h"
+#include "common/General.h"
 #include "common/ScopedGuard.h"
 #include "common/Console.h"
 #include "D3D12MemAlloc.h"
@@ -30,8 +31,6 @@
 std::unique_ptr<D3D12::Context> g_d3d12_context;
 
 using namespace D3D12;
-
-#if WINAPI_FAMILY_PARTITION(WINAPI_PARTITION_DESKTOP)
 
 // Private D3D12 state
 static HMODULE s_d3d12_library;
@@ -73,21 +72,6 @@ static void UnloadD3D12Library()
 		s_d3d12_library = nullptr;
 	}
 }
-
-#else
-
-static const PFN_D3D12_CREATE_DEVICE s_d3d12_create_device = D3D12CreateDevice;
-static const PFN_D3D12_GET_DEBUG_INTERFACE s_d3d12_get_debug_interface = D3D12GetDebugInterface;
-static const PFN_D3D12_SERIALIZE_ROOT_SIGNATURE s_d3d12_serialize_root_signature = D3D12SerializeRootSignature;
-
-static bool LoadD3D12Library()
-{
-	return true;
-}
-
-static void UnloadD3D12Library() {}
-
-#endif
 
 Context::Context() = default;
 
@@ -399,7 +383,7 @@ void Context::MoveToNextCommandList()
 
 	// We may have to wait if this command list hasn't finished on the GPU.
 	CommandListResources& res = m_command_lists[m_current_command_list];
-	WaitForFence(res.ready_fence_value);
+	WaitForFence(res.ready_fence_value, false);
 	res.ready_fence_value = m_current_fence_value;
 	res.init_command_list_used = false;
 
@@ -462,7 +446,7 @@ ID3D12GraphicsCommandList4* Context::GetInitCommandList()
 	return res.command_lists[0].get();
 }
 
-void Context::ExecuteCommandList(bool wait_for_completion)
+void Context::ExecuteCommandList(WaitType wait_for_completion)
 {
 	CommandListResources& res = m_command_lists[m_current_command_list];
 	HRESULT hr;
@@ -502,8 +486,8 @@ void Context::ExecuteCommandList(bool wait_for_completion)
 	pxAssertRel(SUCCEEDED(hr), "Signal fence");
 
 	MoveToNextCommandList();
-	if (wait_for_completion)
-		WaitForFence(res.ready_fence_value);
+	if (wait_for_completion != WaitType::None)
+		WaitForFence(res.ready_fence_value, wait_for_completion == WaitType::Spin);
 }
 
 void Context::InvalidateSamplerGroups()
@@ -564,7 +548,7 @@ void Context::DestroyPendingResources(CommandListResources& cmdlist)
 
 void Context::DestroyResources()
 {
-	ExecuteCommandList(true);
+	ExecuteCommandList(WaitType::Sleep);
 
 	m_texture_stream_buffer.Destroy(false);
 	m_descriptor_heap_manager.Free(&m_null_srv_descriptor);
@@ -590,20 +574,30 @@ void Context::DestroyResources()
 	m_device.reset();
 }
 
-void Context::WaitForFence(u64 fence)
+void Context::WaitForFence(u64 fence, bool spin)
 {
 	if (m_completed_fence_value >= fence)
 		return;
 
-	// Try non-blocking check.
-	m_completed_fence_value = m_fence->GetCompletedValue();
-	if (m_completed_fence_value < fence)
+	if (spin)
 	{
-		// Fall back to event.
-		HRESULT hr = m_fence->SetEventOnCompletion(fence, m_fence_event);
-		pxAssertRel(SUCCEEDED(hr), "Set fence event on completion");
-		WaitForSingleObject(m_fence_event, INFINITE);
+		u64 value;
+		while ((value = m_fence->GetCompletedValue()) < fence)
+			ShortSpin();
+		m_completed_fence_value = value;
+	}
+	else
+	{
+		// Try non-blocking check.
 		m_completed_fence_value = m_fence->GetCompletedValue();
+		if (m_completed_fence_value < fence)
+		{
+			// Fall back to event.
+			HRESULT hr = m_fence->SetEventOnCompletion(fence, m_fence_event);
+			pxAssertRel(SUCCEEDED(hr), "Set fence event on completion");
+			WaitForSingleObject(m_fence_event, INFINITE);
+			m_completed_fence_value = m_fence->GetCompletedValue();
+		}
 	}
 
 	// Release resources for as many command lists which have completed.
@@ -624,7 +618,7 @@ void Context::WaitForGPUIdle()
 	u32 index = (m_current_command_list + 1) % NUM_COMMAND_LISTS;
 	for (u32 i = 0; i < (NUM_COMMAND_LISTS - 1); i++)
 	{
-		WaitForFence(m_command_lists[index].ready_fence_value);
+		WaitForFence(m_command_lists[index].ready_fence_value, false);
 		index = (index + 1) % NUM_COMMAND_LISTS;
 	}
 }
