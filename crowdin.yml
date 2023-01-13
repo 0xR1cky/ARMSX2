@@ -1,0 +1,3 @@
+files:
+  - source: pcsx2-qt/Translations/*.ts
+    translation: '/pcsx2-qt/Translations/PCSX2Emulator_%two_letters_code%.ts'
