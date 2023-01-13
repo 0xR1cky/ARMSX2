@@ -21,13 +21,12 @@
 #include "common/StringUtil.h"
 
 #ifdef _WIN32
+#include "common/RedtapeWindows.h"
+#include <d3dcommon.h>
+#include <dxgi.h>
 #include <VersionHelpers.h>
-#include "svnrev.h"
 #include "Renderers/DX11/D3D.h"
 #include <wil/com.h>
-#else
-#define SVN_REV 0
-#define SVN_MODS 0
 #endif
 
 static class GSUtilMaps
@@ -146,34 +145,6 @@ bool GSUtil::HasCompatibleBits(u32 spsm, u32 dpsm)
 	return (s_maps.CompatibleBitsField[spsm][dpsm >> 5] & (1 << (dpsm & 0x1f))) != 0;
 }
 
-bool GSUtil::CheckSSE()
-{
-	struct ISA
-	{
-		ProcessorFeatures::VectorISA isa;
-		const char* name;
-	};
-
-	ISA checks[] = {
-		{ProcessorFeatures::VectorISA::SSE4, "SSE 4.1"},
-#if _M_SSE >= 0x500
-		{ProcessorFeatures::VectorISA::AVX, "AVX"},
-#endif
-#if _M_SSE >= 0x501
-		{ProcessorFeatures::VectorISA::AVX2, "AVX2"},
-#endif
-	};
-	for (const ISA& check : checks)
-	{
-		if (g_cpu.vectorISA < check.isa)
-		{
-			Console.Error("This CPU does not support %s", check.name);
-			return false;
-		}
-	}
-	return true;
-}
-
 CRCHackLevel GSUtil::GetRecommendedCRCHackLevel(GSRendererType type)
 {
 	return (type == GSRendererType::DX11 || type == GSRendererType::DX12) ? CRCHackLevel::Full : CRCHackLevel::Partial;
@@ -202,37 +173,6 @@ GSRendererType GSUtil::GetPreferredRenderer()
 #else
 	return GSRendererType::SW;
 #endif
-#endif
-}
-
-#ifdef _WIN32
-void GSmkdir(const wchar_t* dir)
-{
-	if (!CreateDirectory(dir, nullptr))
-	{
-		DWORD errorID = ::GetLastError();
-		if (errorID != ERROR_ALREADY_EXISTS)
-		{
-			fprintf(stderr, "Failed to create directory: %ls error %u\n", dir, errorID);
-		}
-	}
-#else
-void GSmkdir(const char* dir)
-{
-	int err = mkdir(dir, 0777);
-	if (!err && errno != EEXIST)
-		fprintf(stderr, "Failed to create directory: %s\n", dir);
-#endif
-}
-
-std::string GStempdir()
-{
-#ifdef _WIN32
-	wchar_t path[MAX_PATH + 1];
-	GetTempPath(MAX_PATH, path);
-	return StringUtil::WideStringToUTF8String(path);
-#else
-	return "/tmp";
 #endif
 }
 

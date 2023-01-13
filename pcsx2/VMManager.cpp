@@ -36,6 +36,7 @@
 #include "DEV9/DEV9.h"
 #include "Elfheader.h"
 #include "FW.h"
+#include "GameDatabase.h"
 #include "GS.h"
 #include "GSDumpReplayer.h"
 #include "HostDisplay.h"
@@ -82,7 +83,6 @@ namespace VMManager
 	static void CheckForGSConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForFramerateConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForPatchConfigChanges(const Pcsx2Config& old_config);
-	static void CheckForSPU2ConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForDEV9ConfigChanges(const Pcsx2Config& old_config);
 	static void CheckForMemoryCardConfigChanges(const Pcsx2Config& old_config);
 	static void EnforceAchievementsChallengeModeSettings();
@@ -203,7 +203,7 @@ void VMManager::SetState(VMState state)
 			frameLimitReset();
 		}
 
-		SPU2SetOutputPaused(state == VMState::Paused);
+		SPU2::SetOutputPaused(state == VMState::Paused);
 		if (state == VMState::Paused)
 			Host::OnVMPaused();
 		else
@@ -267,11 +267,27 @@ bool VMManager::Internal::InitializeGlobals()
 		return false;
 	}
 
+	if (!SPU2::Initialize())
+	{
+		Host::ReportErrorAsync("Error", "Failed to initialize SPU2.");
+		return false;
+	}
+
+	if (USBinit() != 0)
+	{
+		Host::ReportErrorAsync("Error", "Failed to initialize USB (USBinit())");
+		return false;
+	}
+
 	return true;
 }
 
 void VMManager::Internal::ReleaseGlobals()
 {
+	USBshutdown();
+	SPU2::Shutdown();
+	GSshutdown();
+
 #ifdef _WIN32
 	CoUninitialize();
 #endif
@@ -372,6 +388,23 @@ std::string VMManager::GetGameSettingsPath(const std::string_view& game_serial, 
 			   Path::Combine(EmuFolders::GameSettings, fmt::format("{}_{:08X}.ini", sanitized_serial, game_crc));
 }
 
+std::string VMManager::GetDiscOverrideFromGameSettings(const std::string& elf_path)
+{
+	std::string iso_path;
+	if (const u32 crc = cdvdGetElfCRC(elf_path); crc != 0)
+	{
+		INISettingsInterface si(GetGameSettingsPath(std::string_view(), crc));
+		if (si.Load())
+		{
+			iso_path = si.GetStringValue("EmuCore", "DiscPath");
+			if (!iso_path.empty())
+				Console.WriteLn(fmt::format("Disc override for ELF at '{}' is '{}'", elf_path, iso_path));
+		}
+	}
+
+	return iso_path;
+}
+
 std::string VMManager::GetInputProfilePath(const std::string_view& name)
 {
 	return Path::Combine(EmuFolders::InputProfiles, fmt::format("{}.ini", name));
@@ -423,12 +456,20 @@ void VMManager::RequestDisplaySize(float scale /*= 0.0f*/)
 	Host::RequestResizeHostDisplay(iwidth, iheight);
 }
 
+std::string VMManager::GetSerialForGameSettings()
+{
+	// If we're running an ELF, we don't want to use the serial for any ISO override
+	// for game settings, since the game settings is where we define the override.
+	std::unique_lock lock(s_info_mutex);
+	return s_elf_override.empty() ? std::string(s_game_serial) : std::string();
+}
+
 bool VMManager::UpdateGameSettingsLayer()
 {
 	std::unique_ptr<INISettingsInterface> new_interface;
 	if (s_game_crc != 0 && Host::GetBaseBoolSettingValue("EmuCore", "EnablePerGameSettings", true))
 	{
-		std::string filename(GetGameSettingsPath(s_game_serial.c_str(), s_game_crc));
+		std::string filename(GetGameSettingsPath(GetSerialForGameSettings(), s_game_crc));
 		if (!FileSystem::FileExists(filename.c_str()))
 		{
 			// try the legacy format (crc.ini)
@@ -517,11 +558,16 @@ void VMManager::LoadPatches(const std::string& serial, u32 crc, bool show_messag
 	if (EmuConfig.EnablePatches)
 	{
 		const GameDatabaseSchema::GameEntry* game = GameDatabase::findGame(serial);
-		const std::string* patches = game ? game->findPatch(crc) : nullptr;
-		if (patches && (patch_count = LoadPatchesFromString(*patches)) > 0)
+		if (game)
 		{
-			PatchesCon->WriteLn(Color_Green, "(GameDB) Patches Loaded: %d", patch_count);
-			fmt::format_to(std::back_inserter(message), "{} game patches", patch_count);
+			const std::string* patches = game->findPatch(crc);
+			if (patches && (patch_count = LoadPatchesFromString(*patches)) > 0)
+			{
+				PatchesCon->WriteLn(Color_Green, "(GameDB) Patches Loaded: %d", patch_count);
+				fmt::format_to(std::back_inserter(message), "{} game patches", patch_count);
+			}
+
+			LoadDynamicPatches(game->dynaPatches);
 		}
 	}
 
@@ -669,7 +715,11 @@ void VMManager::UpdateRunningGame(bool resetting, bool game_starting)
 
 		if (const GameDatabaseSchema::GameEntry* game = GameDatabase::findGame(s_game_serial))
 		{
-			s_game_name = game->name;
+			if (!s_elf_override.empty())
+				s_game_name = Path::GetFileTitle(FileSystem::GetDisplayNameFromPath(s_elf_override));
+			else
+				s_game_name = game->name;
+
 			memcardFilters = game->memcardFiltersAsString();
 		}
 		else
@@ -685,6 +735,11 @@ void VMManager::UpdateRunningGame(bool resetting, bool game_starting)
 		if (game_starting || resetting)
 			AutoEject::ClearAll();
 	}
+
+	Console.WriteLn(Color_StrongGreen, "Game Changed:");
+	Console.WriteLn(Color_StrongGreen, fmt::format("  Name: {}", s_game_name));
+	Console.WriteLn(Color_StrongGreen, fmt::format("  Serial: {}", s_game_serial));
+	Console.WriteLn(Color_StrongGreen, fmt::format("  CRC: {:08X}", s_game_crc));
 
 	UpdateGameSettingsLayer();
 	ApplySettings();
@@ -706,15 +761,11 @@ void VMManager::UpdateRunningGame(bool resetting, bool game_starting)
 
 	GetMTGS().SendGameCRC(new_crc);
 
-	Host::OnGameChanged(s_disc_path, s_game_serial, s_game_name, s_game_crc);
+	Host::OnGameChanged(s_disc_path, s_elf_override, s_game_serial, s_game_name, s_game_crc);
 
-#if 0
-	// TODO: Enable this when the debugger is added to Qt, and it's active. Otherwise, this is just a waste of time.
-	// In other words, it should be lazily initialized.
 	MIPSAnalyst::ScanForFunctions(R5900SymbolMap, ElfTextRange.first, ElfTextRange.first + ElfTextRange.second, true);
 	R5900SymbolMap.UpdateActiveSymbols();
 	R3000SymbolMap.UpdateActiveSymbols();
-#endif
 }
 
 void VMManager::ReloadPatches(bool verbose, bool show_messages_when_disabled)
@@ -745,8 +796,20 @@ bool VMManager::AutoDetectSource(const std::string& filename)
 		}
 		else if (IsElfFileName(display_name))
 		{
-			// alternative way of booting an elf, change the elf override, and use no disc.
-			CDVDsys_ChangeSource(CDVD_SourceType::NoDisc);
+			// alternative way of booting an elf, change the elf override, and (optionally) use the disc
+			// specified in the game settings.
+			std::string disc_path(GetDiscOverrideFromGameSettings(filename));
+			if (!disc_path.empty())
+			{
+				CDVDsys_SetFile(CDVD_SourceType::Iso, disc_path);
+				CDVDsys_ChangeSource(CDVD_SourceType::Iso);
+				s_disc_path = std::move(disc_path);
+			}
+			else
+			{
+				CDVDsys_ChangeSource(CDVD_SourceType::NoDisc);
+			}
+
 			s_elf_override = filename;
 			return true;
 		}
@@ -913,16 +976,12 @@ bool VMManager::Initialize(VMBootParameters boot_params)
 	};
 
 	Console.WriteLn("Opening SPU2...");
-	if (SPU2init(false) != 0 || SPU2open() != 0)
+	if (!SPU2::Open())
 	{
 		Host::ReportErrorAsync("Startup Error", "Failed to initialize SPU2.");
-		SPU2shutdown();
 		return false;
 	}
-	ScopedGuard close_spu2 = []() {
-		SPU2close();
-		SPU2shutdown();
-	};
+	ScopedGuard close_spu2(&SPU2::Close);
 
 	Console.WriteLn("Opening PAD...");
 	if (PADinit() != 0 || PADopen(g_host_display->GetWindowInfo()) != 0)
@@ -947,14 +1006,13 @@ bool VMManager::Initialize(VMBootParameters boot_params)
 	};
 
 	Console.WriteLn("Opening USB...");
-	if (USBinit() != 0 || USBopen(g_host_display->GetWindowInfo()) != 0)
+	if (!USBopen())
 	{
 		Host::ReportErrorAsync("Startup Error", "Failed to initialize USB.");
 		return false;
 	}
 	ScopedGuard close_usb = []() {
 		USBclose();
-		USBshutdown();
 	};
 
 	Console.WriteLn("Opening FW...");
@@ -985,7 +1043,7 @@ bool VMManager::Initialize(VMBootParameters boot_params)
 
 	s_cpu_implementation_changed = false;
 	s_cpu_provider_pack->ApplyConfig();
-	SetCPUState(EmuConfig.Cpu.sseMXCSR, EmuConfig.Cpu.sseVUMXCSR);
+	SetCPUState(EmuConfig.Cpu.sseMXCSR, EmuConfig.Cpu.sseVU0MXCSR, EmuConfig.Cpu.sseVU1MXCSR);
 	SysClearExecutionCache();
 	memBindConditionalHandlers();
 
@@ -1050,11 +1108,12 @@ void VMManager::Shutdown(bool save_resume_state)
 
 		std::unique_lock lock(s_info_mutex);
 		s_disc_path.clear();
+		s_elf_override.clear();
 		s_game_crc = 0;
 		s_patches_crc = 0;
 		s_game_serial.clear();
 		s_game_name.clear();
-		Host::OnGameChanged(s_disc_path, s_game_serial, s_game_name, 0);
+		Host::OnGameChanged(s_disc_path, s_elf_override, s_game_serial, s_game_name, 0);
 	}
 	s_active_game_fixes = 0;
 	s_active_widescreen_patches = 0;
@@ -1074,7 +1133,7 @@ void VMManager::Shutdown(bool save_resume_state)
 	R3000A::ioman::reset();
 	vtlb_Shutdown();
 	USBclose();
-	SPU2close();
+	SPU2::Close();
 	PADclose();
 	DEV9close();
 	DoCDVDclose();
@@ -1093,11 +1152,8 @@ void VMManager::Shutdown(bool save_resume_state)
 		GetMTGS().WaitForClose();
 	}
 
-	USBshutdown();
-	SPU2shutdown();
 	PADshutdown();
 	DEV9shutdown();
-	GSshutdown();
 
 	s_state.store(VMState::Shutdown, std::memory_order_release);
 	Host::OnVMDestroyed();
@@ -1393,7 +1449,7 @@ void VMManager::SetLimiterMode(LimiterModeType type)
 
 	EmuConfig.LimiterMode = type;
 	gsUpdateFrequency(EmuConfig);
-	GetMTGS().UpdateVSyncMode();
+	SPU2::OnTargetSpeedChanged();
 }
 
 void VMManager::FrameAdvance(u32 num_frames /*= 1*/)
@@ -1587,7 +1643,7 @@ void VMManager::CheckForCPUConfigChanges(const Pcsx2Config& old_config)
 	}
 
 	Console.WriteLn("Updating CPU configuration...");
-	SetCPUState(EmuConfig.Cpu.sseMXCSR, EmuConfig.Cpu.sseVUMXCSR);
+	SetCPUState(EmuConfig.Cpu.sseMXCSR, EmuConfig.Cpu.sseVU0MXCSR, EmuConfig.Cpu.sseVU1MXCSR);
 	SysClearExecutionCache();
 	memBindConditionalHandlers();
 
@@ -1635,7 +1691,6 @@ void VMManager::CheckForFramerateConfigChanges(const Pcsx2Config& old_config)
 	gsUpdateFrequency(EmuConfig);
 	UpdateVSyncRate();
 	frameLimitReset();
-	GetMTGS().UpdateVSyncMode();
 }
 
 void VMManager::CheckForPatchConfigChanges(const Pcsx2Config& old_config)
@@ -1648,46 +1703,6 @@ void VMManager::CheckForPatchConfigChanges(const Pcsx2Config& old_config)
 	}
 
 	ReloadPatches(true, true);
-}
-
-void VMManager::CheckForSPU2ConfigChanges(const Pcsx2Config& old_config)
-{
-	if (EmuConfig.SPU2 == old_config.SPU2)
-		return;
-
-	// TODO: Don't reinit on volume changes.
-
-	Console.WriteLn("Updating SPU2 configuration");
-
-	// kinda lazy, but until we move spu2 over...
-	freezeData fd = {};
-	if (SPU2freeze(FreezeAction::Size, &fd) != 0)
-	{
-		Console.Error("(CheckForSPU2ConfigChanges) Failed to get SPU2 freeze size");
-		return;
-	}
-
-	std::unique_ptr<u8[]> fd_data = std::make_unique<u8[]>(fd.size);
-	fd.data = fd_data.get();
-	if (SPU2freeze(FreezeAction::Save, &fd) != 0)
-	{
-		Console.Error("(CheckForSPU2ConfigChanges) Failed to freeze SPU2");
-		return;
-	}
-
-	SPU2close();
-	SPU2shutdown();
-	if (SPU2init(true) != 0 || SPU2open() != 0)
-	{
-		Console.Error("(CheckForSPU2ConfigChanges) Failed to reopen SPU2, we'll probably crash :(");
-		return;
-	}
-
-	if (SPU2freeze(FreezeAction::Load, &fd) != 0)
-	{
-		Console.Error("(CheckForSPU2ConfigChanges) Failed to unfreeze SPU2");
-		return;
-	}
 }
 
 void VMManager::CheckForDEV9ConfigChanges(const Pcsx2Config& old_config)
@@ -1757,9 +1772,10 @@ void VMManager::CheckForConfigChanges(const Pcsx2Config& old_config)
 		CheckForCPUConfigChanges(old_config);
 		CheckForFramerateConfigChanges(old_config);
 		CheckForPatchConfigChanges(old_config);
-		CheckForSPU2ConfigChanges(old_config);
+		SPU2::CheckForConfigChanges(old_config);
 		CheckForDEV9ConfigChanges(old_config);
 		CheckForMemoryCardConfigChanges(old_config);
+		USB::CheckForConfigChanges(old_config);
 
 		if (EmuConfig.EnableCheats != old_config.EnableCheats ||
 			EmuConfig.EnableWideScreenPatches != old_config.EnableWideScreenPatches ||
@@ -1885,8 +1901,8 @@ void VMManager::WarnAboutUnsafeSettings()
 		messages += ICON_FA_COMPACT_DISC " Fast CDVD is enabled, this may break games.\n";
 	if (EmuConfig.Speedhacks.EECycleRate != 0 || EmuConfig.Speedhacks.EECycleSkip != 0)
 		messages += ICON_FA_TACHOMETER_ALT " Cycle rate/skip is not at default, this may crash or make games run too slow.\n";
-	if (EmuConfig.SPU2.SynchMode != Pcsx2Config::SPU2Options::SynchronizationMode::TimeStretch)
-		messages += ICON_FA_VOLUME_MUTE " Audio is not using time stretch synchronization, this may break FMVs.\n";
+	if (EmuConfig.SPU2.SynchMode == Pcsx2Config::SPU2Options::SynchronizationMode::ASync)
+		messages += ICON_FA_VOLUME_MUTE " Audio is using async mix, expect desynchronization in FMVs.\n";
 	if (EmuConfig.GS.UpscaleMultiplier < 1.0f)
 		messages += ICON_FA_TV " Upscale multiplier is below native, this will break rendering.\n";
 	if (EmuConfig.GS.HWMipmap != HWMipmapLevel::Automatic)
@@ -1901,14 +1917,17 @@ void VMManager::WarnAboutUnsafeSettings()
 		messages += ICON_FA_FIRST_AID " CRC Fix Level is not set to default, this may break effects in some games.\n";
 	if (EmuConfig.GS.HWDownloadMode != GSHardwareDownloadMode::Enabled)
 		messages += ICON_FA_DOWNLOAD " Hardware Download Mode is not set to Accurate, this may break rendering in some games.\n";
-	if (EmuConfig.Cpu.sseMXCSR.GetRoundMode() != SSEround_Chop || EmuConfig.Cpu.sseVUMXCSR.GetRoundMode() != SSEround_Chop)
+	if (EmuConfig.Cpu.sseMXCSR.GetRoundMode() != SSEround_Chop)
 		messages += ICON_FA_MICROCHIP " EE FPU Round Mode is not set to default, this may break some games.\n";
 	if (!EmuConfig.Cpu.Recompiler.fpuOverflow || EmuConfig.Cpu.Recompiler.fpuExtraOverflow || EmuConfig.Cpu.Recompiler.fpuFullMode)
 		messages += ICON_FA_MICROCHIP " EE FPU Clamp Mode is not set to default, this may break some games.\n";
-	if (EmuConfig.Cpu.sseVUMXCSR.GetRoundMode() != SSEround_Chop)
+	if (EmuConfig.Cpu.sseVU0MXCSR.GetRoundMode() != SSEround_Chop || EmuConfig.Cpu.sseVU1MXCSR.GetRoundMode() != SSEround_Chop)
 		messages += ICON_FA_MICROCHIP " VU Round Mode is not set to default, this may break some games.\n";
-	if (!EmuConfig.Cpu.Recompiler.vuOverflow || EmuConfig.Cpu.Recompiler.vuExtraOverflow || EmuConfig.Cpu.Recompiler.vuSignOverflow)
+	if (!EmuConfig.Cpu.Recompiler.vu0Overflow || EmuConfig.Cpu.Recompiler.vu0ExtraOverflow || EmuConfig.Cpu.Recompiler.vu0SignOverflow ||
+		!EmuConfig.Cpu.Recompiler.vu1Overflow || EmuConfig.Cpu.Recompiler.vu1ExtraOverflow || EmuConfig.Cpu.Recompiler.vu1SignOverflow)
+	{
 		messages += ICON_FA_MICROCHIP " VU Clamp Mode is not set to default, this may break some games.\n";
+	}
 	if (!EmuConfig.EnableGameFixes)
 		messages += ICON_FA_GAMEPAD " Game Fixes are not enabled. Compatibility with some games may be affected.\n";
 	if (!EmuConfig.EnablePatches)
@@ -2101,14 +2120,18 @@ static void SetMTVUAndAffinityControlDefault(SettingsInterface& si)
 
 	if (big_cores >= 3)
 	{
-		Console.WriteLn("  So enabling MTVU.");
+		Console.WriteLn("  Enabling MTVU.");
 		si.SetBoolValue("EmuCore/Speedhacks", "vuThread", true);
 	}
 	else
 	{
-		Console.WriteLn("  So disabling MTVU.");
+		Console.WriteLn("  Disabling MTVU.");
 		si.SetBoolValue("EmuCore/Speedhacks", "vuThread", false);
 	}
+
+	const int extra_threads = (big_cores > 3) ? 3 : 2;
+	Console.WriteLn("  Setting Extra Software Rendering Threads to %d.", extra_threads);
+	si.SetIntValue("EmuCore/GS", "extrathreads", extra_threads);
 }
 
 #else

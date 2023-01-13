@@ -19,21 +19,43 @@
 #include "IopCounters.h"
 #include <mutex>
 
-extern std::recursive_mutex mtx_SPU2Status;
+struct Pcsx2Config;
 
-enum class PS2Modes
+namespace SPU2
 {
-	PS2,
-	PSX,
-};
+/// Initialization/cleanup, call at process startup/shutdown.
+bool Initialize();
+void Shutdown();
 
-s32 SPU2init(bool KeepMode);
-s32 SPU2reset(PS2Modes isRunningPSXMode);
-s32 SPU2open();
-void SPU2close();
-void SPU2shutdown();
-void SPU2SetOutputPaused(bool paused);
-void SPU2SetDeviceSampleRateMultiplier(double multiplier);
+/// Open/close, call at VM startup/shutdown.
+bool Open();
+void Close();
+
+/// Reset, rebooting VM or going into PSX mode.
+void Reset(bool psxmode);
+
+/// Identifies any configuration changes and applies them.
+void CheckForConfigChanges(const Pcsx2Config& old_config);
+
+/// Returns the current output volume, irrespective of the configuration.
+s32 GetOutputVolume();
+
+/// Directly updates the output volume without going through the configuration.
+void SetOutputVolume(s32 volume);
+
+/// Pauses/resumes the output stream.
+void SetOutputPaused(bool paused);
+
+/// Clears output buffers in no-sync mode, prevents long delays after fast forwarding.
+void OnTargetSpeedChanged();
+
+/// Adjusts the premultiplier on the output sample rate. Used for syncing to host refresh rate.
+void SetDeviceSampleRateMultiplier(double multiplier);
+
+/// Returns true if we're currently running in PSX mode.
+bool IsRunningPSXMode();
+} // namespace SPU2
+
 void SPU2write(u32 mem, u16 value);
 u16 SPU2read(u32 mem);
 
@@ -45,12 +67,6 @@ void SPU2endRecording();
 void SPU2async(u32 cycles);
 s32 SPU2freeze(FreezeAction mode, freezeData* data);
 
-#ifndef PCSX2_CORE
-void SPU2configure();
-#endif
-
-void SPU2setSettingsDir(const char* dir);
-void SPU2setLogDir(const char* dir);
 void SPU2readDMA4Mem(u16* pMem, u32 size);
 void SPU2writeDMA4Mem(u16* pMem, u32 size);
 void SPU2interruptDMA4();
@@ -58,11 +74,8 @@ void SPU2interruptDMA7();
 void SPU2readDMA7Mem(u16* pMem, u32 size);
 void SPU2writeDMA7Mem(u16* pMem, u32 size);
 
-extern u8 callirq;
-
 extern u32 lClocks;
 
-extern void SPU2writeLog(const char* action, u32 rmem, u16 value);
 extern void TimeUpdate(u32 cClocks);
 extern void SPU2_FastWrite(u32 rmem, u16 value);
 

@@ -141,14 +141,26 @@ public:
 	// Includes uncached addresses.
 	static const std::vector<MemCheck> GetMemCheckRanges();
 
-	static const std::vector<MemCheck> GetMemChecks();
-	static const std::vector<BreakPoint> GetBreakpoints();
+	static const std::vector<MemCheck> GetMemChecks(BreakPointCpu cpu);
+	static const std::vector<BreakPoint> GetBreakpoints(BreakPointCpu cpu, bool includeTemp);
+	// Returns count of all non-temporary breakpoints
+	static size_t GetNumBreakpoints()
+	{ 
+		return std::count_if(breakPoints_.begin(), breakPoints_.end(), [](BreakPoint& bp) { return !bp.temporary; });
+	}
 	static size_t GetNumMemchecks() { return memChecks_.size(); }
 
 	static void Update(BreakPointCpu cpu = BREAKPOINT_IOP_AND_EE, u32 addr = 0);
 
 	static void SetBreakpointTriggered(bool b) { breakpointTriggered_ = b; };
 	static bool GetBreakpointTriggered() { return breakpointTriggered_; };
+
+	static bool GetCorePaused() { return corePaused; };
+	static void SetCorePaused(bool b) { corePaused = b; };
+
+	// This will have to do until a full fledged debugger host interface is made
+	static void SetUpdateHandler(std::function<void()> f) {cb_bpUpdated_ = f; };
+	static std::function<void()> GetUpdateHandler() { return cb_bpUpdated_; };
 
 private:
 	static size_t FindBreakpoint(BreakPointCpu cpu, u32 addr, bool matchTemp = false, bool temp = false);
@@ -162,6 +174,9 @@ private:
 	static u64 breakSkipFirstTicksIop_;
 
 	static bool breakpointTriggered_;
+	static bool corePaused;
+
+	static std::function<void()> cb_bpUpdated_;
 
 	static std::vector<MemCheck> memChecks_;
 	static std::vector<MemCheck *> cleanupMemChecks_;

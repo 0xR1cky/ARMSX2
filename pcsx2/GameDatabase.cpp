@@ -16,8 +16,8 @@
 #include "PrecompiledHeader.h"
 
 #include "GameDatabase.h"
+#include "GS/GS.h"
 #include "Host.h"
-#include "Patch.h"
 #include "vtlb.h"
 
 #include "common/FileSystem.h"
@@ -128,7 +128,20 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 		{
 			int vuVal = -1;
 			node["roundModes"]["vuRoundMode"] >> vuVal;
-			gameEntry.vuRoundMode = static_cast<GameDatabaseSchema::RoundMode>(vuVal);
+			gameEntry.vu0RoundMode = static_cast<GameDatabaseSchema::RoundMode>(vuVal);
+			gameEntry.vu1RoundMode = static_cast<GameDatabaseSchema::RoundMode>(vuVal);
+		}
+		if (node["roundModes"].has_child("vu0RoundMode"))
+		{
+			int vuVal = -1;
+			node["roundModes"]["vu0RoundMode"] >> vuVal;
+			gameEntry.vu0RoundMode = static_cast<GameDatabaseSchema::RoundMode>(vuVal);
+		}
+		if (node["roundModes"].has_child("vu1RoundMode"))
+		{
+			int vuVal = -1;
+			node["roundModes"]["vu1RoundMode"] >> vuVal;
+			gameEntry.vu1RoundMode = static_cast<GameDatabaseSchema::RoundMode>(vuVal);
 		}
 	}
 	if (node.has_child("clampModes"))
@@ -143,7 +156,20 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 		{
 			int vuVal = -1;
 			node["clampModes"]["vuClampMode"] >> vuVal;
-			gameEntry.vuClampMode = static_cast<GameDatabaseSchema::ClampMode>(vuVal);
+			gameEntry.vu0ClampMode = static_cast<GameDatabaseSchema::ClampMode>(vuVal);
+			gameEntry.vu1ClampMode = static_cast<GameDatabaseSchema::ClampMode>(vuVal);
+		}
+		if (node["clampModes"].has_child("vu0ClampMode"))
+		{
+			int vuVal = -1;
+			node["clampModes"]["vu0ClampMode"] >> vuVal;
+			gameEntry.vu0ClampMode = static_cast<GameDatabaseSchema::ClampMode>(vuVal);
+		}
+		if (node["clampModes"].has_child("vu1ClampMode"))
+		{
+			int vuVal = -1;
+			node["clampModes"]["vu1ClampMode"] >> vuVal;
+			gameEntry.vu1ClampMode = static_cast<GameDatabaseSchema::ClampMode>(vuVal);
 		}
 	}
 
@@ -215,12 +241,28 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 		{
 			const std::string_view id_name(n.key().data(), n.key().size());
 			std::optional<GameDatabaseSchema::GSHWFixId> id = GameDatabaseSchema::parseHWFixName(id_name);
-			std::optional<s32> value = n.has_val() ? StringUtil::FromChars<s32>(std::string_view(n.val().data(), n.val().size())) : 1;
+			std::optional<s32> value;
+			if (id.has_value() && (id.value() == GameDatabaseSchema::GSHWFixId::GetSkipCount || id.value() == GameDatabaseSchema::GSHWFixId::BeforeDraw))
+			{
+				const std::string_view str_value(n.has_val() ? std::string_view(n.val().data(), n.val().size()) : std::string_view());
+				if (id.value() == GameDatabaseSchema::GSHWFixId::GetSkipCount)
+					value = GSLookupGetSkipCountFunctionId(str_value);
+				else if (id.value() == GameDatabaseSchema::GSHWFixId::BeforeDraw)
+					value = GSLookupBeforeDrawFunctionId(str_value);
+
+				if (value.value_or(-1) < 0)
+				{
+					Console.Error(fmt::format("[GameDB] Invalid GS HW Fix Value for '{}' in '{}': '{}'", id_name, serial, str_value));
+					continue;
+				}
+			}
+			else
+			{
+				value = n.has_val() ? StringUtil::FromChars<s32>(std::string_view(n.val().data(), n.val().size())) : 1;
+			}
 			if (!id.has_value() || !value.has_value())
 			{
-				Console.Error("[GameDB] Invalid GS HW Fix: '%.*s' specified for serial '%.*s'. Dropping!",
-					static_cast<int>(id_name.size()), id_name.data(),
-					static_cast<int>(serial.size()), serial.data());
+				Console.Error(fmt::format("[GameDB] Invalid GS HW Fix: '{}' specified for serial '{}'. Dropping!", id_name, serial));
 				continue;
 			}
 
@@ -265,6 +307,35 @@ void GameDatabase::parseAndInsert(const std::string_view& serial, const c4::yml:
 		}
 	}
 
+	if (node.has_child("dynaPatches") && node["dynaPatches"].has_children())
+	{
+		for (const ryml::NodeRef& n : node["dynaPatches"].children())
+		{
+			DynamicPatch patch;
+
+			if (n.has_child("pattern") && n["pattern"].has_children())
+			{
+				for (const ryml::NodeRef& db_pattern : n["pattern"].children())
+				{
+					DynamicPatchEntry entry;
+					db_pattern["offset"] >> entry.offset;
+					db_pattern["value"] >> entry.value;
+
+					patch.pattern.push_back(entry);
+				}
+				for (const ryml::NodeRef& db_replacement : n["replacement"].children())
+				{
+					DynamicPatchEntry entry;
+					db_replacement["offset"] >> entry.offset;
+					db_replacement["value"] >> entry.value;
+
+					patch.replacement.push_back(entry);
+				}
+			}
+			gameEntry.dynaPatches.push_back(patch);
+		}
+	}
+
 	s_game_db.emplace(std::move(serial), std::move(gameEntry));
 }
 
@@ -279,7 +350,6 @@ static const char* s_gs_hw_fix_names[] = {
 	"alignSprite",
 	"mergeSprite",
 	"wildArmsHack",
-	"pointListPalette",
 	"mipmap",
 	"trilinearFiltering",
 	"skipDrawStart",
@@ -291,7 +361,10 @@ static const char* s_gs_hw_fix_names[] = {
 	"deinterlace",
 	"cpuSpriteRenderBW",
 	"cpuCLUTRender",
+	"gpuTargetCLUT",
 	"gpuPaletteConversion",
+	"getSkipCount",
+	"beforeDraw",
 };
 static_assert(std::size(s_gs_hw_fix_names) == static_cast<u32>(GameDatabaseSchema::GSHWFixId::Count), "HW fix name lookup is correct size");
 
@@ -318,8 +391,9 @@ bool GameDatabaseSchema::isUserHackHWFix(GSHWFixId id)
 		case GSHWFixId::Deinterlace:
 		case GSHWFixId::Mipmap:
 		case GSHWFixId::TexturePreloading:
-		case GSHWFixId::PointListPalette:
 		case GSHWFixId::TrilinearFiltering:
+		case GSHWFixId::GetSkipCount:
+		case GSHWFixId::BeforeDraw:
 			return false;
 		default:
 			return true;
@@ -350,19 +424,35 @@ u32 GameDatabaseSchema::GameEntry::applyGameFixes(Pcsx2Config& config, bool appl
 		}
 	}
 
-	if (vuRoundMode != GameDatabaseSchema::RoundMode::Undefined)
+	if (vu0RoundMode != GameDatabaseSchema::RoundMode::Undefined)
 	{
-		const SSE_RoundMode vuRM = (SSE_RoundMode)enum_cast(vuRoundMode);
+		const SSE_RoundMode vuRM = (SSE_RoundMode)enum_cast(vu0RoundMode);
 		if (EnumIsValid(vuRM))
 		{
 			if (applyAuto)
 			{
-				PatchesCon->WriteLn("(GameDB) Changing VU0/VU1 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
-				config.Cpu.sseVUMXCSR.SetRoundMode(vuRM);
+				PatchesCon->WriteLn("(GameDB) Changing VU0 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
+				config.Cpu.sseVU0MXCSR.SetRoundMode(vuRM);
 				num_applied_fixes++;
 			}
 			else
-				PatchesCon->Warning("[GameDB] Skipping changing VU0/VU1 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
+				PatchesCon->Warning("[GameDB] Skipping changing VU0 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
+		}
+	}
+
+	if (vu1RoundMode != GameDatabaseSchema::RoundMode::Undefined)
+	{
+		const SSE_RoundMode vuRM = (SSE_RoundMode)enum_cast(vu1RoundMode);
+		if (EnumIsValid(vuRM))
+		{
+			if (applyAuto)
+			{
+				PatchesCon->WriteLn("(GameDB) Changing VU1 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
+				config.Cpu.sseVU1MXCSR.SetRoundMode(vuRM);
+				num_applied_fixes++;
+			}
+			else
+				PatchesCon->Warning("[GameDB] Skipping changing VU1 roundmode to %d [%s]", vuRM, EnumToString(vuRM));
 		}
 	}
 
@@ -381,19 +471,34 @@ u32 GameDatabaseSchema::GameEntry::applyGameFixes(Pcsx2Config& config, bool appl
 			PatchesCon->Warning("[GameDB] Skipping changing EE/FPU clamp mode [mode=%d]", clampMode);
 	}
 
-	if (vuClampMode != GameDatabaseSchema::ClampMode::Undefined)
+	if (vu0ClampMode != GameDatabaseSchema::ClampMode::Undefined)
 	{
-		const int clampMode = enum_cast(vuClampMode);
+		const int clampMode = enum_cast(vu0ClampMode);
 		if (applyAuto)
 		{
-			PatchesCon->WriteLn("(GameDB) Changing VU0/VU1 clamp mode [mode=%d]", clampMode);
-			config.Cpu.Recompiler.vuOverflow = (clampMode >= 1);
-			config.Cpu.Recompiler.vuExtraOverflow = (clampMode >= 2);
-			config.Cpu.Recompiler.vuSignOverflow = (clampMode >= 3);
+			PatchesCon->WriteLn("(GameDB) Changing VU0 clamp mode [mode=%d]", clampMode);
+			config.Cpu.Recompiler.vu0Overflow = (clampMode >= 1);
+			config.Cpu.Recompiler.vu0ExtraOverflow = (clampMode >= 2);
+			config.Cpu.Recompiler.vu0SignOverflow = (clampMode >= 3);
 			num_applied_fixes++;
 		}
 		else
-			PatchesCon->Warning("[GameDB] Skipping changing VU0/VU1 clamp mode [mode=%d]", clampMode);
+			PatchesCon->Warning("[GameDB] Skipping changing VU0 clamp mode [mode=%d]", clampMode);
+	}
+
+	if (vu1ClampMode != GameDatabaseSchema::ClampMode::Undefined)
+	{
+		const int clampMode = enum_cast(vu1ClampMode);
+		if (applyAuto)
+		{
+			PatchesCon->WriteLn("(GameDB) Changing VU1 clamp mode [mode=%d]", clampMode);
+			config.Cpu.Recompiler.vu1Overflow = (clampMode >= 1);
+			config.Cpu.Recompiler.vu1ExtraOverflow = (clampMode >= 2);
+			config.Cpu.Recompiler.vu1SignOverflow = (clampMode >= 3);
+			num_applied_fixes++;
+		}
+		else
+			PatchesCon->Warning("[GameDB] Skipping changing VU1 clamp mode [mode=%d]", clampMode);
 	}
 
 	// TODO - config - this could be simplified with maps instead of bitfields and enums
@@ -467,9 +572,6 @@ bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOpti
 		case GSHWFixId::WildArmsHack:
 			return (config.UpscaleMultiplier <= 1.0f || static_cast<int>(config.UserHacks_WildHack) == value);
 
-		case GSHWFixId::PointListPalette:
-			return (static_cast<int>(config.PointListPalette) == value);
-
 		case GSHWFixId::Mipmap:
 			return (config.HWMipmap == HWMipmapLevel::Automatic || static_cast<int>(config.HWMipmap) == value);
 
@@ -503,8 +605,17 @@ bool GameDatabaseSchema::GameEntry::configMatchesHWFix(const Pcsx2Config::GSOpti
 		case GSHWFixId::CPUCLUTRender:
 			return (config.UserHacks_CPUCLUTRender == value);
 
+		case GSHWFixId::GPUTargetCLUT:
+			return (static_cast<int>(config.UserHacks_GPUTargetCLUTMode) == value);
+
 		case GSHWFixId::GPUPaletteConversion:
 			return (config.GPUPaletteConversion == ((value > 1) ? (config.TexturePreloading == TexturePreloadingLevel::Full) : (value != 0)));
+
+		case GSHWFixId::GetSkipCount:
+			return (static_cast<int>(config.GetSkipCountFunctionId) == value);
+
+		case GSHWFixId::BeforeDraw:
+			return (static_cast<int>(config.BeforeDrawFunctionId) == value);
 
 		default:
 			return false;
@@ -573,10 +684,6 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 
 			case GSHWFixId::WildArmsHack:
 				config.UserHacks_WildHack = (value > 0);
-				break;
-
-			case GSHWFixId::PointListPalette:
-				config.PointListPalette = (value > 0);
 				break;
 
 			case GSHWFixId::Mipmap:
@@ -650,6 +757,13 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 				config.UserHacks_CPUCLUTRender = value;
 				break;
 
+			case GSHWFixId::GPUTargetCLUT:
+			{
+				if (value >= 0 && value <= static_cast<int>(GSGPUTargetCLUTMode::InsideTarget))
+					config.UserHacks_GPUTargetCLUTMode = static_cast<GSGPUTargetCLUTMode>(value);
+			}
+			break;
+
 			case GSHWFixId::GPUPaletteConversion:
 			{
 				// if 2, enable paltex when preloading is full, otherwise leave as-is
@@ -659,6 +773,14 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 					config.GPUPaletteConversion = (value != 0);
 			}
 			break;
+
+			case GSHWFixId::GetSkipCount:
+				config.GetSkipCountFunctionId = static_cast<s16>(value);
+				break;
+
+			case GSHWFixId::BeforeDraw:
+				config.BeforeDrawFunctionId = static_cast<s16>(value);
+				break;
 
 			default:
 				break;
@@ -671,7 +793,6 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 	// fixup skipdraw range just in case the db has a bad range (but the linter should catch this)
 	config.SkipDrawEnd = std::max(config.SkipDrawStart, config.SkipDrawEnd);
 
-#ifdef PCSX2_CORE
 	if (!disabled_fixes.empty())
 	{
 		Host::AddKeyedOSDMessage("HWFixesWarning",
@@ -683,7 +804,6 @@ u32 GameDatabaseSchema::GameEntry::applyGSHardwareFixes(Pcsx2Config::GSOptions& 
 	{
 		Host::RemoveKeyedOSDMessage("HWFixesWarning");
 	}
-#endif
 
 	return num_applied_fixes;
 }
@@ -753,6 +873,10 @@ const GameDatabaseSchema::GameEntry* GameDatabase::findGame(const std::string_vi
 	GameDatabase::ensureLoaded();
 
 	std::string serialLower = StringUtil::toLower(serial);
+
+	if (serialLower.empty())
+		return nullptr;
+
 	Console.WriteLn(fmt::format("[GameDB] Searching for '{}' in GameDB", serialLower));
 	const auto gameEntry = s_game_db.find(serialLower);
 	if (gameEntry != s_game_db.end())

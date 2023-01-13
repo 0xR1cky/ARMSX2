@@ -15,6 +15,7 @@
 
 #include <chrono>
 #include <csignal>
+#include <cstdlib>
 #include <condition_variable>
 #include <mutex>
 #include <thread>
@@ -59,7 +60,6 @@
 namespace GSRunner
 {
 	static bool InitializeConfig();
-	static bool SetCriticalFolders();
 
 	static bool CreatePlatformWindow();
 	static void DestroyPlatformWindow();
@@ -77,25 +77,8 @@ static std::string s_output_prefix;
 static s32 s_loop_count = 1;
 static std::optional<bool> s_use_window;
 
-bool GSRunner::SetCriticalFolders()
-{
-	EmuFolders::AppRoot = Path::Canonicalize(Path::GetDirectory(FileSystem::GetProgramPath()));
-	EmuFolders::Resources = Path::Combine(EmuFolders::AppRoot, "resources");
-	EmuFolders::DataRoot = EmuFolders::AppRoot;
-
-	// allow SetDataDirectory() to change settings directory (if we want to split config later on)
-	if (EmuFolders::Settings.empty())
-		EmuFolders::Settings = Path::Combine(EmuFolders::DataRoot, "inis");
-
-	// the resources directory should exist, bail out if not
-	if (!FileSystem::DirectoryExists(EmuFolders::Resources.c_str()))
-	{
-		Console.Error("Resources directory is missing, your installation is incomplete.");
-		return false;
-	}
-
-	return true;
-}
+// Owned by the GS thread.
+static u32 s_dump_frame_number = 0;
 
 bool GSRunner::InitializeConfig()
 {
@@ -255,6 +238,10 @@ void Host::OnInputDeviceDisconnected(const std::string_view& identifier)
 {
 }
 
+void Host::SetRelativeMouseMode(bool enabled)
+{
+}
+
 bool Host::AcquireHostDisplay(RenderAPI api, bool clear_state_on_fail)
 {
 	const std::optional<WindowInfo> wi(GSRunner::GetPlatformWindowInfo());
@@ -265,7 +252,8 @@ bool Host::AcquireHostDisplay(RenderAPI api, bool clear_state_on_fail)
 	if (!g_host_display)
 		return false;
 
-	if (!g_host_display->CreateDevice(wi.value()) || !g_host_display->MakeCurrent() || !g_host_display->SetupDevice() || !ImGuiManager::Initialize())
+	if (!g_host_display->CreateDevice(wi.value(), Host::GetEffectiveVSyncMode()) ||
+		!g_host_display->MakeCurrent() || !g_host_display->SetupDevice() || !ImGuiManager::Initialize())
 	{
 		ReleaseHostDisplay(clear_state_on_fail);
 		return false;
@@ -283,14 +271,15 @@ void Host::ReleaseHostDisplay(bool clear_state)
 	g_host_display.reset();
 }
 
-VsyncMode Host::GetEffectiveVSyncMode()
-{
-	// Never vsync! We want to finish as quickly as possible.
-	return VsyncMode::Off;
-}
-
 bool Host::BeginPresentFrame(bool frame_skip)
 {
+	// when we wrap around, don't race other files
+	GSJoinSnapshotThreads();
+
+	// queue dumping of this frame
+	std::string dump_path(fmt::format("{}_frame{}.png", s_output_prefix, s_dump_frame_number));
+	GSQueueSnapshot(dump_path);
+
 	if (g_host_display->BeginPresent(frame_skip))
 		return true;
 
@@ -341,7 +330,8 @@ void Host::OnVMResumed()
 {
 }
 
-void Host::OnGameChanged(const std::string& disc_path, const std::string& game_serial, const std::string& game_name, u32 game_crc)
+void Host::OnGameChanged(const std::string& disc_path, const std::string& elf_override, const std::string& game_serial,
+	const std::string& game_name, u32 game_crc)
 {
 }
 
@@ -619,24 +609,24 @@ int main(int argc, char* argv[])
 	if (!GSRunner::InitializeConfig())
 	{
 		Console.Error("Failed to initialize config.");
-		return false;
+		return EXIT_FAILURE;
 	}
 
 	VMBootParameters params;
 	if (!ParseCommandLineArgs(argc, argv, params))
-		return false;
+		return EXIT_FAILURE;
 
 	PerformanceMetrics::SetCPUThread(Threading::ThreadHandle::GetForCallingThread());
 	if (!VMManager::Internal::InitializeGlobals() || !VMManager::Internal::InitializeMemory())
 	{
 		Console.Error("Failed to allocate globals/memory.");
-		return false;
+		return EXIT_FAILURE;
 	}
 
 	if (s_use_window.value_or(false) && !GSRunner::CreatePlatformWindow())
 	{
 		Console.Error("Failed to create window.");
-		return false;
+		return EXIT_FAILURE;
 	}
 
 	// apply new settings (e.g. pick up renderer change)
@@ -662,15 +652,8 @@ int main(int argc, char* argv[])
 
 void Host::CPUThreadVSync()
 {
-	if (!s_output_prefix.empty())
-	{
-		// wait for the previous frame to complete (and thus dump)
-		GetMTGS().WaitGS(false, false, false);
-
-		// queue dumping of this frame
-		std::string dump_path(fmt::format("{}_frame{}.png", s_output_prefix, GSDumpReplayer::GetFrameNumber()));
-		GetMTGS().RunOnGSThread([dump_path = std::move(dump_path)]() { GSQueueSnapshot(dump_path); });
-	}
+	// update GS thread copy of frame number
+	GetMTGS().RunOnGSThread([frame_number = GSDumpReplayer::GetFrameNumber()]() { s_dump_frame_number = frame_number; });
 
 	// process any window messages (but we shouldn't really have any)
 	GSRunner::PumpPlatformMessages();

@@ -16,17 +16,14 @@
 #pragma once
 
 #include "common/WindowInfo.h"
-#include "Window/GSSetting.h"
 #include "SaveState.h"
 #include "pcsx2/Config.h"
 #include "pcsx2/GS/config.h"
+#include "gsl/span"
 
 #include <map>
-
-#ifdef None
-	// X11 seems to like to define this, not fun
-	#undef None
-#endif
+#include <string>
+#include <string_view>
 
 // ST_WRITE is defined in libc, avoid this
 enum stateType
@@ -49,11 +46,13 @@ enum class GSVideoMode : u8
 
 extern Pcsx2Config::GSOptions GSConfig;
 
-struct HostKeyEvent;
 class HostDisplay;
 
+// Returns the ID for the specified function, otherwise -1.
+s16 GSLookupGetSkipCountFunctionId(const std::string_view& name);
+s16 GSLookupBeforeDrawFunctionId(const std::string_view& name);
+
 int GSinit();
-void GSinitConfig();
 void GSshutdown();
 bool GSopen(const Pcsx2Config::GSOptions& config, GSRendererType renderer, u8* basemem);
 bool GSreopen(bool recreate_display, const Pcsx2Config::GSOptions& old_config);
@@ -69,84 +68,31 @@ void GSgifTransfer2(u8* mem, u32 size);
 void GSgifTransfer3(u8* mem, u32 size);
 void GSvsync(u32 field, bool registers_written);
 int GSfreeze(FreezeAction mode, freezeData* data);
+std::string GSGetBaseSnapshotFilename();
 void GSQueueSnapshot(const std::string& path, u32 gsdump_frames = 0);
 void GSStopGSDump();
+bool GSBeginCapture(std::string filename);
+void GSEndCapture();
 void GSPresentCurrentFrame();
-#ifndef PCSX2_CORE
-void GSkeyEvent(const HostKeyEvent& e);
-void GSconfigure();
-int GStest();
-bool GSsetupRecording(std::string& filename);
-void GSendRecording();
-#endif
-void GSsetGameCRC(u32 crc, int options);
+void GSThrottlePresentation();
+void GSsetGameCRC(u32 crc);
 
 GSVideoMode GSgetDisplayMode();
 void GSgetInternalResolution(int* width, int* height);
 void GSgetStats(std::string& info);
 void GSgetTitleStats(std::string& info);
 
+/// Converts window position to normalized display coordinates (0..1). A value less than 0 or greater than 1 is
+/// returned if the position lies outside the display area.
+void GSTranslateWindowToDisplayCoordinates(float window_x, float window_y, float* display_x, float* display_y);
+
 void GSUpdateConfig(const Pcsx2Config::GSOptions& new_config);
 void GSSwitchRenderer(GSRendererType new_renderer);
 void GSResetAPIState();
 void GSRestoreAPIState();
-bool GSSaveSnapshotToMemory(u32 width, u32 height, std::vector<u32>* pixels);
-
-class GSApp
-{
-	std::string m_section;
-	std::map<std::string, std::string> m_default_configuration;
-	std::map<std::string, std::string> m_configuration_map;
-
-public:
-	std::string m_ini;
-	GSApp();
-
-	void Init();
-
-#ifndef PCSX2_CORE
-	void BuildConfigurationMap(const char* lpFileName);
-	void ReloadConfig();
-	int GetIniInt(const char* lpAppName, const char* lpKeyName, int nDefault, const char* lpFileName);
-#endif
-
-	size_t GetIniString(const char* lpAppName, const char* lpKeyName, const char* lpDefault, char* lpReturnedString, size_t nSize, const char* lpFileName);
-	bool WriteIniString(const char* lpAppName, const char* lpKeyName, const char* pString, const char* lpFileName);
-
-	void SetConfig(const char* entry, const char* value);
-	void SetConfig(const char* entry, int value);
-	// Avoid issue with overloading
-	template <typename T>
-	T GetConfigT(const char* entry)
-	{
-		return static_cast<T>(GetConfigI(entry));
-	}
-	int GetConfigI(const char* entry);
-	bool GetConfigB(const char* entry);
-	std::string GetConfigS(const char* entry);
-
-	void SetConfigDir();
-
-	std::vector<GSSetting> m_gs_renderers;
-	std::vector<GSSetting> m_gs_deinterlace;
-	std::vector<GSSetting> m_gs_upscale_multiplier;
-	std::vector<GSSetting> m_gs_max_anisotropy;
-	std::vector<GSSetting> m_gs_dithering;
-	std::vector<GSSetting> m_gs_bifilter;
-	std::vector<GSSetting> m_gs_trifilter;
-	std::vector<GSSetting> m_gs_texture_preloading;
-	std::vector<GSSetting> m_gs_hack;
-	std::vector<GSSetting> m_gs_generic_list;
-	std::vector<GSSetting> m_gs_tex_display_list;
-	std::vector<GSSetting> m_gs_offset_hack;
-	std::vector<GSSetting> m_gs_hw_mipmapping;
-	std::vector<GSSetting> m_gs_crc_level;
-	std::vector<GSSetting> m_gs_acc_blend_level;
-	std::vector<GSSetting> m_gs_tv_shaders;
-	std::vector<GSSetting> m_gs_casmode;
-	std::vector<GSSetting> m_gs_hw_download_mode;
-	std::vector<GSSetting> m_gs_dump_compression;
-};
+bool GSSaveSnapshotToMemory(u32 window_width, u32 window_height, bool apply_aspect, bool crop_borders,
+	u32* width, u32* height, std::vector<u32>* pixels);
+void GSJoinSnapshotThreads();
 
 struct GSError
 {
@@ -154,8 +100,3 @@ struct GSError
 struct GSRecoverableError : GSError
 {
 };
-struct GSErrorGlVertexArrayTooSmall : GSError
-{
-};
-
-extern GSApp theApp;

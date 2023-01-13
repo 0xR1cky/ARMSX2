@@ -29,12 +29,7 @@
 #include "Host.h"
 #include "HostDisplay.h"
 #include "IconsFontAwesome5.h"
-
-#ifndef PCSX2_CORE
-#include "gui/Dialogs/ModalPopups.h"
-#else
 #include "VMManager.h"
-#endif
 
 // Uncomment this to enable profiling of the GS RingBufferCopy function.
 //#define PCSX2_GSRING_SAMPLING_STATS
@@ -281,7 +276,7 @@ bool SysMtgsThread::TryOpenGS()
 	if (!GSopen(EmuConfig.GS, EmuConfig.GS.Renderer, RingBuffer.Regs))
 		return false;
 
-	GSsetGameCRC(ElfCRC, 0);
+	GSsetGameCRC(ElfCRC);
 	return true;
 }
 
@@ -298,16 +293,13 @@ void SysMtgsThread::MainLoop()
 
 	while (true)
 	{
-
-		// Performance note: Both of these perform cancellation tests, but pthread_testcancel
-		// is very optimized (only 1 instruction test in most cases), so no point in trying
-		// to avoid it.
-
-#ifdef PCSX2_CORE
 		if (m_run_idle_flag.load(std::memory_order_acquire) && VMManager::GetState() != VMState::Running)
 		{
 			if (!m_sem_event.CheckForWork())
+			{
 				GSPresentCurrentFrame();
+				GSThrottlePresentation();
+			}
 		}
 		else
 		{
@@ -315,11 +307,6 @@ void SysMtgsThread::MainLoop()
 			m_sem_event.WaitForWork();
 			mtvu_lock.lock();
 		}
-#else
-		mtvu_lock.unlock();
-		m_sem_event.WaitForWork();
-		mtvu_lock.lock();
-#endif
 
 		if (!m_open_flag.load(std::memory_order_acquire))
 			break;
@@ -524,7 +511,7 @@ void SysMtgsThread::MainLoop()
 						break;
 
 						case GS_RINGTYPE_CRC:
-							GSsetGameCRC(tag.data[0], 0);
+							GSsetGameCRC(tag.data[0]);
 							break;
 
 						case GS_RINGTYPE_INIT_AND_READ_FIFO:
@@ -594,10 +581,6 @@ void SysMtgsThread::MainLoop()
 
 void SysMtgsThread::CloseGS()
 {
-#ifndef PCSX2_CORE
-	if (GSDump::isRunning)
-		return;
-#endif
 	GSclose();
 }
 
@@ -892,11 +875,6 @@ bool SysMtgsThread::WaitForOpen()
 	if (!result)
 		Console.Error("GS failed to open.");
 
-#ifndef PCSX2_CORE
-	if (!result) // EE thread will continue running and explode everything if we don't throw an exception
-		throw Exception::RuntimeError(std::runtime_error("GS failed to open."));
-#endif
-
 	return result;
 }
 
@@ -955,11 +933,9 @@ void SysMtgsThread::ResizeDisplayWindow(int width, int height, float scale)
 		Host::ResizeHostDisplay(width, height, scale);
 		GSRestoreAPIState();
 
-#ifdef PCSX2_CORE
 		// If we're paused, re-present the current frame at the new window size.
 		if (VMManager::GetState() == VMState::Paused)
 			GSPresentCurrentFrame();
-#endif
 	});
 }
 
@@ -971,11 +947,9 @@ void SysMtgsThread::UpdateDisplayWindow()
 		Host::UpdateHostDisplay();
 		GSRestoreAPIState();
 
-#ifdef PCSX2_CORE
 		// If we're paused, re-present the current frame at the new window size.
 		if (VMManager::GetState() == VMState::Paused)
 			GSPresentCurrentFrame();
-#endif
 	});
 }
 
@@ -1031,11 +1005,12 @@ void SysMtgsThread::ToggleSoftwareRendering()
 	SetSoftwareRendering(GSConfig.Renderer != GSRendererType::SW);
 }
 
-bool SysMtgsThread::SaveMemorySnapshot(u32 width, u32 height, std::vector<u32>* pixels)
+bool SysMtgsThread::SaveMemorySnapshot(u32 window_width, u32 window_height, bool apply_aspect, bool crop_borders,
+	u32* width, u32* height, std::vector<u32>* pixels)
 {
 	bool result = false;
-	RunOnGSThread([width, height, pixels, &result]() {
-		result = GSSaveSnapshotToMemory(width, height, pixels);
+	RunOnGSThread([window_width, window_height, apply_aspect, crop_borders, width, height, pixels, &result]() {
+		result = GSSaveSnapshotToMemory(window_width, window_height, apply_aspect, crop_borders, width, height, pixels);
 	});
 	WaitGS(false, false, false);
 	return result;

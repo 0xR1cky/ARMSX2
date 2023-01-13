@@ -21,6 +21,7 @@
 #include "common/StringUtil.h"
 #include "common/ProgressCallback.h"
 #include "common/RedtapeWindows.h"
+#include "common/RedtapeWilCom.h"
 
 #include <CommCtrl.h>
 #include <shellapi.h>
@@ -28,7 +29,6 @@
 
 #include <thread>
 
-#include <wil/com.h>
 #include <wil/resource.h>
 #include <wil/win32_helpers.h>
 
@@ -502,6 +502,25 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmdLi
 
 	updater.CleanupStagingDirectory();
 	updater.RemoveUpdateZip();
+
+	// Rename the new executable to match the existing one
+	if (std::string actual_exe = updater.FindPCSX2Exe(); !actual_exe.empty())
+	{
+		const std::string full_path = destination_directory + FS_OSPATH_SEPARATOR_STR + actual_exe;
+		progress.DisplayFormattedInformation("Moving '%s' to '%S'", full_path.c_str(), program_to_launch.c_str());
+		const bool ok = MoveFileExW(StringUtil::UTF8StringToWideString(full_path).c_str(),
+			program_to_launch.c_str(), MOVEFILE_REPLACE_EXISTING);
+		if (!ok)
+		{
+			progress.DisplayFormattedModalError("Failed to rename '%s' to %S", full_path.c_str(), program_to_launch.c_str());
+			return 1;
+		}
+	}
+	else
+	{
+		progress.ModalError("Couldn't find PCSX2 in update package, please re-download a fresh version from GitHub.");
+		return 1;
+	}
 
 	progress.ModalInformation("Update complete.");
 

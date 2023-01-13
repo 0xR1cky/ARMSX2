@@ -16,6 +16,7 @@
 #pragma once
 
 #include "Config.h"
+#include "Patch.h"
 #include <optional>
 #include <string>
 #include <string_view>
@@ -69,7 +70,6 @@ namespace GameDatabaseSchema
 		AlignSprite,
 		MergeSprite,
 		WildArmsHack,
-		PointListPalette,
 
 		// integer settings
 		Mipmap,
@@ -83,7 +83,10 @@ namespace GameDatabaseSchema
 		Deinterlace,
 		CPUSpriteRenderBW,
 		CPUCLUTRender,
+		GPUTargetCLUT,
 		GPUPaletteConversion,
+		GetSkipCount,
+		BeforeDraw,
 
 		Count
 	};
@@ -94,14 +97,17 @@ namespace GameDatabaseSchema
 		std::string region;
 		Compatibility compat = Compatibility::Unknown;
 		RoundMode eeRoundMode = RoundMode::Undefined;
-		RoundMode vuRoundMode = RoundMode::Undefined;
+		RoundMode vu0RoundMode = RoundMode::Undefined;
+		RoundMode vu1RoundMode = RoundMode::Undefined;
 		ClampMode eeClampMode = ClampMode::Undefined;
-		ClampMode vuClampMode = ClampMode::Undefined;
+		ClampMode vu0ClampMode = ClampMode::Undefined;
+		ClampMode vu1ClampMode = ClampMode::Undefined;
 		std::vector<GamefixId> gameFixes;
 		std::vector<std::pair<SpeedhackId, int>> speedHacks;
 		std::vector<std::pair<GSHWFixId, s32>> gsHWFixes;
 		std::vector<std::string> memcardFilters;
 		std::unordered_map<u32, std::string> patches;
+		std::vector<DynamicPatch> dynaPatches;
 
 		// Returns the list of memory card serials as a `/` delimited string
 		std::string memcardFiltersAsString() const;

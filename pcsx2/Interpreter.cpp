@@ -19,11 +19,7 @@
 
 #include "R5900OpcodeTables.h"
 #include "R5900Exceptions.h"
-#ifndef PCSX2_CORE
-#include "gui/SysThreads.h"
-#else
 #include "VMManager.h"
-#endif
 
 #include "Elfheader.h"
 
@@ -58,9 +54,7 @@ void intBreakpoint(bool memcheck)
 	}
 
 	CBreakPoints::SetBreakpointTriggered(true);
-#ifndef PCSX2_CORE
-	GetCoreThread().PauseSelfDebug();
-#endif
+	VMManager::SetPaused(true);
 	throw Exception::ExitCpuExecute();
 }
 
@@ -76,13 +70,11 @@ void intMemcheck(u32 op, u32 bits, bool store)
 	start = standardizeBreakpointAddress(start);
 	u32 end = start + bits/8;
 
-	auto checks = CBreakPoints::GetMemChecks();
+	auto checks = CBreakPoints::GetMemChecks(BREAKPOINT_EE);
 	for (size_t i = 0; i < checks.size(); i++)
 	{
 		auto& check = checks[i];
 
-		if (check.cpu != BREAKPOINT_EE)
-			continue;
 		if (check.result == 0)
 			continue;
 		if ((check.cond & MEMCHECK_WRITE) == 0 && store)
@@ -482,11 +474,6 @@ void JALR()
 static void intReserve()
 {
 	// fixme : detect cpu for use the optimize asm code
-}
-
-static void intAlloc()
-{
-	// Nothing to do!
 }
 
 static void intReset()

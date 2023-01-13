@@ -33,15 +33,9 @@
 #include "Sio.h"
 #include "HostDisplay.h"
 #include "SPU2/spu2.h"
-
-#ifndef PCSX2_CORE
-#include "gui/App.h"
-#include "Recording/InputRecordingControls.h"
-#else
 #include "PAD/Host/PAD.h"
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
-#endif
 
 using namespace Threading;
 
@@ -355,7 +349,7 @@ static double AdjustToHostRefreshRate(double vertical_frequency, double frame_li
 {
 	if (!EmuConfig.GS.SyncToHostRefreshRate || EmuConfig.GS.LimitScalar != 1.0f)
 	{
-		SPU2SetDeviceSampleRateMultiplier(1.0);
+		SPU2::SetDeviceSampleRateMultiplier(1.0);
 		s_use_vsync_for_timing = false;
 		return frame_limit;
 	}
@@ -364,7 +358,7 @@ static double AdjustToHostRefreshRate(double vertical_frequency, double frame_li
 	if (!g_host_display->GetHostRefreshRate(&host_refresh_rate))
 	{
 		Console.Warning("Cannot sync to host refresh since the query failed.");
-		SPU2SetDeviceSampleRateMultiplier(1.0);
+		SPU2::SetDeviceSampleRateMultiplier(1.0);
 		s_use_vsync_for_timing = false;
 		return frame_limit;
 	}
@@ -380,7 +374,7 @@ static double AdjustToHostRefreshRate(double vertical_frequency, double frame_li
 		return frame_limit;
 
 	frame_limit *= ratio;
-	SPU2SetDeviceSampleRateMultiplier(ratio);
+	SPU2::SetDeviceSampleRateMultiplier(ratio);
 	return frame_limit;
 }
 
@@ -548,15 +542,9 @@ static __fi void frameLimitUpdateCore()
 {
 	DoFMVSwitch();
 
-#ifndef PCSX2_CORE
-	GetCoreThread().VsyncInThread();
-	if (GetCoreThread().HasPendingStateChangeRequest())
-		Cpu->ExitExecution();
-#else
 	VMManager::Internal::VSyncOnCPUThread();
 	if (VMManager::Internal::IsExecutionInterrupted())
 		Cpu->ExitExecution();
-#endif
 }
 
 // Framelimiter - Measures the delta time between calls and stalls until a
@@ -608,10 +596,8 @@ static __fi void frameLimit()
 
 static __fi void VSyncStart(u32 sCycle)
 {
-#ifdef PCSX2_CORE
 	// Update vibration at the end of a frame.
 	PAD::Update();
-#endif
 
 	frameLimit(); // limit FPS
 	gsPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!

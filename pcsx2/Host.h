@@ -24,26 +24,6 @@
 #include <optional>
 #include <vector>
 
-struct HostKeyEvent
-{
-	enum class Type
-	{
-		NoEvent,
-		KeyPressed,
-		KeyReleased,
-		MousePressed,
-		MouseReleased,
-		MouseWheelDown,
-		MouseWheelUp,
-		MouseMove,
-		FocusGained,
-		FocustLost,
-	};
-
-	Type type;
-	u32 key;
-};
-
 namespace Host
 {
 	/// Typical durations for OSD messages.

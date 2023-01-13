@@ -10,7 +10,8 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>StaticLibrary</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset Condition="!$(Configuration.Contains(Clang))">$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset Condition="$(Configuration.Contains(Clang))">ClangCL</PlatformToolset>
     <WholeProgramOptimization Condition="$(Configuration.Contains(Release))">true</WholeProgramOptimization>
     <UseDebugLibraries Condition="$(Configuration.Contains(Debug))">true</UseDebugLibraries>
     <UseDebugLibraries Condition="!$(Configuration.Contains(Debug))">false</UseDebugLibraries>
@@ -37,7 +38,6 @@
     <ClCompile>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\xbyak;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\xz\xz\src\liblzma\api;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\baseclasses;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\zlib;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\libpng;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -53,22 +53,24 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\rcheevos\rcheevos\include;$(SolutionDir)3rdparty\rainterface</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\discord-rpc\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\zydis\include;$(SolutionDir)3rdparty\zydis\dependencies\zycore\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\ffmpeg\include</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>PrecompiledHeader.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
-      <AdditionalOptions>/Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZIP_STATIC;LZMA_API_STATIC;BUILD_DX=1;ENABLE_DISCORD_PRESENCE;ENABLE_RAINTEGRATION;ENABLE_ACHIEVEMENTS;ENABLE_OPENGL;ENABLE_VULKAN;SPU2X_CUBEB;SDL_BUILD;PCSX2_CORE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions Condition="!$(Configuration.Contains(Clang))">/Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;ZIP_STATIC;LZMA_API_STATIC;BUILD_DX=1;ENABLE_DISCORD_PRESENCE;ENABLE_RAINTEGRATION;ENABLE_ACHIEVEMENTS;ENABLE_OPENGL;ENABLE_VULKAN;SPU2X_CUBEB;SDL_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Debug))">PCSX2_DEBUG;PCSX2_DEVBUILD;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Devel))">PCSX2_DEVEL;PCSX2_DEVBUILD;NDEBUG;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Release))">NDEBUG;_SECURE_SCL_=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(CI)'=='true'">PCSX2_CI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <!-- MSVC automatically adds __AVX__ and __AVX2__ appropriately -->
       <PreprocessorDefinitions>__SSE4_1__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="'$(Platform)'=='x64'">ZYCORE_STATIC_DEFINE;ZYDIS_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <EnableEnhancedInstructionSet Condition="!$(Configuration.Contains(AVX2))">NotSet</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="$(Configuration.Contains(AVX2))">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="!$(Configuration.Contains(AVX2)) Or $(Configuration.Contains(Clang))">NotSet</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="$(Configuration.Contains(AVX2)) And !$(Configuration.Contains(Clang))">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions Condition="$(Configuration.Contains(Clang)) And !$(Configuration.Contains(AVX2))"> -march=nehalem %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="$(Configuration.Contains(Clang)) And $(Configuration.Contains(AVX2))"> -march=haswell %(AdditionalOptions)</AdditionalOptions>
       <MinimalRebuild>false</MinimalRebuild>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <!-- SH 2/3 flashlight, explicitly set here don't change -->
@@ -243,18 +245,13 @@
     <ClCompile Include="Recording\InputRecordingFile.cpp" />
     <ClCompile Include="Recording\PadData.cpp" />
     <ClCompile Include="Recording\Utilities\InputRecordingLogger.cpp" />
+    <ClCompile Include="SPU2\Debug.cpp" />
+    <ClCompile Include="SPU2\Dma.cpp" />
     <ClCompile Include="SPU2\DplIIdecoder.cpp" />
-    <ClCompile Include="SPU2\debug.cpp" />
-    <ClCompile Include="SPU2\Host\Config.cpp" />
-    <ClCompile Include="SPU2\Host\ConfigDebug.cpp" />
-    <ClCompile Include="SPU2\Host\ConfigSoundTouch.cpp" />
-    <ClCompile Include="SPU2\Host\Dialogs.cpp" />
-    <ClCompile Include="SPU2\RegLog.cpp" />
     <ClCompile Include="SPU2\SndOut_Cubeb.cpp" />
+    <ClCompile Include="SPU2\SndOut_XAudio2.cpp" />
     <ClCompile Include="SPU2\wavedump_wav.cpp" />
     <ClCompile Include="SPU2\SndOut.cpp" />
-    <ClCompile Include="SPU2\Timestretcher.cpp" />
-    <ClCompile Include="SPU2\dma.cpp" />
     <ClCompile Include="SPU2\RegTable.cpp" />
     <ClCompile Include="SPU2\spu2freeze.cpp" />
     <ClCompile Include="SPU2\spu2sys.cpp" />
@@ -283,7 +280,6 @@
     <ClCompile Include="GS\GSAlignedClass.cpp" />
     <ClCompile Include="GS\GSBlock.cpp" />
     <ClCompile Include="GS\GSCapture.cpp" />
-    <ClCompile Include="GS\Window\GSCaptureDlg.cpp" />
     <ClCompile Include="GS\GSClut.cpp" />
     <ClCompile Include="GS\GSCodeBuffer.cpp" />
     <ClCompile Include="GS\GSCrc.cpp" />
@@ -312,7 +308,6 @@
     <ClCompile Include="GS\Renderers\HW\GSRendererHWMultiISA.cpp" />
     <ClCompile Include="GS\Renderers\Null\GSRendererNull.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSRendererSW.cpp" />
-    <ClCompile Include="GS\Window\GSSetting.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.cpp" />
     <ClCompile Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.cpp" />
     <ClCompile Include="GS\GSState.cpp" />
@@ -333,9 +328,32 @@
     <ClCompile Include="GS\Renderers\Common\GSVertexTraceFMM.cpp" />
     <ClCompile Include="GS\GSXXH.cpp" />
     <ClCompile Include="GS\MultiISA.cpp" />
-    <ClCompile Include="SPU2\Windows\SndOut_XAudio2.cpp" />
-    <ClCompile Include="USB\USBNull.cpp" />
-    <ClCompile Include="Dump.cpp" />
+    <ClCompile Include="StateWrapper.cpp" />
+    <ClCompile Include="USB\deviceproxy.cpp" />
+    <ClCompile Include="USB\qemu-usb\bus.cpp" />
+    <ClCompile Include="USB\qemu-usb\core.cpp" />
+    <ClCompile Include="USB\qemu-usb\desc.cpp" />
+    <ClCompile Include="USB\qemu-usb\hid.cpp" />
+    <ClCompile Include="USB\qemu-usb\input-keymap-qcode-to-qnum.cpp" />
+    <ClCompile Include="USB\qemu-usb\usb-ohci.cpp" />
+    <ClCompile Include="USB\shared\ringbuffer.cpp" />
+    <ClCompile Include="USB\usb-eyetoy\cam-windows.cpp" />
+    <ClCompile Include="USB\usb-eyetoy\jo_mpeg.cpp" />
+    <ClCompile Include="USB\usb-eyetoy\usb-eyetoy-webcam.cpp" />
+    <ClCompile Include="USB\usb-hid\usb-hid.cpp" />
+    <ClCompile Include="USB\usb-lightgun\guncon2.cpp" />
+    <ClCompile Include="USB\usb-mic\audiodev-cubeb.cpp" />
+    <ClCompile Include="USB\usb-mic\usb-headset.cpp" />
+    <ClCompile Include="USB\usb-mic\usb-mic-logitech.cpp" />
+    <ClCompile Include="USB\usb-mic\usb-mic-singstar.cpp" />
+    <ClCompile Include="USB\usb-msd\usb-msd.cpp" />
+    <ClCompile Include="USB\usb-pad\lg\lg_ff.cpp" />
+    <ClCompile Include="USB\usb-pad\usb-pad-ff.cpp" />
+    <ClCompile Include="USB\usb-pad\usb-pad-sdl-ff.cpp" />
+    <ClCompile Include="USB\usb-pad\usb-pad.cpp" />
+    <ClCompile Include="USB\usb-pad\usb-seamic.cpp" />
+    <ClCompile Include="USB\usb-printer\usb-printer.cpp" />
+    <ClCompile Include="USB\USB.cpp" />
     <ClCompile Include="VMManager.cpp" />
     <ClCompile Include="windows\Optimus.cpp" />
     <ClCompile Include="Pcsx2Config.cpp" />
@@ -537,6 +555,7 @@
     <ClInclude Include="Frontend\imgui_impl_dx12.h" />
     <ClInclude Include="Frontend\imgui_impl_opengl3.h" />
     <ClInclude Include="Frontend\imgui_impl_vulkan.h" />
+    <ClInclude Include="GS\Renderers\HW\GSHwHack.h" />
     <ClInclude Include="INISettingsInterface.h" />
     <ClInclude Include="Frontend\InputManager.h" />
     <ClInclude Include="Frontend\InputSource.h" />
@@ -562,7 +581,6 @@
     <ClInclude Include="IopGte.h" />
     <ClInclude Include="MemoryCardProtocol.h" />
     <ClInclude Include="MultitapProtocol.h" />
-    <ClInclude Include="PAD\Gamepad.h" />
     <ClInclude Include="PAD\Host\Global.h" />
     <ClInclude Include="PAD\Host\KeyStatus.h" />
     <ClInclude Include="PAD\Host\PAD.h" />
@@ -579,15 +597,13 @@
     <ClInclude Include="Recording\Utilities\InputRecordingLogger.h" />
     <ClInclude Include="ShaderCacheVersion.h" />
     <ClInclude Include="SioTypes.h" />
-    <ClInclude Include="SPU2\Config.h" />
+    <ClInclude Include="SPU2\Debug.h" />
+    <ClInclude Include="SPU2\Dma.h" />
     <ClInclude Include="SPU2\Global.h" />
-    <ClInclude Include="SPU2\Host\Config.h" />
-    <ClInclude Include="SPU2\Host\Dialogs.h" />
     <ClInclude Include="SPU2\interpolate_table.h" />
     <ClInclude Include="SPU2\SndOut.h" />
     <ClInclude Include="SPU2\spdif.h" />
     <ClInclude Include="SPU2\defs.h" />
-    <ClInclude Include="SPU2\Dma.h" />
     <ClInclude Include="SPU2\regs.h" />
     <ClInclude Include="SPU2\Mixer.h" />
     <ClInclude Include="SPU2\spu2.h" />
@@ -602,7 +618,6 @@
     <ClInclude Include="GS\GSAlignedClass.h" />
     <ClInclude Include="GS\GSBlock.h" />
     <ClInclude Include="GS\GSCapture.h" />
-    <ClInclude Include="GS\Window\GSCaptureDlg.h" />
     <ClInclude Include="GS\GSClut.h" />
     <ClInclude Include="GS\GSCodeBuffer.h" />
     <ClInclude Include="GS\GSCrc.h" />
@@ -631,7 +646,6 @@
     <ClInclude Include="GS\Renderers\Null\GSRendererNull.h" />
     <ClInclude Include="GS\Renderers\SW\GSRendererSW.h" />
     <ClInclude Include="GS\Renderers\SW\GSScanlineEnvironment.h" />
-    <ClInclude Include="GS\Window\GSSetting.h" />
     <ClInclude Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.h" />
     <ClInclude Include="GS\Renderers\SW\GSSetupPrimCodeGenerator.all.h" />
     <ClInclude Include="GS\GSState.h" />
@@ -645,7 +659,6 @@
     <ClInclude Include="GS\Renderers\SW\GSTextureSW.h" />
     <ClInclude Include="GS\GSThread.h" />
     <ClInclude Include="GS\GSThread_CXX11.h" />
-    <ClInclude Include="GS\Renderers\OpenGL\GSUniformBufferOGL.h" />
     <ClInclude Include="GS\GSUtil.h" />
     <ClInclude Include="GS\GSVector.h" />
     <ClInclude Include="GS\GSVector4i.h" />
@@ -659,13 +672,41 @@
     <ClInclude Include="GS\Renderers\Common\GSVertexTrace.h" />
     <ClInclude Include="GS\GSXXH.h" />
     <ClInclude Include="GS\MultiISA.h" />
-    <ClInclude Include="GS\resource.h" />
     <ClInclude Include="IPU\IPUdma.h" />
     <ClInclude Include="Mdec.h" />
     <ClInclude Include="Patch.h" />
     <ClInclude Include="PCSX2Base.h" />
     <ClInclude Include="PrecompiledHeader.h" />
     <ClInclude Include="ps2\pgif.h" />
+    <ClInclude Include="StateWrapper.h" />
+    <ClInclude Include="USB\deviceproxy.h" />
+    <ClInclude Include="USB\qemu-usb\desc.h" />
+    <ClInclude Include="USB\qemu-usb\hid.h" />
+    <ClInclude Include="USB\qemu-usb\input-keymap.h" />
+    <ClInclude Include="USB\qemu-usb\queue.h" />
+    <ClInclude Include="USB\qemu-usb\qusb.h" />
+    <ClInclude Include="USB\qemu-usb\USBinternal.h" />
+    <ClInclude Include="USB\readerwriterqueue\atomicops.h" />
+    <ClInclude Include="USB\readerwriterqueue\readerwriterqueue.h" />
+    <ClInclude Include="USB\shared\ringbuffer.h" />
+    <ClInclude Include="USB\usb-eyetoy\cam-windows.h" />
+    <ClInclude Include="USB\usb-eyetoy\jo_mpeg.h" />
+    <ClInclude Include="USB\usb-eyetoy\ov519.h" />
+    <ClInclude Include="USB\usb-eyetoy\usb-eyetoy-webcam.h" />
+    <ClInclude Include="USB\usb-eyetoy\videodev.h" />
+    <ClInclude Include="USB\usb-hid\usb-hid.h" />
+    <ClInclude Include="USB\usb-lightgun\guncon2.h" />
+    <ClInclude Include="USB\usb-mic\audio.h" />
+    <ClInclude Include="USB\usb-mic\audiodev-cubeb.h" />
+    <ClInclude Include="USB\usb-mic\audiodev-noop.h" />
+    <ClInclude Include="USB\usb-mic\audiodev.h" />
+    <ClInclude Include="USB\usb-mic\usb-headset.h" />
+    <ClInclude Include="USB\usb-mic\usb-mic-singstar.h" />
+    <ClInclude Include="USB\usb-msd\usb-msd.h" />
+    <ClInclude Include="USB\usb-pad\lg\lg_ff.h" />
+    <ClInclude Include="USB\usb-pad\usb-pad-sdl-ff.h" />
+    <ClInclude Include="USB\usb-pad\usb-pad.h" />
+    <ClInclude Include="USB\usb-printer\usb-printer.h" />
     <ClInclude Include="USB\USB.h" />
     <ClInclude Include="Utilities\AsciiFile.h" />
     <ClInclude Include="Elfheader.h" />
@@ -673,7 +714,6 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="Config.h" />
-    <ClInclude Include="Dump.h" />
     <ClInclude Include="SaveState.h" />
     <ClInclude Include="SingleRegisterTypes.h" />
     <ClInclude Include="System.h" />
@@ -782,9 +822,6 @@
     <ClInclude Include="CDVD\IsoFS\SectorSource.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)3rdparty\baseclasses\baseclasses.vcxproj">
-      <Project>{27f17499-a372-4408-8afa-4f9f4584fbd3}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)3rdparty\fmt\fmt.vcxproj">
       <Project>{449ad25e-424a-4714-babc-68706cdcc33b}</Project>
     </ProjectReference>

@@ -18,6 +18,8 @@
 #include "LayeredSettingsInterface.h"
 #include "common/Assertions.h"
 
+#include <unordered_set>
+
 LayeredSettingsInterface::LayeredSettingsInterface() = default;
 
 LayeredSettingsInterface::~LayeredSettingsInterface() = default;
@@ -37,7 +39,7 @@ bool LayeredSettingsInterface::GetIntValue(const char* section, const char* key,
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->GetIntValue(section, key, value))
 				return true;
@@ -51,7 +53,7 @@ bool LayeredSettingsInterface::GetUIntValue(const char* section, const char* key
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->GetUIntValue(section, key, value))
 				return true;
@@ -65,7 +67,7 @@ bool LayeredSettingsInterface::GetFloatValue(const char* section, const char* ke
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->GetFloatValue(section, key, value))
 				return true;
@@ -79,7 +81,7 @@ bool LayeredSettingsInterface::GetDoubleValue(const char* section, const char* k
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->GetDoubleValue(section, key, value))
 				return true;
@@ -93,7 +95,7 @@ bool LayeredSettingsInterface::GetBoolValue(const char* section, const char* key
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->GetBoolValue(section, key, value))
 				return true;
@@ -107,7 +109,7 @@ bool LayeredSettingsInterface::GetStringValue(const char* section, const char* k
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->GetStringValue(section, key, value))
 				return true;
@@ -151,7 +153,7 @@ bool LayeredSettingsInterface::ContainsValue(const char* section, const char* ke
 {
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			if (sif->ContainsValue(key, section))
 				return true;
@@ -176,7 +178,7 @@ std::vector<std::string> LayeredSettingsInterface::GetStringList(const char* sec
 
 	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
 	{
-		if (SettingsInterface* sif = m_layers[layer]; sif != nullptr)
+		if (SettingsInterface* sif = m_layers[layer])
 		{
 			ret = sif->GetStringList(section, key);
 			if (!ret.empty())
@@ -202,4 +204,33 @@ bool LayeredSettingsInterface::AddToStringList(const char* section, const char* 
 {
 	pxFailRel("Attempt to call AddToStringList() on layered settings interface");
 	return true;
+}
+
+std::vector<std::pair<std::string, std::string>> LayeredSettingsInterface::GetKeyValueList(const char* section) const
+{
+	std::unordered_set<std::string_view> seen;
+	std::vector<std::pair<std::string, std::string>> ret;
+	for (u32 layer = FIRST_LAYER; layer <= LAST_LAYER; layer++)
+	{
+		if (SettingsInterface* sif = m_layers[layer])
+		{
+			const size_t newly_added_begin = ret.size();
+			std::vector<std::pair<std::string, std::string>> entries = sif->GetKeyValueList(section);
+			for (std::pair<std::string, std::string>& entry : entries)
+			{
+				if (seen.find(entry.first) != seen.end())
+					continue;
+				ret.push_back(std::move(entry));
+			}
+			// Mark keys as seen after processing all entries in case the layer has multiple entries for a specific key
+			for (auto cur = ret.begin() + newly_added_begin, end = ret.end(); cur < end; cur++)
+				seen.insert(cur->first);
+		}
+	}
+	return ret;
+}
+
+void LayeredSettingsInterface::SetKeyValueList(const char* section, const std::vector<std::pair<std::string, std::string>>& items)
+{
+	pxFailRel("Attempt to call SetKeyValueList() on layered settings interface");
 }

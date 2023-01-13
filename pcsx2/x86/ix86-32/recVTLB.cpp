@@ -391,18 +391,6 @@ void vtlb_dynarec_init()
 	Perf::any.map((uptr)m_IndirectDispatchers, __pagesize, "TLB Dispatcher");
 }
 
-static void vtlb_SetWriteback(u32* writeback)
-{
-	uptr val = (uptr)xGetPtr();
-	if (wordsize == 8)
-	{
-		pxAssertMsg(*((u8*)writeback - 2) == 0x8d, "Expected codegen to be an LEA");
-		val -= ((uptr)writeback + 4);
-	}
-	pxAssertMsg((sptr)val == (s32)val, "Writeback too far away!");
-	*writeback = val;
-}
-
 //////////////////////////////////////////////////////////////////////////////////////////
 //                            Dynarec Load Implementations
 // ------------------------------------------------------------------------
@@ -674,9 +662,12 @@ int vtlb_DynGenReadQuad_Const(u32 bits, u32 addr_const, vtlb_ReadRegAllocCallbac
 void vtlb_DynGenWrite(u32 sz, bool xmm, int addr_reg, int value_reg)
 {
 #ifdef LOG_STORES
-	//if (!xmm)
 	{
-		iFlushCall(FLUSH_FULLVTLB);
+		xSUB(rsp, 16 * 16);
+		for (u32 i = 0; i < 16; i++)
+			xMOVAPS(ptr[rsp + i * 16], xRegisterSSE::GetInstance(i));
+		for (const auto& reg : {rbx, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15, rbp})
+			xPUSH(reg);
 
 		xPUSH(xRegister64(addr_reg));
 		xPUSH(xRegister64(value_reg));
@@ -688,7 +679,10 @@ void vtlb_DynGenWrite(u32 sz, bool xmm, int addr_reg, int value_reg)
 			xSUB(rsp, 32 + 32);
 			xMOVAPS(ptr[rsp + 32], xRegisterSSE::GetInstance(value_reg));
 			xMOVAPS(ptr[rsp + 48], xRegisterSSE::GetArgRegister(1, 0));
-			xMOVAPS(xRegisterSSE::GetArgRegister(1, 0), xRegisterSSE::GetInstance(value_reg));
+			if (sz < 128)
+				xPSHUF.D(xRegisterSSE::GetArgRegister(1, 0), xRegisterSSE::GetInstance(value_reg), 0);
+			else
+				xMOVAPS(xRegisterSSE::GetArgRegister(1, 0), xRegisterSSE::GetInstance(value_reg));
 			xFastCall((void*)LogWriteQuad);
 			xMOVAPS(xRegisterSSE::GetArgRegister(1, 0), ptr[rsp + 48]);
 			xMOVAPS(xRegisterSSE::GetInstance(value_reg), ptr[rsp + 32]);
@@ -711,6 +705,13 @@ void vtlb_DynGenWrite(u32 sz, bool xmm, int addr_reg, int value_reg)
 		xPOP(arg1reg);
 		xPOP(xRegister64(value_reg));
 		xPOP(xRegister64(addr_reg));
+
+		for (const auto& reg : {rbp, r15, r14, r13, r12, r11, r10, r9, r8, rdi, rsi, rdx, rcx, rbx})
+			xPOP(reg);
+
+		for (u32 i = 0; i < 16; i++)
+			xMOVAPS(xRegisterSSE::GetInstance(i), ptr[rsp + i * 16]);
+		xADD(rsp, 16 * 16);
 	}
 #endif
 
@@ -782,10 +783,13 @@ void vtlb_DynGenWrite_Const(u32 bits, bool xmm, u32 addr_const, int value_reg)
 	EE::Profiler.EmitConstMem(addr_const);
 
 #ifdef LOG_STORES
-	iFlushCall(FLUSH_FULLVTLB);
-
-	//if (!xmm)
 	{
+		xSUB(rsp, 16 * 16);
+		for (u32 i = 0; i < 16; i++)
+			xMOVAPS(ptr[rsp + i * 16], xRegisterSSE::GetInstance(i));
+		for (const auto& reg : { rbx, rcx, rdx, rsi, rdi, r8, r9, r10, r11, r12, r13, r14, r15, rbp })
+			xPUSH(reg);
+
 		xPUSH(xRegister64(value_reg));
 		xPUSH(xRegister64(value_reg));
 		xPUSH(arg1reg);
@@ -796,7 +800,10 @@ void vtlb_DynGenWrite_Const(u32 bits, bool xmm, u32 addr_const, int value_reg)
 			xSUB(rsp, 32 + 32);
 			xMOVAPS(ptr[rsp + 32], xRegisterSSE::GetInstance(value_reg));
 			xMOVAPS(ptr[rsp + 48], xRegisterSSE::GetArgRegister(1, 0));
-			xMOVAPS(xRegisterSSE::GetArgRegister(1, 0), xRegisterSSE::GetInstance(value_reg));
+			if (bits < 128)
+				xPSHUF.D(xRegisterSSE::GetArgRegister(1, 0), xRegisterSSE::GetInstance(value_reg), 0);
+			else
+				xMOVAPS(xRegisterSSE::GetArgRegister(1, 0), xRegisterSSE::GetInstance(value_reg));
 			xFastCall((void*)LogWriteQuad);
 			xMOVAPS(xRegisterSSE::GetArgRegister(1, 0), ptr[rsp + 48]);
 			xMOVAPS(xRegisterSSE::GetInstance(value_reg), ptr[rsp + 32]);
@@ -819,6 +826,13 @@ void vtlb_DynGenWrite_Const(u32 bits, bool xmm, u32 addr_const, int value_reg)
 		xPOP(arg1reg);
 		xPOP(xRegister64(value_reg));
 		xPOP(xRegister64(value_reg));
+
+		for (const auto& reg : {rbp, r15, r14, r13, r12, r11, r10, r9, r8, rdi, rsi, rdx, rcx, rbx})
+			xPOP(reg);
+
+		for (u32 i = 0; i < 16; i++)
+			xMOVAPS(xRegisterSSE::GetInstance(i), ptr[rsp + i * 16]);
+		xADD(rsp, 16 * 16);
 	}
 #endif
 

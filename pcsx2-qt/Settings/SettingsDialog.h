@@ -41,6 +41,7 @@ class FolderSettingsWidget;
 class DEV9SettingsWidget;
 class AchievementSettingsWidget;
 class AdvancedSettingsWidget;
+class DebugSettingsWidget;
 
 class SettingsDialog final : public QDialog
 {
@@ -90,6 +91,7 @@ public:
 	void setIntSettingValue(const char* section, const char* key, std::optional<int> value);
 	void setFloatSettingValue(const char* section, const char* key, std::optional<float> value);
 	void setStringSettingValue(const char* section, const char* key, std::optional<const char*> value);
+	void removeSettingValue(const char* section, const char* key);
 
 Q_SIGNALS:
 	void settingsResetToDefaults();
@@ -127,6 +129,7 @@ private:
 	DEV9SettingsWidget* m_dev9_settings = nullptr;
 	AchievementSettingsWidget* m_achievement_settings = nullptr;
 	AdvancedSettingsWidget* m_advanced_settings = nullptr;
+	DebugSettingsWidget* m_debug_settings = nullptr;
 
 	std::array<QString, MAX_SETTINGS_WIDGETS> m_category_help_text;
 

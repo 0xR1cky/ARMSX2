@@ -36,6 +36,16 @@
               "type": "integer",
               "minimum": 0,
               "maximum": 3
+            },
+            "vu0RoundMode": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
+            },
+            "vu1RoundMode": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3
             }
           },
           "additionalProperties": false
@@ -51,6 +61,18 @@
               "maximum": 3
             },
             "vuClampMode": {
+              "type": "integer",
+              "description": "0 (Disables), 1 (Normally), 2 (Extra), 3 (Extra+Preserve Sign)",
+              "minimum": 0,
+              "maximum": 3
+            },
+            "vu0ClampMode": {
+              "type": "integer",
+              "description": "0 (Disables), 1 (Normally), 2 (Extra), 3 (Extra+Preserve Sign)",
+              "minimum": 0,
+              "maximum": 3
+            },
+            "vu1ClampMode": {
               "type": "integer",
               "description": "0 (Disables), 1 (Normally), 2 (Extra), 3 (Extra+Preserve Sign)",
               "minimum": 0,
@@ -144,11 +166,6 @@
               "minimum": 0,
               "maximum": 1
             },
-            "pointListPalette": {
-              "type": "integer",
-              "minimum": 0,
-              "maximum": 1
-            },
             "mipmap": {
               "type": "integer",
               "minimum": 0,
@@ -204,10 +221,21 @@
               "minimum": 1,
               "maximum": 2
             },
+            "gpuTargetCLUT": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2
+            },
             "gpuPaletteConversion": {
               "type": "integer",
               "minimum": 0,
               "maximum": 2
+            },
+            "getSkipCount": {
+              "type": "string"
+            },
+            "beforeDraw": {
+              "type": "string"
             }
           },
           "additionalProperties": false
@@ -257,6 +285,48 @@
             }
           },
           "additionalProperties": false
+        },
+        "dynaPatches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "pattern": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["offset", "value"]
+                },
+                "minItems": 1
+              },
+              "replacement": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "offset": {
+                      "type": "integer"
+                    },
+                    "value": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": ["offset", "value"]
+                },
+                "minItems": 1
+              }
+            },
+            "required": ["pattern", "replacement"]
+          },
+          "minItems": 1
         }
       },
       "required": ["name", "region"],

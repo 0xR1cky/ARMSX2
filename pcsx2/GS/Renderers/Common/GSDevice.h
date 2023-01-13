@@ -23,9 +23,6 @@
 #include "GS/GSAlignedClass.h"
 #include "GS/GSExtra.h"
 #include <array>
-#ifdef _WIN32
-#include <dxgi.h>
-#endif
 
 class HostDisplay;
 
@@ -52,6 +49,8 @@ enum class ShaderConvert
 	RGB5A1_TO_FLOAT16_BILN,
 	DEPTH_COPY,
 	RGBA_TO_8I,
+	CLUT_4,
+	CLUT_8,
 	YUV,
 	Count
 };
@@ -699,6 +698,7 @@ public:
 		bool bptc_textures        : 1; ///< Supports BC6/7 texture compression.
 		bool framebuffer_fetch    : 1; ///< Can sample from the framebuffer without texture barriers.
 		bool dual_source_blend    : 1; ///< Can use alpha output as a blend factor.
+		bool clip_control         : 1; ///< Can use 0..1 depth range instead of -1..1.
 		bool stencil_buffer       : 1; ///< Supports stencil buffer, and can use for DATE.
 		bool cas_sharpening       : 1; ///< Supports sufficient functionality for contrast adaptive sharpening.
 		FeatureSupport()
@@ -740,7 +740,6 @@ protected:
 	GSTexture* m_target_tmp = nullptr;
 	GSTexture* m_current = nullptr;
 	GSTexture* m_cas = nullptr;
-	GSTexture* m_temp_snapshot = nullptr; // No need to delete this, only ever points to m_current.
 
 	struct
 	{
@@ -837,14 +836,15 @@ public:
 	/// Performs a screen blit for display. If dTex is null, it assumes you are writing to the system framebuffer/swap chain.
 	virtual void PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect, PresentShader shader, float shaderTime, bool linear) {}
 
+	/// Updates a GPU CLUT texture from a source texture.
+	virtual void UpdateCLUTTexture(GSTexture* sTex, u32 offsetX, u32 offsetY, GSTexture* dTex, u32 dOffset, u32 dSize) {}
+
 	virtual void RenderHW(GSHWDrawConfig& config) {}
 
 	__fi FeatureSupport Features() const { return m_features; }
 	__fi GSTexture* GetCurrent() const { return m_current; }
-	__fi GSTexture* GetSnapshot() const { return m_temp_snapshot; }
 
 	void ClearCurrent();
-	void SetSnapshot();
 	void Merge(GSTexture* sTex[3], GSVector4* sRect, GSVector4* dRect, const GSVector2i& fs, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c);
 	void Interlace(const GSVector2i& ds, int field, int mode, float yoffset);
 	void FXAA();
@@ -901,32 +901,6 @@ public:
 		GSHWDrawConfig::ColorMaskSelector* cms,
 		GSHWDrawConfig::BlendState* bs,
 		GSHWDrawConfig::DepthStencilSelector* dss);
-};
-
-struct GSAdapter
-{
-	u32 vendor;
-	u32 device;
-	u32 subsys;
-	u32 rev;
-
-	operator std::string() const;
-	bool operator==(const GSAdapter&) const;
-	bool operator==(const std::string& s) const
-	{
-		return (std::string)*this == s;
-	}
-	bool operator==(const char* s) const
-	{
-		return (std::string)*this == s;
-	}
-
-#ifdef _WIN32
-	GSAdapter(const DXGI_ADAPTER_DESC1& desc_dxgi);
-#endif
-#ifdef __linux__
-	// TODO
-#endif
 };
 
 template <>

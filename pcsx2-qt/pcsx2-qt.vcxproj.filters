@@ -19,12 +19,15 @@
     <Filter Include="Tools\Input Recording">
       <UniqueIdentifier>{d5c14016-9690-4e49-bcb9-a634a937951a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Debugger">
+      <UniqueIdentifier>{ddb40cc4-9996-4ade-b647-eb549063553c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Debugger\Models">
+      <UniqueIdentifier>{f4084ca0-d9d5-4584-b9d2-063db9f67de2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="..\pcsx2\PCSX2.rc">
-      <Filter>Resources</Filter>
-    </ResourceCompile>
-    <ResourceCompile Include="..\pcsx2\windows\wxResources.rc">
       <Filter>Resources</Filter>
     </ResourceCompile>
   </ItemGroup>
@@ -250,6 +253,66 @@
     <ClCompile Include="Tools\InputRecording\InputRecordingViewer.cpp">
       <Filter>Tools\Input Recording</Filter>
     </ClCompile>
+    <ClCompile Include="Settings\DebugSettingsWidget.cpp">
+      <Filter>Settings</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Settings\moc_DebugSettingsWidget.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\DebuggerWindow.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\DisassemblyWidget.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\CpuWidget.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\RegisterWidget.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\MemoryViewWidget.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\BreakpointDialog.cpp">
+      <Filter>Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\Models\BreakpointModel.cpp">
+      <Filter>Debugger\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\Models\ThreadModel.cpp">
+      <Filter>Debugger\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="Debugger\Models\StackModel.cpp">
+      <Filter>Debugger\Models</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_CpuWidget.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_DebuggerWindow.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_DisassemblyWidget.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_RegisterWidget.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_MemoryViewWidget.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\moc_BreakpointDialog.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\Models\moc_BreakpointModel.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\Models\moc_ThreadModel.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
+    <ClCompile Include="$(IntDir)Debugger\Models\moc_StackModel.cpp">
+      <Filter>moc</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="..\pcsx2\windows\PCSX2.manifest">
@@ -268,9 +331,6 @@
     </ClInclude>
     <ClInclude Include="Settings\MemoryCardConvertWorker.h">
       <Filter>Settings</Filter>
-    </ClInclude>
-    <ClInclude Include="Tools\InputRecording\InputRecordingViewer.h">
-      <Filter>Tools\Input Recording</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -368,6 +428,37 @@
     <QtMoc Include="Settings\AchievementSettingsWidget.h">
       <Filter>Settings</Filter>
     </QtMoc>
+    <QtMoc Include="Tools\InputRecording\InputRecordingViewer.h" />
+    <QtMoc Include="Settings\DebugSettingsWidget.h">
+      <Filter>Settings</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\DebuggerWindow.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\DisassemblyWidget.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\CpuWidget.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\RegisterWidget.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\MemoryViewWidget.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\BreakpointDialog.h">
+      <Filter>Debugger</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\Models\BreakpointModel.h">
+      <Filter>Debugger\Models</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\Models\ThreadModel.h">
+      <Filter>Debugger\Models</Filter>
+    </QtMoc>
+    <QtMoc Include="Debugger\Models\StackModel.h">
+      <Filter>Debugger\Models</Filter>
+    </QtMoc>
   </ItemGroup>
   <ItemGroup>
     <QtResource Include="resources\resources.qrc">
@@ -462,9 +553,39 @@
     <QtUi Include="Tools\InputRecording\InputRecordingViewer.ui">
       <Filter>Tools\Input Recording</Filter>
     </QtUi>
+    <QtUi Include="Settings\USBDeviceWidget.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\DebugSettingsWidget.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\DebuggerWindow.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\DisassemblyWidget.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\CpuWidget.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\RegisterWidget.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\MemoryViewWidget.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
+    <QtUi Include="Debugger\BreakpointDialog.ui">
+      <Filter>Debugger</Filter>
+    </QtUi>
   </ItemGroup>
   <ItemGroup>
     <None Include="Settings\FolderSettingsWidget.ui">
+      <Filter>Settings</Filter>
+    </None>
+    <None Include="Settings\USBBindingWidget_GTForce.ui">
+      <Filter>Settings</Filter>
+    </None>
+    <None Include="Settings\USBBindingWidget_DrivingForce.ui">
       <Filter>Settings</Filter>
     </None>
   </ItemGroup>

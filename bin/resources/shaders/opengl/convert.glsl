@@ -75,7 +75,11 @@ void ps_convert_rgba8_16bits()
 void ps_convert_float32_32bits()
 {
     // Convert a GL_FLOAT32 depth texture into a 32 bits UINT texture
+#if HAS_CLIP_CONTROL
     SV_Target1 = uint(exp2(32.0f) * sample_c().r);
+#else
+    SV_Target1 = uint(exp2(24.0f) * sample_c().r);
+#endif
 }
 #endif
 
@@ -83,7 +87,11 @@ void ps_convert_float32_32bits()
 void ps_convert_float32_rgba8()
 {
     // Convert a GL_FLOAT32 depth texture into a RGBA color texture
+#if HAS_CLIP_CONTROL
     uint d = uint(sample_c().r * exp2(32.0f));
+#else
+    uint d = uint(sample_c().r * exp2(24.0f));
+#endif
     SV_Target0 = vec4(uvec4((d & 0xFFu), ((d >> 8) & 0xFFu), ((d >> 16) & 0xFFu), (d >> 24))) / vec4(255.0);
 }
 #endif
@@ -92,7 +100,11 @@ void ps_convert_float32_rgba8()
 void ps_convert_float16_rgb5a1()
 {
     // Convert a GL_FLOAT32 (only 16 lsb) depth into a RGB5A1 color texture
+#if HAS_CLIP_CONTROL
     uint d = uint(sample_c().r * exp2(32.0f));
+#else
+    uint d = uint(sample_c().r * exp2(24.0f));
+#endif
     SV_Target0 = vec4(uvec4((d & 0x1Fu), ((d >> 5) & 0x1Fu), ((d >> 10) & 0x1Fu), (d >> 15) & 0x01u)) / vec4(32.0f, 32.0f, 32.0f, 1.0f);
 }
 #endif
@@ -100,25 +112,41 @@ void ps_convert_float16_rgb5a1()
 float rgba8_to_depth32(vec4 unorm)
 {
     uvec4 c = uvec4(unorm * vec4(255.5f));
+#if HAS_CLIP_CONTROL
     return float(c.r | (c.g << 8) | (c.b << 16) | (c.a << 24)) * exp2(-32.0f);
+#else
+    return float(c.r | (c.g << 8) | (c.b << 16) | (c.a << 24)) * exp2(-24.0f);
+#endif
 }
 
 float rgba8_to_depth24(vec4 unorm)
 {
     uvec3 c = uvec3(unorm.rgb * vec3(255.5f));
+#if HAS_CLIP_CONTROL
     return float(c.r | (c.g << 8) | (c.b << 16)) * exp2(-32.0f);
+#else
+    return float(c.r | (c.g << 8) | (c.b << 16)) * exp2(-24.0f);
+#endif
 }
 
 float rgba8_to_depth16(vec4 unorm)
 {
     uvec2 c = uvec2(unorm.rg * vec2(255.5f));
+#if HAS_CLIP_CONTROL
     return float(c.r | (c.g << 8)) * exp2(-32.0f);
+#else
+    return float(c.r | (c.g << 8)) * exp2(-24.0f);
+#endif
 }
 
 float rgb5a1_to_depth16(vec4 unorm)
 {
     uvec4 c = uvec4(unorm * vec4(255.5f));
+#if HAS_CLIP_CONTROL
     return float(((c.r & 0xF8u) >> 3) | ((c.g & 0xF8u) << 2) | ((c.b & 0xF8u) << 7) | ((c.a & 0x80u) << 8)) * exp2(-32.0f);
+#else
+    return float(((c.r & 0xF8u) >> 3) | ((c.g & 0xF8u) << 2) | ((c.b & 0xF8u) << 7) | ((c.a & 0x80u) << 8)) * exp2(-24.0f);
+#endif
 }
 
 #ifdef ps_convert_rgba8_float32
@@ -246,10 +274,7 @@ void ps_convert_rgba_8i()
 void ps_filter_transparency()
 {
     vec4 c = sample_c();
-
-    c.a = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-
-    SV_Target0 = c;
+    SV_Target0 = vec4(c.rgb, 1.0);
 }
 #endif
 
@@ -286,6 +311,41 @@ void ps_hdr_resolve()
 {
     vec4 value = sample_c();
     SV_Target0 = vec4(vec3(uvec3(value.rgb * 65535.0f) & 255u) / 255.0f, value.a);
+}
+#endif
+
+#ifdef ps_convert_clut_4
+uniform uvec3 offset;
+uniform vec2 scale;
+
+void ps_convert_clut_4()
+{
+	// CLUT4 is easy, just two rows of 8x8.
+	uint index = uint(gl_FragCoord.x) + offset.z;
+	uvec2 pos = uvec2(index % 8u, index / 8u);
+
+	ivec2 final = ivec2(floor(vec2(offset.xy + pos) * scale));
+	SV_Target0 = texelFetch(TextureSampler, final, 0);
+}
+#endif
+
+#ifdef ps_convert_clut_8
+uniform uvec3 offset;
+uniform vec2 scale;
+
+void ps_convert_clut_8()
+{
+	uint index = min(uint(gl_FragCoord.x) + offset.z, 255u);
+
+	// CLUT is arranged into 8 groups of 16x2, with the top-right and bottom-left quadrants swapped.
+	// This can probably be done better..
+	uint subgroup = (index / 8u) % 4u;
+	uvec2 pos;
+	pos.x = (index % 8u) + ((subgroup >= 2u) ? 8u : 0u);
+	pos.y = ((index / 32u) * 2u) + (subgroup % 2u);
+
+	ivec2 final = ivec2(floor(vec2(offset.xy + pos) * scale));
+	SV_Target0 = texelFetch(TextureSampler, final, 0);
 }
 #endif
 

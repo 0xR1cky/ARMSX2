@@ -18,6 +18,15 @@
 //------------------------------------------------------------------
 // Dispatcher Functions
 //------------------------------------------------------------------
+static bool mvuNeedsFPCRUpdate(mV)
+{
+	// always update on the vu1 thread
+	if (isVU1 && THREAD_VU1)
+		return true;
+
+	// otherwise only emit when it's different to the EE
+	return g_sseMXCSR.bitmask != (isVU0 ? g_sseVU0MXCSR.bitmask : g_sseVU1MXCSR.bitmask);
+}
 
 // Generates the code for entering/exit recompiled blocks
 void mVUdispatcherAB(mV)
@@ -32,7 +41,8 @@ void mVUdispatcherAB(mV)
 		else        xFastCall((void*)mVUexecuteVU1, arg1reg, arg2reg);
 
 		// Load VU's MXCSR state
-		xLDMXCSR(g_sseVUMXCSR);
+		if (mvuNeedsFPCRUpdate(mVU))
+			xLDMXCSR(isVU0 ? g_sseVU0MXCSR : g_sseVU1MXCSR);
 
 		// Load Regs
 		xMOVAPS (xmmT1, ptr128[&mVU.regs().VI[REG_P].UL]);
@@ -71,7 +81,8 @@ void mVUdispatcherAB(mV)
 		mVU.exitFunct = x86Ptr;
 
 		// Load EE's MXCSR state
-		xLDMXCSR(g_sseMXCSR);
+		if (mvuNeedsFPCRUpdate(mVU))
+			xLDMXCSR(g_sseMXCSR);
 
 		// = The first two DWORD or smaller arguments are passed in ECX and EDX registers;
 		//              all other arguments are passed right to left.
@@ -94,7 +105,8 @@ void mVUdispatcherCD(mV)
 		xScopedStackFrame frame(false, true);
 
 		// Load VU's MXCSR state
-		xLDMXCSR(g_sseVUMXCSR);
+		if (mvuNeedsFPCRUpdate(mVU))
+			xLDMXCSR(isVU0 ? g_sseVU0MXCSR : g_sseVU1MXCSR);
 
 		mVUrestoreRegs(mVU);
 		xMOV(gprF0, ptr32[&mVU.regs().micro_statusflags[0]]);
@@ -114,7 +126,137 @@ void mVUdispatcherCD(mV)
 		xMOV(ptr32[&mVU.regs().micro_statusflags[3]], gprF3);
 
 		// Load EE's MXCSR state
-		xLDMXCSR(g_sseMXCSR);
+		if (mvuNeedsFPCRUpdate(mVU))
+			xLDMXCSR(g_sseMXCSR);
+	}
+
+	xRET();
+
+	pxAssertDev(xGetPtr() < (mVU.dispCache + mVUdispCacheSize),
+		"microVU: Dispatcher generation exceeded reserved cache area!");
+}
+
+void mvuGenerateWaitMTVU(mV)
+{
+	xAlignCallTarget();
+	mVU.waitMTVU = x86Ptr;
+
+	int num_xmms = 0, num_gprs = 0;
+
+	for (int i = 0; i < static_cast<int>(iREGCNT_GPR); i++)
+	{
+		if (!xRegister32::IsCallerSaved(i) || i == rsp.GetId())
+			continue;
+
+		// T1 often contains the address we're loading when waiting for VU1.
+		// T2 isn't used until afterwards, so don't bother saving it.
+		if (i == gprT2.GetId())
+			continue;
+
+		xPUSH(xRegister64(i));
+		num_gprs++;
+	}
+
+	for (int i = 0; i < static_cast<int>(iREGCNT_XMM); i++)
+	{
+		if (!xRegisterSSE::IsCallerSaved(i))
+			continue;
+
+		num_xmms++;
+	}
+
+	// We need 16 byte alignment on the stack.
+	// Since the stack is unaligned at entry to this function, we add 8 when it's even, not odd.
+	const int stack_size = (num_xmms * sizeof(u128)) + ((~num_gprs & 1) * sizeof(u64)) + SHADOW_STACK_SIZE;
+	int stack_offset = SHADOW_STACK_SIZE;
+
+	if (stack_size > 0)
+	{
+		xSUB(rsp, stack_size);
+		for (int i = 0; i < static_cast<int>(iREGCNT_XMM); i++)
+		{
+			if (!xRegisterSSE::IsCallerSaved(i))
+				continue;
+
+			xMOVAPS(ptr128[rsp + stack_offset], xRegisterSSE(i));
+			stack_offset += sizeof(u128);
+		}
+	}
+
+	xFastCall((void*)mVUwaitMTVU);
+
+	stack_offset = (num_xmms - 1) * sizeof(u128) + SHADOW_STACK_SIZE;
+	for (int i = static_cast<int>(iREGCNT_XMM - 1); i >= 0; i--)
+	{
+		if (!xRegisterSSE::IsCallerSaved(i))
+			continue;
+
+		xMOVAPS(xRegisterSSE(i), ptr128[rsp + stack_offset]);
+		stack_offset -= sizeof(u128);
+	}
+	xADD(rsp, stack_size);
+
+	for (int i = static_cast<int>(iREGCNT_GPR - 1); i >= 0; i--)
+	{
+		if (!xRegister32::IsCallerSaved(i) || i == rsp.GetId())
+			continue;
+
+		if (i == gprT2.GetId())
+			continue;
+
+		xPOP(xRegister64(i));
+	}
+
+	xRET();
+
+	pxAssertDev(xGetPtr() < (mVU.dispCache + mVUdispCacheSize),
+		"microVU: Dispatcher generation exceeded reserved cache area!");
+}
+
+void mvuGenerateCopyPipelineState(mV)
+{
+	xAlignCallTarget();
+	mVU.copyPLState = x86Ptr;
+
+	if (x86caps.hasAVX2)
+	{
+		xVMOVAPS(ymm0, ptr[rax]);
+		xVMOVAPS(ymm1, ptr[rax + 32u]);
+		xVMOVAPS(ymm2, ptr[rax + 64u]);
+		xVMOVAPS(ymm3, ptr[rax + 96u]);
+		xVMOVAPS(ymm4, ptr[rax + 128u]);
+
+		xVMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState)], ymm0);
+		xVMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 32u], ymm1);
+		xVMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 64u], ymm2);
+		xVMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 96u], ymm3);
+		xVMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 128u], ymm4);
+
+		xVZEROUPPER();
+	}
+	else
+	{
+		xMOVAPS(xmm0, ptr[rax]);
+		xMOVAPS(xmm1, ptr[rax + 16u]);
+		xMOVAPS(xmm2, ptr[rax + 32u]);
+		xMOVAPS(xmm3, ptr[rax + 48u]);
+		xMOVAPS(xmm4, ptr[rax + 64u]);
+		xMOVAPS(xmm5, ptr[rax + 80u]);
+		xMOVAPS(xmm6, ptr[rax + 96u]);
+		xMOVAPS(xmm7, ptr[rax + 112u]);
+		xMOVAPS(xmm8, ptr[rax + 128u]);
+		xMOVAPS(xmm9, ptr[rax + 144u]);
+
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState)], xmm0);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 16u], xmm1);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 32u], xmm2);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 48u], xmm3);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 64u], xmm4);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 80u], xmm5);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 96u], xmm6);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 112u], xmm7);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 128u], xmm8);
+		xMOVUPS(ptr[reinterpret_cast<u8*>(&mVU.prog.lpState) + 144u], xmm9);
 	}
 
 	xRET();

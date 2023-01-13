@@ -10,7 +10,8 @@
   <PropertyGroup Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset Condition="!$(Configuration.Contains(Clang))">$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset Condition="$(Configuration.Contains(Clang))">ClangCL</PlatformToolset>
     <WholeProgramOptimization Condition="$(Configuration.Contains(Release))">true</WholeProgramOptimization>
     <UseDebugLibraries Condition="$(Configuration.Contains(Debug))">true</UseDebugLibraries>
     <UseDebugLibraries Condition="!$(Configuration.Contains(Debug))">false</UseDebugLibraries>
@@ -43,23 +44,25 @@
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\glad\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\simpleini\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\lzma\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\demangler\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\rapidyaml\rapidyaml\ext\c4core\src\c4\ext\fast_float\include;%(AdditionalIncludeDirectories);</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)pcsx2;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <!-- Needed for moc pch -->
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(ProjectDir)\Settings;$(ProjectDir)\GameList;$(ProjectDir)\Tools\InputRecording</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(ProjectDir)\Settings;$(ProjectDir)\GameList;$(ProjectDir)\Tools\InputRecording;$(ProjectDir)\Debugger;$(ProjectDir)\Debugger\Models</AdditionalIncludeDirectories>
       <ExceptionHandling>Async</ExceptionHandling>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
-      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;LZMA_API_STATIC;BUILD_DX=1;ENABLE_RAINTEGRATION;ENABLE_ACHIEVEMENTS;ENABLE_DISCORD_PRESENCE;ENABLE_OPENGL;ENABLE_VULKAN;DIRECTINPUT_VERSION=0x0800;PCSX2_CORE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;LZMA_API_STATIC;BUILD_DX=1;ENABLE_RAINTEGRATION;ENABLE_ACHIEVEMENTS;ENABLE_DISCORD_PRESENCE;ENABLE_OPENGL;ENABLE_VULKAN;DIRECTINPUT_VERSION=0x0800;SDL_BUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Debug))">PCSX2_DEBUG;PCSX2_DEVBUILD;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Devel))">PCSX2_DEVEL;PCSX2_DEVBUILD;NDEBUG;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PreprocessorDefinitions Condition="$(Configuration.Contains(Release))">NDEBUG;_SECURE_SCL_=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <PreprocessorDefinitions Condition="'$(CI)'=='true'">PCSX2_CI;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <!-- MSVC automatically adds __AVX__ and __AVX2__ appropriately -->
       <PreprocessorDefinitions>__SSE4_1__;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <EnableEnhancedInstructionSet Condition="!$(Configuration.Contains(AVX2))">NotSet</EnableEnhancedInstructionSet>
-      <EnableEnhancedInstructionSet Condition="$(Configuration.Contains(AVX2))">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="!$(Configuration.Contains(AVX2)) Or $(Configuration.Contains(Clang))">NotSet</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet Condition="$(Configuration.Contains(AVX2)) And !$(Configuration.Contains(Clang))">AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
+      <AdditionalOptions Condition="$(Configuration.Contains(Clang)) And !$(Configuration.Contains(AVX2))"> -march=nehalem %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions Condition="$(Configuration.Contains(Clang)) And $(Configuration.Contains(AVX2))"> -march=haswell %(AdditionalOptions)</AdditionalOptions>
       <MinimalRebuild>false</MinimalRebuild>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <!-- SH 2/3 flashlight, explicitly set here don't change -->
@@ -78,13 +81,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ResourceCompile Include="..\pcsx2\PCSX2.rc" />
-    <ResourceCompile Include="..\pcsx2\windows\wxResources.rc" />
+    <ResourceCompile Include="..\pcsx2\windows\PCSX2.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="$(SolutionDir)3rdparty\baseclasses\baseclasses.vcxproj">
-      <Project>{27f17499-a372-4408-8afa-4f9f4584fbd3}</Project>
-    </ProjectReference>
     <ProjectReference Include="$(SolutionDir)3rdparty\fmt\fmt.vcxproj">
       <Project>{449ad25e-424a-4714-babc-68706cdcc33b}</Project>
     </ProjectReference>
@@ -128,6 +127,9 @@
     <ProjectReference Include="..\3rdparty\zydis\zydis.vcxproj">
       <Project>{67d0160c-0fe4-44b9-ac2e-82bbcf4104df}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\3rdparty\demangler\demangler.vcxproj">
+      <Project>{1e3d706c-1d95-4e1b-bdf2-ca3d0007df7f}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="..\pcsx2\windows\PCSX2.manifest" />
@@ -135,10 +137,20 @@
   <ItemGroup>
     <ClCompile Include="EarlyHardwareCheck.cpp" />
     <ClCompile Include="QtProgressCallback.cpp" />
+    <ClCompile Include="Settings\DebugSettingsWidget.cpp" />
     <ClCompile Include="Settings\FolderSettingsWidget.cpp" />
     <ClCompile Include="Settings\MemoryCardConvertWorker.cpp" />
     <ClCompile Include="Tools\InputRecording\InputRecordingViewer.cpp" />
     <ClCompile Include="Tools\InputRecording\NewInputRecordingDlg.cpp" />
+    <ClCompile Include="Debugger\CpuWidget.cpp" />
+    <ClCompile Include="Debugger\DebuggerWindow.cpp" />
+    <ClCompile Include="Debugger\DisassemblyWidget.cpp" />
+    <ClCompile Include="Debugger\MemoryViewWidget.cpp" />
+    <ClCompile Include="Debugger\RegisterWidget.cpp" />
+    <ClCompile Include="Debugger\BreakpointDialog.cpp" />
+    <ClCompile Include="Debugger\Models\BreakpointModel.cpp" />
+    <ClCompile Include="Debugger\Models\ThreadModel.cpp" />
+    <ClCompile Include="Debugger\Models\StackModel.cpp" />
     <ClCompile Include="Settings\BIOSSettingsWidget.cpp" />
     <ClCompile Include="Settings\ControllerBindingWidgets.cpp" />
     <ClCompile Include="Settings\ControllerGlobalSettingsWidget.cpp" />
@@ -201,6 +213,7 @@
     <QtMoc Include="QtProgressCallback.h" />
     <ClInclude Include="Settings\ControllerSettingWidgetBinder.h" />
     <QtMoc Include="Settings\FolderSettingsWidget.h" />
+    <QtMoc Include="Settings\DebugSettingsWidget.h" />
     <ClInclude Include="Settings\HddCreateQt.h" />
     <QtMoc Include="Settings\GameSummaryWidget.h" />
     <QtMoc Include="Settings\CreateMemoryCardDialog.h" />
@@ -212,6 +225,15 @@
     <QtMoc Include="Tools\InputRecording\NewInputRecordingDlg.h" />
     <QtMoc Include="Tools\InputRecording\InputRecordingViewer.h" />
     <ClInclude Include="QtUtils.h" />
+    <QtMoc Include="Debugger\CpuWidget.h" />
+    <QtMoc Include="Debugger\DebuggerWindow.h" />
+    <QtMoc Include="Debugger\DisassemblyWidget.h" />
+    <QtMoc Include="Debugger\MemoryViewWidget.h" />
+    <QtMoc Include="Debugger\RegisterWidget.h" />
+    <QtMoc Include="Debugger\BreakpointDialog.h" />
+    <QtMoc Include="Debugger\Models\BreakpointModel.h" />
+    <QtMoc Include="Debugger\Models\ThreadModel.h" />
+    <QtMoc Include="Debugger\Models\StackModel.h" />
     <QtMoc Include="Settings\ControllerBindingWidgets.h" />
     <QtMoc Include="Settings\ControllerGlobalSettingsWidget.h" />
     <ClInclude Include="Settings\MemoryCardConvertWorker.h" />
@@ -255,6 +277,16 @@
     <ClCompile Include="$(IntDir)Settings\moc_GameSummaryWidget.cpp" />
     <ClCompile Include="$(IntDir)Settings\moc_AchievementLoginDialog.cpp" />
     <ClCompile Include="$(IntDir)Settings\moc_AchievementSettingsWidget.cpp" />
+    <ClCompile Include="$(IntDir)Settings\moc_DebugSettingsWidget.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\moc_DebuggerWindow.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\moc_CpuWidget.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\moc_DisassemblyWidget.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\moc_RegisterWidget.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\moc_MemoryViewWidget.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\moc_BreakpointDialog.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\Models\moc_BreakpointModel.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\Models\moc_ThreadModel.cpp" />
+    <ClCompile Include="$(IntDir)Debugger\Models\moc_StackModel.cpp" />
     <ClCompile Include="$(IntDir)GameList\moc_GameListModel.cpp" />
     <ClCompile Include="$(IntDir)GameList\moc_GameListRefreshThread.cpp" />
     <ClCompile Include="$(IntDir)GameList\moc_GameListWidget.cpp" />
@@ -359,8 +391,34 @@
     <QtUi Include="Tools\InputRecording\InputRecordingViewer.ui">
       <FileType>Document</FileType>
     </QtUi>
+    <QtUi Include="Debugger\DebuggerWindow.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <QtUi Include="Debugger\DisassemblyWidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <QtUi Include="Debugger\CpuWidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <QtUi Include="Debugger\RegisterWidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <QtUi Include="Debugger\MemoryViewWidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <QtUi Include="Debugger\BreakpointDialog.ui">
+      <FileType>Document</FileType>
+    </QtUi>
   </ItemGroup>
   <ItemGroup>
+    <QtUi Include="Settings\DebugSettingsWidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
+    <None Include="Settings\USBBindingWidget_DrivingForce.ui" />
+    <None Include="Settings\USBBindingWidget_GTForce.ui" />
+    <QtUi Include="Settings\USBDeviceWidget.ui">
+      <FileType>Document</FileType>
+    </QtUi>
     <QtUi Include="Settings\ControllerMacroEditWidget.ui">
       <FileType>Document</FileType>
     </QtUi>

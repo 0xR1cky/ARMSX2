@@ -15,9 +15,7 @@
 
 #pragma once
 
-#define NOMINMAX
-
-extern bool psxmode;
+#include "PrecompiledHeader.h"
 
 struct StereoOut16;
 struct StereoOut32;
@@ -25,45 +23,9 @@ struct StereoOutFloat;
 
 struct V_Core;
 
-namespace soundtouch
-{
-	class SoundTouch;
-}
-
-#include "PrecompiledHeader.h"
-
-//////////////////////////////////////////////////////////////////////////
-// Override Win32 min/max macros with the STL's type safe and macro
-// free varieties (much safer!)
-
-#undef min
-#undef max
-
-template <typename T>
-static __forceinline void Clampify(T& src, T min, T max)
-{
-	src = std::min(std::max(src, min), max);
-}
-
-template <typename T>
-static __forceinline T GetClamped(T src, T min, T max)
-{
-	return std::min(std::max(src, min), max);
-}
-
-extern void SysMessage(const char* fmt, ...);
-extern void SysMessage(const wchar_t* fmt, ...);
-
-// Uncomment to enable debug keys on numpad (0 to 5)
-//#define DEBUG_KEYS
-#ifdef PCSX2_DEVBUILD
-#define SPU2_LOG
-#endif
-
 #include "defs.h"
 #include "regs.h"
 
-#include "Config.h"
 #include "Debug.h"
 #include "Mixer.h"
 #include "SndOut.h"

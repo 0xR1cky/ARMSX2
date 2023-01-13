@@ -521,6 +521,24 @@ void GSDevice12::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture*
 		m_present[static_cast<int>(shader)].get(), linear);
 }
 
+void GSDevice12::UpdateCLUTTexture(GSTexture* sTex, u32 offsetX, u32 offsetY, GSTexture* dTex, u32 dOffset, u32 dSize)
+{
+	struct Uniforms
+	{
+		float scaleX, scaleY;
+		float pad1[2];
+		u32 offsetX, offsetY, dOffset;
+		u32 pad2;
+	};
+	const Uniforms cb = {sTex->GetScale().x, sTex->GetScale().y, {0.0f, 0.0f}, offsetX, offsetY, dOffset};
+	SetUtilityPushConstants(&cb, sizeof(cb));
+
+	const GSVector4 dRect(0, 0, dSize, 1);
+	const ShaderConvert shader = (dSize == 16) ? ShaderConvert::CLUT_4 : ShaderConvert::CLUT_8;
+	DoStretchRect(static_cast<GSTexture12*>(sTex), GSVector4::zero(), static_cast<GSTexture12*>(dTex), dRect,
+		m_convert[static_cast<int>(shader)].get(), false);
+}
+
 void GSDevice12::BeginRenderPassForStretchRect(GSTexture12* dTex, const GSVector4i& dtex_rc, const GSVector4i& dst_rc)
 {
 	const bool is_whole_target = dst_rc.eq(dtex_rc);
@@ -770,6 +788,7 @@ void GSDevice12::DoShadeBoost(GSTexture* sTex, GSTexture* dTex, const float para
 	const GSVector4i dRect(0, 0, dTex->GetWidth(), dTex->GetHeight());
 	EndRenderPass();
 	OMSetRenderTargets(dTex, nullptr, dRect);
+	SetUtilityRootSignature();
 	SetUtilityTexture(sTex, m_point_sampler_cpu);
 	BeginRenderPass(D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD, D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE,
 		D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS, D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS);
@@ -787,6 +806,7 @@ void GSDevice12::DoFXAA(GSTexture* sTex, GSTexture* dTex)
 	const GSVector4i dRect(0, 0, dTex->GetWidth(), dTex->GetHeight());
 	EndRenderPass();
 	OMSetRenderTargets(dTex, nullptr, dRect);
+	SetUtilityRootSignature();
 	SetUtilityTexture(sTex, m_linear_sampler_cpu);
 	BeginRenderPass(D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_DISCARD, D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_PRESERVE,
 		D3D12_RENDER_PASS_BEGINNING_ACCESS_TYPE_NO_ACCESS, D3D12_RENDER_PASS_ENDING_ACCESS_TYPE_NO_ACCESS);
@@ -1141,7 +1161,7 @@ bool GSDevice12::CreateRootSignatures()
 	rsb.AddCBVParameter(0, D3D12_SHADER_VISIBILITY_ALL);
 	rsb.AddCBVParameter(1, D3D12_SHADER_VISIBILITY_PIXEL);
 	rsb.AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0, 2, D3D12_SHADER_VISIBILITY_PIXEL);
-	rsb.AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 0, 2, D3D12_SHADER_VISIBILITY_PIXEL);
+	rsb.AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 0, NUM_TFX_SAMPLERS, D3D12_SHADER_VISIBILITY_PIXEL);
 	rsb.AddDescriptorTable(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 2, 2, D3D12_SHADER_VISIBILITY_PIXEL);
 	if (!(m_tfx_root_signature = rsb.Create()))
 		return false;
@@ -1804,8 +1824,7 @@ void GSDevice12::InitializeState()
 {
 	for (u32 i = 0; i < NUM_TOTAL_TFX_TEXTURES; i++)
 		m_tfx_textures[i] = m_null_texture.GetSRVDescriptor();
-	for (u32 i = 0; i < NUM_TFX_SAMPLERS; i++)
-		m_tfx_sampler_sel[i] = GSHWDrawConfig::SamplerSelector::Point().key;
+	m_tfx_sampler_sel = GSHWDrawConfig::SamplerSelector::Point().key;
 
 	InvalidateCachedState();
 }
@@ -1814,9 +1833,7 @@ void GSDevice12::InitializeSamplers()
 {
 	bool result = GetSampler(&m_point_sampler_cpu, GSHWDrawConfig::SamplerSelector::Point());
 	result = result && GetSampler(&m_linear_sampler_cpu, GSHWDrawConfig::SamplerSelector::Linear());
-
-	for (u32 i = 0; i < NUM_TFX_SAMPLERS; i++)
-		result = result && GetSampler(&m_tfx_samplers[i], m_tfx_sampler_sel[i]);
+	result = result && GetSampler(&m_tfx_sampler, m_tfx_sampler_sel);
 
 	if (!result)
 		pxFailRel("Failed to initialize samplers");
@@ -1852,7 +1869,7 @@ void GSDevice12::ExecuteCommandList(bool wait_for_completion, const char* reason
 
 void GSDevice12::ExecuteCommandListAndRestartRenderPass(bool wait_for_completion, const char* reason)
 {
-	Console.Warning("Vulkan: Executing command buffer due to '%s'", reason);
+	Console.Warning("D3D12: Executing command buffer due to '%s'", reason);
 
 	const bool was_in_render_pass = m_in_render_pass;
 	EndRenderPass();
@@ -1968,13 +1985,13 @@ void GSDevice12::PSSetShaderResource(int i, GSTexture* sr, bool check_state)
 	m_dirty_flags |= (i < 2) ? DIRTY_FLAG_TFX_TEXTURES : DIRTY_FLAG_TFX_RT_TEXTURES;
 }
 
-void GSDevice12::PSSetSampler(u32 index, GSHWDrawConfig::SamplerSelector sel)
+void GSDevice12::PSSetSampler(GSHWDrawConfig::SamplerSelector sel)
 {
-	if (m_tfx_sampler_sel[index] == sel.key)
+	if (m_tfx_sampler_sel == sel.key)
 		return;
 
-	GetSampler(&m_tfx_samplers[index], sel);
-	m_tfx_sampler_sel[index] = sel.key;
+	GetSampler(&m_tfx_sampler, sel);
+	m_tfx_sampler_sel = sel.key;
 	m_dirty_flags |= DIRTY_FLAG_TFX_SAMPLERS;
 }
 
@@ -2017,7 +2034,7 @@ void GSDevice12::SetUtilityTexture(GSTexture* dtex, const D3D12::DescriptorHandl
 		}
 	}
 
-	if (m_utility_sampler_gpu != sampler)
+	if (m_utility_sampler_cpu != sampler)
 	{
 		m_utility_sampler_cpu = sampler;
 		m_dirty_flags |= DIRTY_FLAG_SAMPLERS_DESCRIPTOR_TABLE;
@@ -2328,7 +2345,7 @@ bool GSDevice12::ApplyTFXState(bool already_execed)
 
 	if (flags & DIRTY_FLAG_TFX_SAMPLERS)
 	{
-		if (!g_d3d12_context->GetSamplerAllocator().LookupGroup(&m_tfx_samplers_handle_gpu, m_tfx_samplers.data()))
+		if (!g_d3d12_context->GetSamplerAllocator().LookupSingle(&m_tfx_samplers_handle_gpu, m_tfx_sampler))
 		{
 			ExecuteCommandListAndRestartRenderPass(false, "Ran out of sampler groups");
 			return ApplyTFXState(true);
@@ -2553,7 +2570,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 	if (config.tex)
 	{
 		PSSetShaderResource(0, config.tex, config.tex != config.rt);
-		PSSetSampler(0, config.sampler);
+		PSSetSampler(config.sampler);
 	}
 	if (config.pal)
 		PSSetShaderResource(1, config.pal, true);
@@ -2624,7 +2641,7 @@ void GSDevice12::RenderHW(GSHWDrawConfig& config)
 	else if (config.require_one_barrier)
 	{
 		// requires a copy of the RT
-		draw_rt_clone = static_cast<GSTexture12*>(CreateTexture(rtsize.x, rtsize.y, 1, GSTexture::Format::Color, false));
+		draw_rt_clone = static_cast<GSTexture12*>(CreateTexture(rtsize.x, rtsize.y, 1, GSTexture::Format::Color, true));
 		if (draw_rt_clone)
 		{
 			EndRenderPass();

@@ -58,6 +58,7 @@ GSDevice11::GSDevice11()
 	m_features.framebuffer_fetch = false;
 	m_features.dual_source_blend = true;
 	m_features.stencil_buffer = true;
+	m_features.clip_control = true;
 }
 
 GSDevice11::~GSDevice11()
@@ -90,6 +91,7 @@ bool GSDevice11::Create()
 	m_dev = static_cast<ID3D11Device*>(g_host_display->GetDevice());
 	m_ctx = static_cast<ID3D11DeviceContext*>(g_host_display->GetContext());
 	level = m_dev->GetFeatureLevel();
+	const bool support_feature_level_11_0 = (level >= D3D_FEATURE_LEVEL_11_0);
 
 	if (!GSConfig.DisableShaderCache)
 	{
@@ -105,7 +107,7 @@ bool GSDevice11::Create()
 	}
 
 	// Set maximum texture size limit based on supported feature level.
-	if (level >= D3D_FEATURE_LEVEL_11_0)
+	if (support_feature_level_11_0)
 		m_d3d_texsize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 	else
 		m_d3d_texsize = D3D10_REQ_TEXTURE2D_U_OR_V_DIMENSION;
@@ -341,7 +343,8 @@ bool GSDevice11::Create()
 			return false;
 	}
 
-	CreateCASShaders();
+	m_features.cas_sharpening = support_feature_level_11_0 && CreateCASShaders();
+
 	return true;
 }
 
@@ -501,6 +504,8 @@ GSTexture* GSDevice11::CreateSurface(GSTexture::Type type, int width, int height
 			break;
 		case GSTexture::Type::RWTexture:
 			desc.BindFlags = D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_SHADER_RESOURCE;
+			break;
+		default:
 			break;
 	}
 
@@ -677,7 +682,7 @@ void GSDevice11::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture*
 	// ps
 
 	PSSetShaderResources(sTex, nullptr);
-	PSSetSamplerState(linear ? m_convert.ln.get() : m_convert.pt.get(), nullptr);
+	PSSetSamplerState(linear ? m_convert.ln.get() : m_convert.pt.get());
 	PSSetShader(ps, ps_cb);
 
 	//
@@ -754,7 +759,7 @@ void GSDevice11::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture*
 	// ps
 
 	PSSetShaderResources(sTex, nullptr);
-	PSSetSamplerState(linear ? m_convert.ln.get() : m_convert.pt.get(), nullptr);
+	PSSetSamplerState(linear ? m_convert.ln.get() : m_convert.pt.get());
 	PSSetShader(m_present.ps[static_cast<u32>(shader)].get(), m_present.ps_cb.get());
 
 	//
@@ -766,6 +771,24 @@ void GSDevice11::PresentRect(GSTexture* sTex, const GSVector4& sRect, GSTexture*
 	EndScene();
 
 	PSSetShaderResources(nullptr, nullptr);
+}
+
+void GSDevice11::UpdateCLUTTexture(GSTexture* sTex, u32 offsetX, u32 offsetY, GSTexture* dTex, u32 dOffset, u32 dSize)
+{
+	// match merge cb
+	struct Uniforms
+	{
+		float scaleX, scaleY;
+		float pad1[2];
+		u32 offsetX, offsetY, dOffset;
+		u32 pad2;
+	};
+	const Uniforms cb = {sTex->GetScale().x, sTex->GetScale().y, {0.0f, 0.0f}, offsetX, offsetY, dOffset};
+	m_ctx->UpdateSubresource(m_merge.cb.get(), 0, nullptr, &cb, 0, 0);
+
+	const GSVector4 dRect(0, 0, dSize, 1);
+	const ShaderConvert shader = (dSize == 16) ? ShaderConvert::CLUT_4 : ShaderConvert::CLUT_8;
+	StretchRect(sTex, GSVector4::zero(), dTex, dRect, m_convert.ps[static_cast<int>(shader)].get(), m_merge.cb.get(), nullptr, false);
 }
 
 void GSDevice11::DoMerge(GSTexture* sTex[3], GSVector4* sRect, GSTexture* dTex, GSVector4* dRect, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c)
@@ -871,7 +894,7 @@ void GSDevice11::DoShadeBoost(GSTexture* sTex, GSTexture* dTex, const float para
 
 	m_ctx->UpdateSubresource(m_shadeboost.cb.get(), 0, nullptr, params, 0, 0);
 
-	StretchRect(sTex, sRect, dTex, dRect, m_shadeboost.ps.get(), m_shadeboost.cb.get(), true);
+	StretchRect(sTex, sRect, dTex, dRect, m_shadeboost.ps.get(), m_shadeboost.cb.get(), false);
 }
 
 bool GSDevice11::CreateCASShaders()
@@ -953,7 +976,7 @@ void GSDevice11::SetupDATE(GSTexture* rt, GSTexture* ds, const GSVertexPT1* vert
 
 	// ps
 	PSSetShaderResources(rt, nullptr);
-	PSSetSamplerState(m_convert.pt.get(), nullptr);
+	PSSetSamplerState(m_convert.pt.get());
 	PSSetShader(m_convert.ps[static_cast<int>(datm ? ShaderConvert::DATM_1 : ShaderConvert::DATM_0)].get(), nullptr);
 
 	//
@@ -1179,10 +1202,9 @@ void GSDevice11::PSSetShaderResource(int i, GSTexture* sr)
 	m_state.ps_sr_views[i] = sr ? static_cast<ID3D11ShaderResourceView*>(*static_cast<GSTexture11*>(sr)) : nullptr;
 }
 
-void GSDevice11::PSSetSamplerState(ID3D11SamplerState* ss0, ID3D11SamplerState* ss1)
+void GSDevice11::PSSetSamplerState(ID3D11SamplerState* ss0)
 {
 	m_state.ps_ss[0] = ss0;
-	m_state.ps_ss[1] = ss1;
 }
 
 void GSDevice11::PSSetShader(ID3D11PixelShader* ps, ID3D11Buffer* ps_cb)

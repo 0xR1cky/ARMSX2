@@ -76,6 +76,7 @@ void GSTextureCache::RemoveAll()
 		g_gs_device->Recycle(it.second.texture);
 	m_hash_cache.clear();
 	m_hash_cache_memory_usage = 0;
+	m_hash_cache_replacement_memory_usage = 0;
 
 	m_palette_map.Clear();
 	m_target_heights.clear();
@@ -223,12 +224,13 @@ GSTextureCache::Source* GSTextureCache::LookupDepthSource(const GIFRegTEX0& TEX0
 
 GSTextureCache::Source* GSTextureCache::LookupSource(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, const GSVector4i& r, const GSVector2i* lod)
 {
-	GL_CACHE("TC: Lookup Source <%d,%d => %d,%d> (0x%x, %s, BW: %u)", r.x, r.y, r.z, r.w, TEX0.TBP0, psm_str(TEX0.PSM), TEX0.TBW);
+	GL_CACHE("TC: Lookup Source <%d,%d => %d,%d> (0x%x, %s, BW: %u, CBP: 0x%x)", r.x, r.y, r.z, r.w, TEX0.TBP0, psm_str(TEX0.PSM), TEX0.TBW, TEX0.CBP);
 
 	const GSLocalMemory::psm_t& psm_s = GSLocalMemory::m_psm[TEX0.PSM];
 	//const GSLocalMemory::psm_t& cpsm = psm.pal > 0 ? GSLocalMemory::m_psm[TEX0.CPSM] : psm;
 
-	const u32* clut = g_gs_renderer->m_mem.m_clut;
+	const u32* const clut = g_gs_renderer->m_mem.m_clut;
+	GSTexture* const gpu_clut = (psm_s.pal > 0) ? g_gs_renderer->m_mem.m_clut.GetGPUTexture() : nullptr;
 
 	Source* src = NULL;
 
@@ -245,16 +247,25 @@ GSTextureCache::Source* GSTextureCache::LookupSource(const GIFRegTEX0& TEX0, con
 		// Target are converted (AEM & palette) on the fly by the GPU. They don't need extra check
 		if (!s->m_target)
 		{
-			// We request a palette texture (psm_s.pal). If the texture was
-			// converted by the CPU (!s->m_palette), we need to ensure
-			// palette content is the same.
-			if (psm_s.pal > 0 && !s->m_palette && !s->ClutMatch({clut, psm_s.pal}))
-				continue;
+			if (psm_s.pal > 0)
+			{
+				// If we're doing GPU CLUT, we don't want to use the CPU-converted version.
+				if (gpu_clut && !s->m_palette)
+					continue;
 
-			// We request a 24/16 bit RGBA texture. Alpha expansion was done by
-			// the CPU.  We need to check that TEXA is identical
-			if (psm_s.pal == 0 && psm_s.fmt > 0 && s->m_TEXA.U64 != TEXA.U64)
-				continue;
+				// We request a palette texture (psm_s.pal). If the texture was
+				// converted by the CPU (!s->m_palette), we need to ensure
+				// palette content is the same.
+				if (!s->m_palette && !s->ClutMatch({ clut, psm_s.pal }))
+					continue;
+			}
+			else
+			{
+				// We request a 24/16 bit RGBA texture. Alpha expansion was done by
+				// the CPU.  We need to check that TEXA is identical
+				if (psm_s.fmt > 0 && s->m_TEXA.U64 != TEXA.U64)
+					continue;
+			}
 
 			// Same base mip texture, but we need to check that MXL was the same as well.
 			// When mipmapping is off, this will be 0,0 vs 0,0.
@@ -403,9 +414,7 @@ GSTextureCache::Source* GSTextureCache::LookupSource(const GIFRegTEX0& TEX0, con
 		}
 	}
 
-	bool new_source = false;
-
-	if (src == NULL)
+	if (!src)
 	{
 #ifdef ENABLE_OGL_DEBUG
 		if (dst)
@@ -424,8 +433,7 @@ GSTextureCache::Source* GSTextureCache::LookupSource(const GIFRegTEX0& TEX0, con
 			GL_CACHE("TC: src miss (0x%x, 0x%x, %s)", TEX0.TBP0, psm_s.pal > 0 ? TEX0.CBP : 0, psm_str(TEX0.PSM));
 		}
 #endif
-		src = CreateSource(TEX0, TEXA, dst, half_right, x_offset, y_offset, lod, &r);
-		new_source = true;
+		src = CreateSource(TEX0, TEXA, dst, half_right, x_offset, y_offset, lod, &r, gpu_clut);
 	}
 	else
 	{
@@ -433,11 +441,11 @@ GSTextureCache::Source* GSTextureCache::LookupSource(const GIFRegTEX0& TEX0, con
 			src->m_texture ? src->m_texture->GetID() : 0,
 			TEX0.TBP0, psm_s.pal > 0 ? TEX0.CBP : 0,
 			psm_str(TEX0.PSM));
-	}
 
-	if (src->m_palette && !new_source && !src->ClutMatch({clut, psm_s.pal}))
-	{
-		AttachPaletteToSource(src, psm_s.pal, true);
+		if (gpu_clut)
+			AttachPaletteToSource(src, gpu_clut);
+		else if (src->m_palette && (!src->m_palette_obj || !src->ClutMatch({clut, psm_s.pal})))
+			AttachPaletteToSource(src, psm_s.pal, true);
 	}
 
 	src->Update(r);
@@ -447,7 +455,7 @@ GSTextureCache::Source* GSTextureCache::LookupSource(const GIFRegTEX0& TEX0, con
 	return src;
 }
 
-GSTextureCache::Target* GSTextureCache::LookupTarget(const GIFRegTEX0& TEX0, const GSVector2i& size, int type, bool used, u32 fbmask, const bool is_frame, const int real_w, const int real_h)
+GSTextureCache::Target* GSTextureCache::LookupTarget(const GIFRegTEX0& TEX0, const GSVector2i& size, int type, bool used, u32 fbmask, const bool is_frame, const int real_w, const int real_h, bool preload)
 {
 	const GSLocalMemory::psm_t& psm_s = GSLocalMemory::m_psm[TEX0.PSM];
 	const GSVector2& new_s = static_cast<GSRendererHW*>(g_gs_renderer.get())->GetTextureScaleFactor();
@@ -655,7 +663,7 @@ GSTextureCache::Target* GSTextureCache::LookupTarget(const GIFRegTEX0& TEX0, con
 		// From a performance point of view, it might cost a little on big upscaling
 		// but normally few RT are miss so it must remain reasonable.
 		bool supported_fmt = !GSConfig.UserHacks_DisableDepthSupport || psm_s.depth == 0;
-		if (GSConfig.PreloadFrameWithGSData && TEX0.TBW > 0 && supported_fmt)
+		if (preload && TEX0.TBW > 0 && supported_fmt)
 		{
 			GL_INS("Preloading the RT DATA");
 			// RT doesn't have height but if we use a too big value, we will read outside of the GS memory.
@@ -712,6 +720,8 @@ void GSTextureCache::ScaleTargetForDisplay(Target* t, const GIFRegTEX0& dispfb, 
 
 	// Take that into consideration to find the extent of the target which will be sampled.
 	GSTexture* old_texture = t->m_texture;
+	const int old_width = static_cast<int>(static_cast<float>(old_texture->GetWidth()) / old_texture->GetScale().x);
+	const int old_height = static_cast<int>(static_cast<float>(old_texture->GetHeight()) / old_texture->GetScale().y);
 	const int needed_height = std::min(real_h + y_offset, GSRendererHW::MAX_FRAMEBUFFER_HEIGHT);
 	const int scaled_needed_height = std::max(static_cast<int>(static_cast<float>(needed_height) * old_texture->GetScale().y), old_texture->GetHeight());
 	const int needed_width = std::min(real_w, static_cast<int>(dispfb.TBW * 64));
@@ -736,9 +746,22 @@ void GSTextureCache::ScaleTargetForDisplay(Target* t, const GIFRegTEX0& dispfb, 
 	g_gs_device->Recycle(old_texture);
 	t->m_texture = new_texture;
 
-	const GSVector4i newrect = GSVector4i(0, 0, t->m_TEX0.TBW * 64, needed_height);
 	// We unconditionally preload the frame here, because otherwise we'll end up with blackness for one frame (when the expand happens).
-	AddDirtyRectTarget(t, newrect, t->m_TEX0.PSM, t->m_TEX0.TBW);
+	const int preload_width = t->m_TEX0.TBW * 64;
+	if (old_width < preload_width && old_height < needed_height)
+	{
+		const GSVector4i right(old_width, 0, preload_width, needed_height);
+		const GSVector4i bottom(0, old_height, old_width, needed_height);
+		AddDirtyRectTarget(t, right, t->m_TEX0.PSM, t->m_TEX0.TBW);
+		AddDirtyRectTarget(t, bottom, t->m_TEX0.PSM, t->m_TEX0.TBW);
+	}
+	else
+	{
+		const GSVector4i newrect = GSVector4i((old_height < scaled_needed_height) ? 0 : old_width,
+			(old_width < preload_width) ? 0 : old_height,
+			preload_width, needed_height);
+		AddDirtyRectTarget(t, newrect, t->m_TEX0.PSM, t->m_TEX0.TBW);
+	}
 
 	// Inject the new height back into the cache.
 	GetTargetHeight(t->m_TEX0.TBP0, t->m_TEX0.TBW, t->m_TEX0.PSM, static_cast<u32>(needed_height));
@@ -1639,7 +1662,11 @@ void GSTextureCache::IncAge()
 		HashCacheEntry& e = it->second;
 		if (e.refcount == 0 && ++e.age > max_hash_cache_age)
 		{
-			m_hash_cache_memory_usage -= e.texture->GetMemUsage();
+			const u32 mem_usage = e.texture->GetMemUsage();
+			if (e.is_replacement)
+				m_hash_cache_replacement_memory_usage -= mem_usage;
+			else
+				m_hash_cache_memory_usage -= mem_usage;
 			g_gs_device->Recycle(e.texture);
 			m_hash_cache.erase(it++);
 		}
@@ -1706,7 +1733,7 @@ void GSTextureCache::IncAge()
 }
 
 //Fixme: Several issues in here. Not handling depth stencil, pitch conversion doesnt work.
-GSTextureCache::Source* GSTextureCache::CreateSource(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, Target* dst, bool half_right, int x_offset, int y_offset, const GSVector2i* lod, const GSVector4i* src_range)
+GSTextureCache::Source* GSTextureCache::CreateSource(const GIFRegTEX0& TEX0, const GIFRegTEXA& TEXA, Target* dst, bool half_right, int x_offset, int y_offset, const GSVector2i* lod, const GSVector4i* src_range, GSTexture* gpu_clut)
 {
 	const GSLocalMemory::psm_t& psm = GSLocalMemory::m_psm[TEX0.PSM];
 	Source* src = new Source(TEX0, TEXA, false);
@@ -2022,28 +2049,33 @@ GSTextureCache::Source* GSTextureCache::CreateSource(const GIFRegTEX0& TEX0, con
 	else
 	{
 		// maintain the clut even when paltex is on for the dump/replacement texture lookup
-		bool paltex = (GSConfig.GPUPaletteConversion && psm.pal > 0);
+		bool paltex = (GSConfig.GPUPaletteConversion && psm.pal > 0) || gpu_clut;
 		const u32* clut = (psm.pal > 0) ? static_cast<const u32*>(g_gs_renderer->m_mem.m_clut) : nullptr;
 
 		// try the hash cache
 		if ((src->m_from_hash_cache = LookupHashCache(TEX0, TEXA, paltex, clut, lod)) != nullptr)
 		{
 			src->m_texture = src->m_from_hash_cache->texture;
-			if (psm.pal > 0)
+			if (gpu_clut)
+				AttachPaletteToSource(src, gpu_clut);
+			else if (psm.pal > 0)
 				AttachPaletteToSource(src, psm.pal, paltex);
 		}
 		else if (paltex)
 		{
 			src->m_texture = g_gs_device->CreateTexture(tw, th, tlevels, GSTexture::Format::UNorm8);
-			AttachPaletteToSource(src, psm.pal, true);
+			if (gpu_clut)
+				AttachPaletteToSource(src, gpu_clut);
+			else
+				AttachPaletteToSource(src, psm.pal, true);
 		}
 		else
 		{
 			src->m_texture = g_gs_device->CreateTexture(tw, th, tlevels, GSTexture::Format::Color);
-			if (psm.pal > 0)
-			{
+			if (gpu_clut)
+				AttachPaletteToSource(src, gpu_clut);
+			else if (psm.pal > 0)
 				AttachPaletteToSource(src, psm.pal, false);
-			}
 		}
 	}
 
@@ -2122,7 +2154,7 @@ GSTextureCache::HashCacheEntry* GSTextureCache::LookupHashCache(const GIFRegTEX0
 			// found a replacement texture! insert it into the hash cache, and clear paltex (since it's not indexed)
 			paltex = false;
 			const HashCacheEntry entry{replacement_tex, 1u, 0u, true};
-			m_hash_cache_memory_usage += entry.texture->GetMemUsage();
+			m_hash_cache_replacement_memory_usage += entry.texture->GetMemUsage();
 			return &m_hash_cache.emplace(key, entry).first->second;
 		}
 		else if (
@@ -2221,6 +2253,71 @@ GSTextureCache::Target* GSTextureCache::CreateTarget(const GIFRegTEX0& TEX0, int
 	m_dst[type].push_front(t);
 
 	return t;
+}
+
+GSTexture* GSTextureCache::LookupPaletteSource(u32 CBP, u32 CPSM, u32 CBW, GSVector2i& offset, const GSVector2i& size)
+{
+	for (auto t : m_dst[RenderTarget])
+	{
+		if (!t->m_used)
+			continue;
+
+		GSVector2i this_offset;
+		if (t->m_TEX0.TBP0 == CBP)
+		{
+			// Exact match, this one's likely fine, unless the format is different.
+			if (t->m_TEX0.PSM != CPSM || (CBW != 0 && t->m_TEX0.TBW != CBW))
+				continue;
+
+			GL_INS("Exact match on BP 0x%04x BW %u", t->m_TEX0.TBP0, t->m_TEX0.TBW);
+			this_offset.x = 0;
+			this_offset.y = 0;
+		}
+		else if (GSConfig.UserHacks_GPUTargetCLUTMode == GSGPUTargetCLUTMode::InsideTarget &&
+				 t->m_TEX0.TBP0 < CBP && t->m_end_block >= CBP)
+		{
+			// Somewhere within this target, can we find it?
+			const GSVector4i rc(0, 0, size.x, size.y);
+			SurfaceOffset so = ComputeSurfaceOffset(CBP, std::max<u32>(CBW, 0), CPSM, rc, t);
+			if (!so.is_valid)
+				continue;
+
+			GL_INS("Match inside RT at BP 0x%04X-0x%04X BW %u", t->m_TEX0.TBP0, t->m_end_block, t->m_TEX0.TBW);
+			this_offset.x = so.b2a_offset.left;
+			this_offset.y = so.b2a_offset.top;
+		}
+		else
+		{
+			// Not inside this target, skip.
+			continue;
+		}
+
+		// Make sure the clut isn't in an area of the target where the EE has overwritten it.
+		// Otherwise, we'll be using stale data on the CPU.
+		if (!t->m_dirty.empty())
+		{
+			GL_INS("Candidate is dirty, checking");
+
+			const GSVector4i clut_rc(this_offset.x, this_offset.y, this_offset.x + size.x, this_offset.y + size.y);
+			bool is_dirty = false;
+			for (const GSDirtyRect& dirty : t->m_dirty)
+			{
+				if (!dirty.GetDirtyRect(t->m_TEX0).rintersect(clut_rc).rempty())
+				{
+					GL_INS("Dirty rectangle overlaps CLUT rectangle, skipping");
+					is_dirty = true;
+					break;
+				}
+			}
+			if (is_dirty)
+				continue;
+		}
+
+		offset = this_offset;
+		return t->m_texture;
+	}
+
+	return nullptr;
 }
 
 void GSTextureCache::Read(Target* t, const GSVector4i& r)
@@ -2960,6 +3057,12 @@ void GSTextureCache::AttachPaletteToSource(Source* s, u16 pal, bool need_gs_text
 	s->m_palette = need_gs_texture ? s->m_palette_obj->GetPaletteGSTexture() : nullptr;
 }
 
+void GSTextureCache::AttachPaletteToSource(Source* s, GSTexture* gpu_clut)
+{
+	s->m_palette_obj = nullptr;
+	s->m_palette = gpu_clut;
+}
+
 GSTextureCache::SurfaceOffset GSTextureCache::ComputeSurfaceOffset(const GSOffset& off, const GSVector4i& r, const Target* t)
 {
 	// Computes offset from Target to offset+rectangle in Target coords.
@@ -3158,7 +3261,7 @@ void GSTextureCache::InvalidateTemporarySource()
 void GSTextureCache::InjectHashCacheTexture(const HashCacheKey& key, GSTexture* tex)
 {
 	// When we insert we update memory usage. Old texture gets removed below.
-	m_hash_cache_memory_usage += tex->GetMemUsage();
+	m_hash_cache_replacement_memory_usage += tex->GetMemUsage();
 
 	auto it = m_hash_cache.find(key);
 	if (it == m_hash_cache.end())
@@ -3166,7 +3269,7 @@ void GSTextureCache::InjectHashCacheTexture(const HashCacheKey& key, GSTexture* 
 		// We must've got evicted before we finished loading. No matter, add it in there anyway;
 		// if it's not used again, it'll get tossed out later.
 		const HashCacheEntry entry{tex, 1u, 0u, true};
-		m_hash_cache.emplace(key, entry).first->second;
+		m_hash_cache.emplace(key, entry);
 		return;
 	}
 
@@ -3175,10 +3278,11 @@ void GSTextureCache::InjectHashCacheTexture(const HashCacheKey& key, GSTexture* 
 
 	// Update memory usage, swap the textures, and recycle the old one for reuse.
 	if (!it->second.is_replacement)
-	{
 		m_hash_cache_memory_usage -= it->second.texture->GetMemUsage();
-		it->second.is_replacement = true;
-	}
+	else
+		m_hash_cache_replacement_memory_usage -= it->second.texture->GetMemUsage();
+
+	it->second.is_replacement = true;
 	it->second.texture->Swap(tex);
 	g_gs_device->Recycle(tex);
 }
@@ -3223,7 +3327,7 @@ void GSTextureCache::Palette::InitializeTexture()
 		// sampling such texture are always normalized by 255.
 		// This is because indexes are stored as normalized values of an RGBA texture (e.g. index 15 will be read as (15/255),
 		// and therefore will read texel 15/255 * texture size).
-		m_tex_palette = g_gs_device->CreateTexture(256, 1, 1, GSTexture::Format::Color);
+		m_tex_palette = g_gs_device->CreateTexture(m_pal, 1, 1, GSTexture::Format::Color);
 		m_tex_palette->Update(GSVector4i(0, 0, m_pal, 1), m_clut, m_pal * sizeof(m_clut[0]));
 	}
 }

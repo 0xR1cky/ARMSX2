@@ -25,10 +25,8 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "USB/platcompat.h"
-#include "vl.h"
-#include "iov.h"
-//#include "trace.h"
+#include "USB/qemu-usb/qusb.h"
+#include <utility>
 
 void usb_pick_speed(USBPort* port)
 {
@@ -39,9 +37,8 @@ void usb_pick_speed(USBPort* port)
 		USB_SPEED_LOW,
 	};
 	USBDevice* udev = port->dev;
-	int i;
 
-	for (i = 0; i < (int)ARRAY_SIZE(speeds); i++)
+	for (u32 i = 0; i < std::size(speeds); i++)
 	{
 		if ((udev->speedmask & (1 << speeds[i])) &&
 			(port->speedmask & (1 << speeds[i])))
@@ -135,13 +132,13 @@ static void do_token_setup(USBDevice* s, USBPacket* p)
 {
 	int request, value, index;
 
-	if (p->iov.size != 8)
+	if (p->buffer_size != 8)
 	{
 		p->status = USB_RET_STALL;
 		return;
 	}
 
-	usb_packet_copy(p, s->setup_buf, p->iov.size);
+	usb_packet_copy(p, s->setup_buf, p->buffer_size);
 	s->setup_index = 0;
 	p->actual_length = 0;
 	s->setup_len = (s->setup_buf[7] << 8) | s->setup_buf[6];
@@ -218,9 +215,9 @@ static void do_token_in(USBDevice* s, USBPacket* p)
 			if (s->setup_buf[0] & USB_DIR_IN)
 			{
 				int len = s->setup_len - s->setup_index;
-				if ((size_t)len > p->iov.size)
+				if ((size_t)len > p->buffer_size)
 				{
-					len = p->iov.size;
+					len = p->buffer_size;
 				}
 				usb_packet_copy(p, s->data_buf + s->setup_index, len);
 				s->setup_index += len;
@@ -261,9 +258,9 @@ static void do_token_out(USBDevice* s, USBPacket* p)
 			if (!(s->setup_buf[0] & USB_DIR_IN))
 			{
 				int len = s->setup_len - s->setup_index;
-				if ((size_t)len > p->iov.size)
+				if ((size_t)len > p->buffer_size)
 				{
-					len = p->iov.size;
+					len = p->buffer_size;
 				}
 				usb_packet_copy(p, s->data_buf + s->setup_index, len);
 				s->setup_index += len;
@@ -506,7 +503,7 @@ void usb_packet_complete_one(USBDevice* dev, USBPacket* p)
 	assert(p->status != USB_RET_ASYNC && p->status != USB_RET_NAK);
 
 	if (p->status != USB_RET_SUCCESS ||
-		(p->short_not_ok && ((size_t)p->actual_length < p->iov.size)))
+		(p->short_not_ok && ((size_t)p->actual_length < p->buffer_size)))
 	{
 		ep->halted = true;
 	}
@@ -565,12 +562,8 @@ void usb_cancel_packet(USBPacket* p)
 	}
 }
 
-
-void usb_packet_init(USBPacket* p)
-{
-	qemu_iovec_init(&p->iov, 1);
-}
-
+#if 0
+// Unused
 static const char* usb_packet_state_name(USBPacketState state)
 {
 	static const char* name[] = {
@@ -581,12 +574,13 @@ static const char* usb_packet_state_name(USBPacketState state)
 		/*[USB_PACKET_COMPLETE]  =*/"complete",
 		/*[USB_PACKET_CANCELED]  =*/"canceled",
 	};
-	if (state < ARRAY_SIZE(name))
+	if (static_cast<u32>(state) < std::size(name))
 	{
 		return name[state];
 	}
 	return "INVALID";
 }
+#endif
 
 void usb_packet_check_state(USBPacket* p, USBPacketState expected)
 {
@@ -621,7 +615,6 @@ void usb_packet_setup(USBPacket* p, int pid,
 					  uint64_t id, bool short_not_ok, bool int_req)
 {
 	assert(!usb_packet_is_inflight(p));
-	assert(p->iov.iov != NULL);
 	p->id = id;
 	p->pid = pid;
 	p->ep = ep;
@@ -631,31 +624,31 @@ void usb_packet_setup(USBPacket* p, int pid,
 	p->parameter = 0;
 	p->short_not_ok = short_not_ok;
 	p->int_req = int_req;
-	p->combined = NULL;
-	qemu_iovec_reset(&p->iov);
+	p->buffer_ptr = NULL;
+	p->buffer_size = 0;
 	usb_packet_set_state(p, USB_PACKET_SETUP);
 }
 
 void usb_packet_addbuf(USBPacket* p, void* ptr, size_t len)
 {
-	qemu_iovec_add(&p->iov, ptr, len);
+	assert(!p->buffer_ptr);
+	p->buffer_ptr = static_cast<uint8_t*>(ptr);
+	p->buffer_size = static_cast<unsigned int>(len);
 }
 
 void usb_packet_copy(USBPacket* p, void* ptr, size_t bytes)
 {
-	QEMUIOVector* iov = p->combined ? &p->combined->iov : &p->iov;
-
 	assert(bytes <= INT_MAX);
 	assert(p->actual_length >= 0);
-	assert(p->actual_length + bytes <= iov->size);
+	assert(p->actual_length + bytes <= p->buffer_size);
 	switch (p->pid)
 	{
 		case USB_TOKEN_SETUP:
 		case USB_TOKEN_OUT:
-			iov_to_buf(iov->iov, iov->niov, p->actual_length, ptr, bytes);
+			std::memcpy(ptr, p->buffer_ptr, bytes);
 			break;
 		case USB_TOKEN_IN:
-			iov_from_buf(iov->iov, iov->niov, p->actual_length, ptr, bytes);
+			std::memcpy(p->buffer_ptr, ptr, bytes);
 			break;
 		default:
 			Console.Warning("%s: invalid pid: %x\n", __func__, p->pid);
@@ -666,27 +659,26 @@ void usb_packet_copy(USBPacket* p, void* ptr, size_t bytes)
 
 void usb_packet_skip(USBPacket* p, size_t bytes)
 {
-	QEMUIOVector* iov = p->combined ? &p->combined->iov : &p->iov;
-
 	assert(bytes <= INT_MAX);
 	assert(p->actual_length >= 0);
-	assert(p->actual_length + bytes <= iov->size);
+	assert(p->actual_length + bytes <= p->buffer_size);
 	if (p->pid == USB_TOKEN_IN)
 	{
-		iov_memset(iov->iov, iov->niov, p->actual_length, 0, bytes);
+		std::memset(p->buffer_ptr, 0, bytes);
 	}
 	p->actual_length += bytes;
 }
 
 size_t usb_packet_size(USBPacket* p)
 {
-	return p->combined ? p->combined->iov.size : p->iov.size;
+	return p->buffer_size;
 }
 
 void usb_packet_cleanup(USBPacket* p)
 {
 	assert(!usb_packet_is_inflight(p));
-	qemu_iovec_destroy(&p->iov);
+	p->buffer_ptr = nullptr;
+	p->buffer_size = 0;
 }
 
 void usb_ep_reset(USBDevice* dev)

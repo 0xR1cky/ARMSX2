@@ -46,6 +46,8 @@ const char* shaderName(ShaderConvert value)
 		case ShaderConvert::RGB5A1_TO_FLOAT16_BILN: return "ps_convert_rgb5a1_float16_biln";
 		case ShaderConvert::DEPTH_COPY:             return "ps_depth_copy";
 		case ShaderConvert::RGBA_TO_8I:             return "ps_convert_rgba_8i";
+		case ShaderConvert::CLUT_4:                 return "ps_convert_clut_4";
+		case ShaderConvert::CLUT_8:                 return "ps_convert_clut_8";
 		case ShaderConvert::YUV:                    return "ps_yuv";
 			// clang-format on
 		default:
@@ -309,12 +311,6 @@ void GSDevice::ClearCurrent()
 	m_mad = nullptr;
 	m_target_tmp = nullptr;
 	m_cas = nullptr;
-	m_temp_snapshot = nullptr;
-}
-
-void GSDevice::SetSnapshot()
-{
-	m_temp_snapshot = m_current;
 }
 
 void GSDevice::Merge(GSTexture* sTex[3], GSVector4* sRect, GSVector4* dRect, const GSVector2i& fs, const GSRegPMODE& PMODE, const GSRegEXTBUF& EXTBUF, const GSVector4& c)
@@ -397,26 +393,21 @@ void GSDevice::Interlace(const GSVector2i& ds, int field, int mode, float yoffse
 
 void GSDevice::FXAA()
 {
-	const GSVector2i s = m_current->GetSize();
-
-	if (ResizeTarget(&m_target_tmp))
+	// Combining FXAA+ShadeBoost can't share the same target.
+	GSTexture*& dTex = (m_current == m_target_tmp) ? m_merge : m_target_tmp;
+	if (ResizeTexture(&dTex, GSTexture::Type::RenderTarget, m_current->GetWidth(), m_current->GetHeight(), false, true))
 	{
-		const GSVector4 sRect(0, 0, 1, 1);
-		const GSVector4 dRect(0, 0, s.x, s.y);
-
-		StretchRect(m_current, sRect, m_target_tmp, dRect, ShaderConvert::TRANSPARENCY_FILTER, false);
-		DoFXAA(m_target_tmp, m_current);
+		InvalidateRenderTarget(dTex);
+		DoFXAA(m_current, dTex);
+		m_current = dTex;
 	}
 }
 
 void GSDevice::ShadeBoost()
 {
-	const GSVector2i s = m_current->GetSize();
-
-	if (ResizeTarget(&m_target_tmp))
+	if (ResizeTexture(&m_target_tmp, GSTexture::Type::RenderTarget, m_current->GetWidth(), m_current->GetHeight(), false, true))
 	{
-		const GSVector4 sRect(0, 0, 1, 1);
-		const GSVector4 dRect(0, 0, s.x, s.y);
+		InvalidateRenderTarget(m_target_tmp);
 
 		// predivide to avoid the divide (multiply) in the shader
 		const float params[4] = {
@@ -425,13 +416,15 @@ void GSDevice::ShadeBoost()
 			static_cast<float>(GSConfig.ShadeBoost_Saturation) * (1.0f / 50.0f),
 		};
 
-		StretchRect(m_current, sRect, m_target_tmp, dRect, ShaderConvert::COPY, false);
-		DoShadeBoost(m_target_tmp, m_current, params);
+		DoShadeBoost(m_current, m_target_tmp, params);
+
+		m_current = m_target_tmp;
 	}
 }
 
 void GSDevice::Resize(int width, int height)
 {
+	GSTexture*& dTex = (m_current == m_target_tmp) ? m_merge : m_target_tmp;
 	GSVector2i s = m_current->GetSize();
 	int multiplier = 1;
 
@@ -440,12 +433,12 @@ void GSDevice::Resize(int width, int height)
 		s = m_current->GetSize() * GSVector2i(++multiplier);
 	}
 
-	if (ResizeTexture(&m_target_tmp, GSTexture::Type::RenderTarget, s.x, s.y))
+	if (ResizeTexture(&dTex, GSTexture::Type::RenderTarget, s.x, s.y, false))
 	{
 		const GSVector4 sRect(0, 0, 1, 1);
 		const GSVector4 dRect(0, 0, s.x, s.y);
-		StretchRect(m_current, sRect, m_target_tmp, dRect, ShaderConvert::COPY, false);
-		m_current = m_target_tmp;
+		StretchRect(m_current, sRect, dTex, dRect, ShaderConvert::COPY, false);
+		m_current = dTex;
 	}
 }
 
@@ -516,10 +509,25 @@ void GSDevice::SetHWDrawConfigForAlphaPass(GSHWDrawConfig::PSSelector* ps,
 	}
 }
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-function"
+#pragma clang diagnostic ignored "-Wignored-qualifiers"
+#elif defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wignored-qualifiers"
+#endif
+
 // Kinda grotty, but better than copy/pasting the relevant bits in..
 #define A_CPU 1
 #include "bin/resources/shaders/common/ffx_a.h"
 #include "bin/resources/shaders/common/ffx_cas.h"
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#elif defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 bool GSDevice::GetCASShaderSource(std::string* source)
 {
@@ -571,34 +579,6 @@ void GSDevice::CAS(GSTexture*& tex, GSVector4i& src_rect, GSVector4& src_uv, con
 	src_rect = GSVector4i(0, 0, dst_width, dst_height);
 	src_uv = GSVector4(0.0f, 0.0f, 1.0f, 1.0f);
 }
-
-GSAdapter::operator std::string() const
-{
-	char buf[sizeof "12345678:12345678:12345678:12345678"];
-	sprintf(buf, "%.4X:%.4X:%.8X:%.2X", vendor, device, subsys, rev);
-	return buf;
-}
-
-bool GSAdapter::operator==(const GSAdapter& desc_dxgi) const
-{
-	return vendor == desc_dxgi.vendor
-		&& device == desc_dxgi.device
-		&& subsys == desc_dxgi.subsys
-		&& rev == desc_dxgi.rev;
-}
-
-#ifdef _WIN32
-GSAdapter::GSAdapter(const DXGI_ADAPTER_DESC1& desc_dxgi)
-	: vendor(desc_dxgi.VendorId)
-	, device(desc_dxgi.DeviceId)
-	, subsys(desc_dxgi.SubSysId)
-	, rev(desc_dxgi.Revision)
-{
-}
-#endif
-#ifdef __linux__
-// TODO
-#endif
 
 // clang-format off
 

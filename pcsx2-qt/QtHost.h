@@ -112,6 +112,8 @@ public Q_SLOTS:
 	void enumerateVibrationMotors();
 	void runOnCPUThread(const std::function<void()>& func);
 	void queueSnapshot(quint32 gsdump_frames);
+	void beginCapture(const QString& path);
+	void endCapture();
 
 Q_SIGNALS:
 	bool messageConfirmed(const QString& title, const QString& message);
@@ -120,6 +122,7 @@ Q_SIGNALS:
 	DisplayWidget* onUpdateDisplayRequested(bool fullscreen, bool render_to_main, bool surfaceless);
 	void onResizeDisplayRequested(qint32 width, qint32 height);
 	void onDestroyDisplayRequested();
+	void onRelativeMouseModeRequested(bool enabled);
 
 	/// Called when the VM is starting initialization, but has not been completed yet.
 	void onVMStarting();
@@ -137,7 +140,7 @@ Q_SIGNALS:
 	void onVMStopped();
 
 	/// Provided by the host; called when the running executable changes.
-	void onGameChanged(const QString& path, const QString& serial, const QString& name, quint32 crc);
+	void onGameChanged(const QString& path, const QString& elf_override, const QString& serial, const QString& name, quint32 crc);
 
 	void onInputDevicesEnumerated(const QList<QPair<QString, QString>>& devices);
 	void onInputDeviceConnected(const QString& identifier, const QString& device_name);

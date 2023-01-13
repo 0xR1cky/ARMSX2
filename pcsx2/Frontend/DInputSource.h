@@ -16,13 +16,13 @@
 #pragma once
 #define DIRECTINPUT_VERSION 0x0800
 #include "common/RedtapeWindows.h"
+#include "common/RedtapeWilCom.h"
 #include "Frontend/InputSource.h"
 #include <array>
 #include <dinput.h>
 #include <functional>
 #include <mutex>
 #include <vector>
-#include <wil/com.h>
 
 class DInputSource final : public InputSource
 {
@@ -52,7 +52,7 @@ public:
 	void PollEvents() override;
 	std::vector<std::pair<std::string, std::string>> EnumerateDevices() override;
 	std::vector<InputBindingKey> EnumerateMotors() override;
-	bool GetGenericBindingMapping(const std::string_view& device, GenericInputBindingMapping* mapping) override;
+	bool GetGenericBindingMapping(const std::string_view& device, InputManager::GenericInputBindingMapping* mapping) override;
 	void UpdateMotorState(InputBindingKey key, float intensity) override;
 	void UpdateMotorState(InputBindingKey large_key, InputBindingKey small_key, float large_intensity, float small_intensity) override;
 

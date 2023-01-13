@@ -141,7 +141,7 @@ std::map<u32,DisassemblyEntry*>::iterator findDisassemblyEntry(std::map<u32,Disa
 
 void DisassemblyManager::analyze(u32 address, u32 size = 1024)
 {
-	if (!cpu->isAlive())
+	if (!cpu->isAlive() || !cpu->isValidAddress(address))
 		return;
 
 	u32 end = address+size;
@@ -311,6 +311,9 @@ u32 DisassemblyManager::getNthPreviousAddress(u32 address, int n)
 
 u32 DisassemblyManager::getNthNextAddress(u32 address, int n)
 {
+	if (!cpu->isAlive())
+		return address + n * 4;
+
 	while (cpu->isValidAddress(address))
 	{
 		auto it = findDisassemblyEntry(entries,address,false);
@@ -329,6 +332,9 @@ u32 DisassemblyManager::getNthNextAddress(u32 address, int n)
 			n -= (oldNumLines-oldLineNum);
 			it = findDisassemblyEntry(entries,address,false);
 		}
+
+		if ((address + 0x400) < address) // Check for unsigned overflow, we are analysing too high!
+			break;
 
 		analyze(address);
 	}

@@ -1,14 +1,3 @@
-### Select the build type
-# Use Release/Devel/Debug      : -DCMAKE_BUILD_TYPE=Release|Devel|Debug
-# Enable/disable the stripping : -DCMAKE_BUILD_STRIP=TRUE|FALSE
-# generation .po based on src  : -DCMAKE_BUILD_PO=TRUE|FALSE
-
-### GCC optimization options
-# control C flags             : -DUSER_CMAKE_C_FLAGS="cflags"
-# control C++ flags           : -DUSER_CMAKE_CXX_FLAGS="cxxflags"
-# control link flags          : -DUSER_CMAKE_LD_FLAGS="ldflags"
-#-------------------------------------------------------------------------------
-
 # Extra preprocessor definitions that will be added to all pcsx2 builds
 set(PCSX2_DEFS "")
 
@@ -24,19 +13,6 @@ optional_system_library(zstd)
 optional_system_library(libzip)
 optional_system_library(SDL2)
 option(LTO_PCSX2_CORE "Enable LTO/IPO/LTCG on the subset of pcsx2 that benefits most from it but not anything else")
-
-if(WIN32)
-	set(DEFAULT_NATIVE_TOOLS ON)
-else()
-	set(DEFAULT_NATIVE_TOOLS OFF)
-endif()
-option(USE_NATIVE_TOOLS "Uses c++ tools instead of ones written in scripting languages.  OFF requires perl, ON may fail if cross compiling" ${DEFAULT_NATIVE_TOOLS})
-
-if(DISABLE_BUILD_DATE OR openSUSE)
-	message(STATUS "Disabling the inclusion of the binary compile date.")
-	list(APPEND PCSX2_DEFS DISABLE_BUILD_DATE)
-endif()
-
 option(USE_VTUNE "Plug VTUNE to profile GS JIT.")
 option(USE_ACHIEVEMENTS "Build with RetroAchievements support" ON)
 option(USE_DISCORD_PRESENCE "Enable support for Discord Rich Presence" ON)
@@ -44,33 +20,20 @@ option(USE_DISCORD_PRESENCE "Enable support for Discord Rich Presence" ON)
 #-------------------------------------------------------------------------------
 # Graphical option
 #-------------------------------------------------------------------------------
-option(BUILD_REPLAY_LOADERS "Build GS replayer to ease testing (developer option)")
 option(USE_OPENGL "Enable OpenGL GS renderer" ON)
 option(USE_VULKAN "Enable Vulkan GS renderer" ON)
 
 #-------------------------------------------------------------------------------
 # Path and lib option
 #-------------------------------------------------------------------------------
-option(PACKAGE_MODE "Use this option to ease packaging of PCSX2 (developer/distribution option)")
-option(DISABLE_PCSX2_WRAPPER "Disable including the PCSX2-linux.sh file")
-option(DISABLE_SETCAP "Do not set files capabilities")
-option(XDG_STD "Use XDG standard path instead of the standard PCSX2 path")
 option(CUBEB_API "Build Cubeb support on SPU2" ON)
-option(GTK2_API "Use GTK2 api (legacy)")
-option(QT_BUILD "Build Qt frontend instead of wx" OFF)
+option(QT_BUILD "Build Qt frontend" ON)
 
 if(UNIX AND NOT APPLE)
+	option(ENABLE_SETCAP "Enable networking capability for DEV9" OFF)
+	option(USE_LEGACY_USER_DIRECTORY "Use legacy home/PCSX2 user directory instead of XDG standard" OFF)
 	option(X11_API "Enable X11 support" ON)
-	option(WAYLAND_API "Enable Wayland support" OFF)
-endif()
-
-if(PACKAGE_MODE)
-	file(RELATIVE_PATH relative_datadir ${CMAKE_INSTALL_FULL_BINDIR} ${CMAKE_INSTALL_FULL_DATADIR}/PCSX2)
-	file(RELATIVE_PATH relative_docdir ${CMAKE_INSTALL_FULL_BINDIR} ${CMAKE_INSTALL_FULL_DOCDIR})
-	# Compile all source codes with those defines
-	list(APPEND PCSX2_DEFS
-		PCSX2_APP_DATADIR="${relative_datadir}"
-		PCSX2_APP_DOCDIR="${relative_docdir}")
+	option(WAYLAND_API "Enable Wayland support" ON)
 endif()
 
 if(APPLE)
@@ -122,16 +85,6 @@ if(CMAKE_CONFIGURATION_TYPES)
 	list(INSERT CMAKE_CONFIGURATION_TYPES 0 Devel)
 endif()
 mark_as_advanced(CMAKE_C_FLAGS_DEVEL CMAKE_CXX_FLAGS_DEVEL CMAKE_LINKER_FLAGS_DEVEL CMAKE_SHARED_LINKER_FLAGS_DEVEL CMAKE_EXE_LINKER_FLAGS_DEVEL)
-# AVX2 doesn't play well with gdb
-if(CMAKE_BUILD_TYPE MATCHES "Debug")
-	SET(DISABLE_ADVANCE_SIMD ON)
-endif()
-
-# Initially strip was disabled on release build but it is not stackstrace friendly!
-# It only cost several MB so disbable it by default
-option(CMAKE_BUILD_STRIP "Srip binaries to save a couple of MB (developer option)")
-
-option(CMAKE_BUILD_PO "Build po files (modifies git-tracked files)" OFF)
 
 #-------------------------------------------------------------------------------
 # Select the architecture
@@ -248,27 +201,22 @@ endif()
 # Note: future GCC (aka GCC 5.1.1) has less false positive so warning could maybe put back
 # -Wno-unused-function: warn for function not used in release build
 # -Wno-unused-value: lots of warning for this kind of statements "0 && ...". There are used to disable some parts of code in release/dev build.
-# -Wno-overloaded-virtual: Gives a fair number of warnings under clang over in the wxwidget gui section of the code.
-# -Wno-deprecated-declarations: The USB plugins dialogs are written in straight gtk 2, which gives a million deprecated warnings. Suppress them until we can deal with them.
 # -Wno-format*: Yeah, these need to be taken care of, but...
 # -Wno-stringop-truncation: Who comes up with these compiler warnings, anyways?
 # -Wno-stringop-overflow: Probably the same people as this one...
+# -Wno-maybe-uninitialized: Lots of gcc warnings like "‘test.GSVector8i::<anonymous>.GSVector8i::<unnamed union>::m’ may be used uninitialized" if this is removed.
 
 if (MSVC)
 	set(DEFAULT_WARNINGS)
 else()
-	set(DEFAULT_WARNINGS -Wall -Wextra -Wno-attributes -Wno-unused-function -Wno-unused-parameter -Wno-missing-field-initializers -Wno-deprecated-declarations -Wno-format -Wno-format-security -Wno-overloaded-virtual)
+	set(DEFAULT_WARNINGS -Wall -Wextra -Wno-attributes -Wno-unused-function -Wno-unused-parameter -Wno-missing-field-initializers -Wno-format -Wno-format-security)
 	if (NOT USE_ICC)
 		list(APPEND DEFAULT_WARNINGS -Wno-unused-value)
 	endif()
 endif()
 
-if (USE_CLANG)
-	list(APPEND DEFAULT_WARNINGS -Wno-overloaded-virtual)
-endif()
-
 if (USE_GCC)
-	list(APPEND DEFAULT_WARNINGS -Wno-stringop-truncation -Wno-stringop-overflow)
+	list(APPEND DEFAULT_WARNINGS -Wno-stringop-truncation -Wno-stringop-overflow -Wno-maybe-uninitialized )
 endif()
 
 
@@ -312,18 +260,9 @@ endif()
 
 set(PCSX2_WARNINGS ${DEFAULT_WARNINGS} ${AGGRESSIVE_WARNING})
 
-if(CMAKE_BUILD_STRIP)
-	add_link_options(-s)
-endif()
-
-if(QT_BUILD)
-	# We want the core PCSX2 library.
-	set(PCSX2_CORE TRUE)
-endif()
-
-# Enable special stuff for CI builds
-if("$ENV{CI}" STREQUAL "true")
-	list(APPEND PCSX2_DEFS PCSX2_CI)
+if(DISABLE_BUILD_DATE)
+	message(STATUS "Disabling the inclusion of the binary compile date.")
+	list(APPEND PCSX2_DEFS DISABLE_BUILD_DATE)
 endif()
 
 #-------------------------------------------------------------------------------

@@ -27,14 +27,8 @@
 #include "System/RecTypes.h"
 
 #include "vtlb.h"
-#include "Dump.h"
 
-#ifndef PCSX2_CORE
-#include "gui/SysThreads.h"
-#include <pthread.h>
-#else
 #include "VMManager.h"
-#endif
 #include "GS.h"
 #include "CDVD/CDVD.h"
 #include "Elfheader.h"
@@ -71,9 +65,6 @@ static std::atomic<bool> eeRecNeedsReset(false);
 static bool eeCpuExecuting = false;
 static bool eeRecExitRequested = false;
 static bool g_resetEeScalingStats = false;
-#ifndef PCSX2_CORE
-static int g_patchesNeedRedo = 0;
-#endif
 
 #define PC_GETBLOCK(x) PC_GETBLOCK_(x, recLUT)
 
@@ -88,7 +79,7 @@ bool s_nBlockInterlocked = false; // Block is VU0 interlocked
 u32 pc; // recompiler pc
 int g_branch; // set for branch
 
-alignas(16) GPR_reg64 g_cpuConstRegs[32] = {0};
+alignas(16) GPR_reg64 g_cpuConstRegs[32] = {};
 u32 g_cpuHasConstReg = 0, g_cpuFlushedConstReg = 0;
 bool g_cpuFlushedPC, g_cpuFlushedCode, g_recompilingDelaySlot, g_maySignalException;
 
@@ -126,12 +117,6 @@ static u32 s_saveHasConstReg = 0, s_saveFlushedConstReg = 0;
 static EEINST* s_psaveInstInfo = NULL;
 
 static u32 s_savenBlockCycles = 0;
-
-#ifdef PCSX2_DEBUG
-static u32 dumplog = 0;
-#else
-#define dumplog 0
-#endif
 
 static void iBranchTest(u32 newpc = 0xffffffff);
 static void ClearRecLUT(BASEBLOCK* base, int count);
@@ -663,9 +648,6 @@ static void recResetRaw()
 
 	g_branch = 0;
 	g_resetEeScalingStats = true;
-#ifndef PCSX2_CORE
-	g_patchesNeedRedo = 1;
-#endif
 }
 
 static void recShutdown()
@@ -741,9 +723,6 @@ static void recExecute()
 	// setjmp will save the register context and will return 0
 	// A call to longjmp will restore the context (included the eip/rip)
 	// but will return the longjmp 2nd parameter (here 1)
-#ifndef PCSX2_CORE
-	int oldstate;
-#endif
 	if (!fastjmp_set(&m_SetJmp_StateCheck))
 	{
 		eeCpuExecuting = true;
@@ -753,18 +732,9 @@ static void recExecute()
 		// in Linux, which cannot have a C++ exception cross the recompiler.  Hence the changing
 		// of the cancelstate here!
 
-#ifndef PCSX2_CORE
-		pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, &oldstate);
-#endif
 		EnterRecompiledCode();
 
 		// Generally unreachable code here ...
-	}
-	else
-	{
-#ifndef PCSX2_CORE
-		pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
-#endif
 	}
 
 	eeCpuExecuting = false;
@@ -786,15 +756,7 @@ void R5900::Dynarec::OpcodeImpl::recSYSCALL()
 	EE::Profiler.EmitOp(eeOpcode::SYSCALL);
 
 	recCall(R5900::Interpreter::OpcodeImpl::SYSCALL);
-
-	xCMP(ptr32[&cpuRegs.pc], pc);
-	j8Ptr[0] = JE8(0);
-	xADD(ptr32[&cpuRegs.cycle], scaleblockcycles());
-	// Note: technically the address is 0x8000_0180 (or 0x180)
-	// (if CPU is booted)
-	xJMP((void*)DispatcherReg);
-	x86SetJ8(j8Ptr[0]);
-	//g_branch = 2;
+	g_branch = 2; // Indirect branch with event check.
 }
 
 ////////////////////////////////////////////////////
@@ -803,13 +765,7 @@ void R5900::Dynarec::OpcodeImpl::recBREAK()
 	EE::Profiler.EmitOp(eeOpcode::BREAK);
 
 	recCall(R5900::Interpreter::OpcodeImpl::BREAK);
-
-	xCMP(ptr32[&cpuRegs.pc], pc);
-	j8Ptr[0] = JE8(0);
-	xADD(ptr32[&cpuRegs.cycle], scaleblockcycles());
-	xJMP((void*)DispatcherEvent);
-	x86SetJ8(j8Ptr[0]);
-	//g_branch = 2;
+	g_branch = 2; // Indirect branch with event check.
 }
 
 // Size is in dwords (4 bytes)
@@ -832,7 +788,7 @@ void recClear(u32 addr, u32 size)
 
 	int toRemoveLast = blockidx;
 
-	while (pexblock = recBlocks[blockidx])
+	while ((pexblock = recBlocks[blockidx]))
 	{
 		u32 blockstart = pexblock->startpc;
 		u32 blockend = pexblock->startpc + pexblock->size * 4;
@@ -870,12 +826,12 @@ void recClear(u32 addr, u32 size)
 
 	upperextent = std::min(upperextent, ceiling);
 
-	for (int i = 0; pexblock = recBlocks[i]; i++)
+	for (int i = 0; (pexblock = recBlocks[i]); i++)
 	{
 		if (s_pCurBlock == PC_GETBLOCK(pexblock->startpc))
 			continue;
 		u32 blockend = pexblock->startpc + pexblock->size * 4;
-		if (pexblock->startpc >= addr && pexblock->startpc < addr + size * 4 || pexblock->startpc < addr && blockend > addr)
+		if ((pexblock->startpc >= addr && pexblock->startpc < addr + size * 4) || (pexblock->startpc < addr && blockend > addr))
 		{
 			if (!IsDevBuild)
 				Console.Error("[EE] Impossible block clearing failure");
@@ -1615,9 +1571,7 @@ void dynarecCheckBreakpoint()
 		return;
 
 	CBreakPoints::SetBreakpointTriggered(true);
-#ifndef PCSX2_CORE
-	GetCoreThread().PauseSelfDebug();
-#endif
+	VMManager::SetPaused(true);
 	recExitExecution();
 }
 
@@ -1628,9 +1582,7 @@ void dynarecMemcheck()
 		return;
 
 	CBreakPoints::SetBreakpointTriggered(true);
-#ifndef PCSX2_CORE
-	GetCoreThread().PauseSelfDebug();
-#endif
+	VMManager::SetPaused(true);
 	recExitExecution();
 }
 
@@ -1661,11 +1613,9 @@ void recMemcheck(u32 op, u32 bits, bool store)
 	// ecx = access address
 	// edx = access address+size
 
-	auto checks = CBreakPoints::GetMemChecks();
+	auto checks = CBreakPoints::GetMemChecks(BREAKPOINT_EE);
 	for (size_t i = 0; i < checks.size(); i++)
 	{
-		if (checks[i].cpu != BREAKPOINT_EE)
-			continue;
 		if (checks[i].result == 0)
 			continue;
 		if ((checks[i].cond & MEMCHECK_WRITE) == 0 && store)
@@ -1742,6 +1692,9 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 {
 	u32 i;
 	int count;
+
+	if (EmuConfig.EnablePatches)
+		ApplyDynamicPatches(pc);
 
 	// add breakpoint
 	if (!delayslot)
@@ -1835,6 +1788,16 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 		bool check_branch_delay = false;
 		switch (_Opcode_)
 		{
+			case 0:
+				switch (_Funct_)
+				{
+					case 8: // jr
+					case 9: // jalr
+						check_branch_delay = true;
+						break;
+				}
+				break;
+
 			case 1:
 				switch (_Rt_)
 				{
@@ -1847,6 +1810,7 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 					case 0x12:
 					case 0x13:
 						check_branch_delay = true;
+						break;
 				}
 				break;
 
@@ -1861,6 +1825,7 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 			case 0x16:
 			case 0x17:
 				check_branch_delay = true;
+				break;
 		}
 		// Check for branch in delay slot, new code by FlatOut.
 		// Gregory tested this in 2017 using the ps2autotests suite and remarked "So far we return 1 (even with this PR), and the HW 2.
@@ -1972,7 +1937,7 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 				cpuRegs.code = memRead32(p);
 				if (_Opcode_ == 022 && _Rs_ == 2) // CFC2
 					// rd is fs
-					if (_Rd_ == 16 && s & 1 || _Rd_ == 17 && s & 2 || _Rd_ == 18 && s & 4)
+					if ((_Rd_ == 16 && s & 1) || (_Rd_ == 17 && s & 2) || (_Rd_ == 18 && s & 4))
 					{
 						std::string disasm;
 						Console.Warning("Possible old value used in COP2 code. If the game is broken, please report to http://github.com/pcsx2/pcsx2.");
@@ -2009,24 +1974,9 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 // (Called from recompiled code)]
 // This function is called from the recompiler prior to starting execution of *every* recompiled block.
 // Calling of this function can be enabled or disabled through the use of EmuConfig.Recompiler.PreBlockChecks
+#ifdef TRACE_BLOCKS
 static void PreBlockCheck(u32 blockpc)
 {
-	/*static int lastrec = 0;
-	static int curcount = 0;
-	const int skip = 0;
-
-    if( blockpc != 0x81fc0 ) {//&& lastrec != g_lastpc ) {
-		curcount++;
-
-		if( curcount > skip ) {
-			iDumpRegisters(blockpc, 1);
-			curcount = 0;
-		}
-
-		lastrec = blockpc;
-	}*/
-
-#ifdef TRACE_BLOCKS
 #if 0
 	static FILE* fp = nullptr;
 	static bool fp_opened = false;
@@ -2075,13 +2025,7 @@ static void PreBlockCheck(u32 blockpc)
 	if (cpuRegs.cycle == 0)
 		pauseAAA();
 #endif
-#endif
 }
-
-#ifdef PCSX2_DEBUG
-// Array of cpuRegs.pc block addresses to dump.  USeful for selectively dumping potential
-// problem blocks, and seeing what the MIPS code equates to.
-static u32 s_recblocks[] = {0};
 #endif
 
 // Called when a block under manual protection fails it's pre-execution integrity check.
@@ -2216,26 +2160,10 @@ bool skipMPEG_By_Pattern(u32 sPC)
 	return 0;
 }
 
-#ifndef PCSX2_CORE
-// defined at AppCoreThread.cpp but unclean and should not be public. We're the only
-// consumers of it, so it's declared only here.
-void LoadAllPatchesAndStuff(const Pcsx2Config&);
-static void doPlace0Patches()
-{
-	LoadAllPatchesAndStuff(EmuConfig);
-	ApplyLoadedPatches(PPT_ONCE_ON_LOAD);
-}
-#endif
-
 static void recRecompile(const u32 startpc)
 {
 	u32 i = 0;
 	u32 willbranch3 = 0;
-
-#ifdef PCSX2_DEBUG
-	if (dumplog & 4)
-		iDumpRegisters(startpc, 0);
-#endif
 
 	pxAssert(startpc);
 
@@ -2289,16 +2217,6 @@ static void recRecompile(const u32 startpc)
 			else // There might be other types of EELOAD, because these models' BIOSs have not been examined: 18000, 3500x, 3700x, 5500x, and 7900x. However, all BIOS versions have been examined except for v1.01 and v1.10.
 				Console.WriteLn("recRecompile: Could not enable launch arguments for fast boot mode; unidentified BIOS version! Please report this to the PCSX2 developers.");
 		}
-
-#ifndef PCSX2_CORE
-		// On fast/full boot this will have a crc of 0x0. But when the game/elf itself is
-		// recompiled (below - ElfEntry && g_GameLoading), then the crc would be from the elf.
-		// g_patchesNeedRedo is set on rec reset, and this is the only consumer.
-		// Also makes sure that patches from the previous elf/game are not applied on boot.
-		if (g_patchesNeedRedo)
-			doPlace0Patches();
-		g_patchesNeedRedo = 0;
-#endif
 	}
 
 	if (g_eeloadExec && HWADDR(startpc) == HWADDR(g_eeloadExec))
@@ -2309,14 +2227,7 @@ static void recRecompile(const u32 startpc)
 	{
 		Console.WriteLn("Elf entry point @ 0x%08x about to get recompiled. Load patches first.", startpc);
 		xFastCall((void*)eeGameStarting);
-
-#ifndef PCSX2_CORE
-		// Apply patch as soon as possible. Normally it is done in
-		// eeGameStarting but first block is already compiled.
-		doPlace0Patches();
-#else
 		VMManager::Internal::EntryPointCompilingOnCPUThread();
-#endif
 	}
 
 	g_branch = 0;
@@ -2407,6 +2318,11 @@ static void recRecompile(const u32 startpc)
 					s_nEndBlock = i + 8;
 					goto StartRecomp;
 				}
+				else if (_Funct_ == 12 || _Funct_ == 13) // SYSCALL, BREAK
+				{
+					s_nEndBlock = i + 4; // No delay slot.
+					goto StartRecomp;
+				}
 				break;
 
 			case 1: // regimm
@@ -2426,7 +2342,7 @@ static void recRecompile(const u32 startpc)
 
 			case 2: // J
 			case 3: // JAL
-				s_branchTo = _InstrucTarget_ << 2 | (i + 4) & 0xf0000000;
+				s_branchTo = (_InstrucTarget_ << 2) | ((i + 4) & 0xf0000000);
 				s_nEndBlock = i + 8;
 				goto StartRecomp;
 
@@ -2506,7 +2422,7 @@ StartRecomp:
 			if (cpuRegs.code == 0)
 				continue;
 			// cache, sync
-			else if (_Opcode_ == 057 || _Opcode_ == 0 && _Funct_ == 017)
+			else if (_Opcode_ == 057 || (_Opcode_ == 0 && _Funct_ == 017))
 				continue;
 			// imm arithmetic
 			else if ((_Opcode_ & 070) == 010 || (_Opcode_ & 076) == 030)
@@ -2606,20 +2522,6 @@ StartRecomp:
 			COP2FlagHackPass().Run(startpc, s_nEndBlock, s_pInstCache + 1);
 	}
 
-#ifdef PCSX2_DEBUG
-	// dump code
-	for (u32 recblock : s_recblocks)
-	{
-		if (startpc == recblock)
-		{
-			iDumpBlock(startpc, recPtr);
-		}
-	}
-
-	if (dumplog & 1)
-		iDumpBlock(startpc, recPtr);
-#endif
-
 #ifdef DUMP_BLOCKS
 	ZydisDecoder disas_decoder;
 	ZydisDecoderInit(&disas_decoder, ZYDIS_MACHINE_MODE_LONG_64, ZYDIS_ADDRESS_WIDTH_64);
@@ -2684,11 +2586,6 @@ StartRecomp:
 		}
 	}
 
-#ifdef PCSX2_DEBUG
-	if (dumplog & 1)
-		iDumpBlock(startpc, recPtr);
-#endif
-
 	pxAssert((pc - startpc) >> 2 <= 0xffff);
 	s_pCurBlockEx->size = (pc - startpc) >> 2;
 
@@ -2698,7 +2595,7 @@ StartRecomp:
 		int i;
 
 		i = recBlocks.LastIndex(HWADDR(pc) - 4);
-		while (oldBlock = recBlocks[i--])
+		while ((oldBlock = recBlocks[i--]))
 		{
 			if (oldBlock == s_pCurBlockEx)
 				continue;

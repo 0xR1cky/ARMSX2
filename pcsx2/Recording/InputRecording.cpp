@@ -26,8 +26,6 @@ void SaveStateBase::InputRecordingFreeze()
 	Freeze(g_FrameCount);
 }
 
-#ifdef PCSX2_CORE
-
 #include "InputRecording.h"
 
 #include "InputRecordingControls.h"
@@ -253,7 +251,7 @@ void InputRecording::incFrameCounter()
 		return;
 	}
 
-	if (m_frame_counter >= std::numeric_limits<u64>::max())
+	if (m_frame_counter == std::numeric_limits<u32>::max())
 	{
 		// TODO - log the incredible achievment of playing for longer than 4 billion years, and end the recording
 		stop();
@@ -394,5 +392,3 @@ void InputRecording::initializeState()
 	m_frame_counter = 0;
 	m_watching_for_rerecords = false;
 }
-
-#endif

@@ -46,7 +46,7 @@ using namespace x86Emitter;
 
 alignas(16) x86capabilities x86caps;
 
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 // We disable optimizations for this function, because we need x86capabilities for AVX
 // detection, but if we keep opts on, it'll use AVX instructions for inlining memzero.
 #pragma optimize("", off)
@@ -70,7 +70,7 @@ x86capabilities::x86capabilities()
 	memzero(VendorName);
 	memzero(FamilyName);
 }
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 #pragma optimize("", on)
 #endif
 
@@ -169,23 +169,6 @@ const char* x86capabilities::GetTypeName() const
 void x86capabilities::CountCores()
 {
 	Identify();
-
-	s32 regs[4];
-	u32 cmds;
-
-	cpuid(regs, 0x80000000);
-	cmds = regs[0];
-
-	// detect multicore for AMD cpu
-
-	if ((cmds >= 0x80000008) && (VendorID == x86Vendor_AMD))
-	{
-		// AMD note: they don't support hyperthreading, but they like to flag this true
-		// anyway.  Let's force-unflag it until we come up with a better solution.
-		// (note: seems to affect some Phenom II's only? -- Athlon X2's and PhenomI's do
-		// not seem to do this) --air
-		hasMultiThreading = 0;
-	}
 
 	// This will assign values into LogicalCores and PhysicalCores
 	CountLogicalCores();

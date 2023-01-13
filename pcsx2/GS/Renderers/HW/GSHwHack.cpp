@@ -14,22 +14,25 @@
  */
 
 #include "PrecompiledHeader.h"
-#include "GS/GSState.h"
+#include "GS/Renderers/HW/GSRendererHW.h"
+#include "GS/Renderers/HW/GSHwHack.h"
+#include "GS/GSGL.h"
 
-bool s_nativeres;
+static bool s_nativeres;
 static CRCHackLevel s_crc_hack_level = CRCHackLevel::Full;
-// hacks
+
 #define CRC_Partial (s_crc_hack_level >= CRCHackLevel::Partial)
 #define CRC_Full (s_crc_hack_level >= CRCHackLevel::Full)
 #define CRC_Aggressive (s_crc_hack_level >= CRCHackLevel::Aggressive)
 
-CRC::Region g_crc_region = CRC::NoRegion;
+#define RPRIM r.PRIM
+#define RCONTEXT r.m_context
 
 ////////////////////////////////////////////////////////////////////////////////
 // Partial level, broken on all renderers.
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GSC_BigMuthaTruckers(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_BigMuthaTruckers(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -47,7 +50,7 @@ bool GSC_BigMuthaTruckers(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_DeathByDegreesTekkenNinaWilliams(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_DeathByDegreesTekkenNinaWilliams(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	// Note: Game also has issues with texture shuffle not supported on strange clamp mode.
 	// See https://forums.pcsx2.net/Thread-GSDX-Texture-Cache-Bug-Report-Death-By-Degrees-SLUS-20934-NTSC
@@ -77,7 +80,7 @@ bool GSC_DeathByDegreesTekkenNinaWilliams(const GSFrameInfo& fi, int& skip) noex
 	return true;
 }
 
-bool GSC_GiTS(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_GiTS(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -92,7 +95,7 @@ bool GSC_GiTS(const GSFrameInfo& fi, int& skip) noexcept
 }
 
 // Channel effect not properly supported yet
-bool GSC_Manhunt2(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Manhunt2(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	/*
 	 * The game readback RT as 8 bits index texture to apply a non-linear brightness/gamma correction on all channel
@@ -123,7 +126,7 @@ bool GSC_Manhunt2(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_CrashBandicootWoC(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_CrashBandicootWoC(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	// Channel effect not properly supported - Removes fog to fix the fog wall issue on Direct3D at any resolution, and while upscaling on every Hardware renderer.
 	if (skip == 0)
@@ -153,7 +156,7 @@ bool GSC_CrashBandicootWoC(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_SacredBlaze(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_SacredBlaze(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	//Fix Sacred Blaze rendering glitches
 	if (skip == 0)
@@ -167,7 +170,7 @@ bool GSC_SacredBlaze(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_Spartan(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Spartan(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -186,7 +189,7 @@ bool GSC_Spartan(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_Oneechanbara2Special(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Oneechanbara2Special(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -201,7 +204,7 @@ bool GSC_Oneechanbara2Special(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_SakuraTaisen(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_SakuraTaisen(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -233,7 +236,7 @@ bool GSC_SakuraTaisen(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_SFEX3(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_SFEX3(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -248,7 +251,7 @@ bool GSC_SFEX3(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_Tekken5(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Tekken5(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -260,7 +263,7 @@ bool GSC_Tekken5(const GSFrameInfo& fi, int& skip) noexcept
 			// Let's enable this hack for Aggressive only since it's an upscaling issue for both renders.
 			skip = 95;
 		}
-		else if (fi.TZTST == 1 && fi.TME && (fi.FBP == 0x02bc0 || fi.FBP == 0x02be0 || fi.FBP == 0x02d00 || fi.FBP == 0x03480 || fi.FBP == 0x034a0) && fi.FPSM == fi.TPSM && fi.TBP0 == 0x00000 && fi.TPSM == PSM_PSMCT32)
+		else if (fi.ZTST == 1 && fi.TME && (fi.FBP == 0x02bc0 || fi.FBP == 0x02be0 || fi.FBP == 0x02d00 || fi.FBP == 0x03480 || fi.FBP == 0x034a0) && fi.FPSM == fi.TPSM && fi.TBP0 == 0x00000 && fi.TPSM == PSM_PSMCT32)
 		{
 			// The moving display effect(flames) is not emulated properly in the entire screen so let's remove the effect in the stage: Burning Temple. Related to half screen bottom issue.
 			// Fixes black lines in the stage: Burning Temple - caused by upscaling. Note the black lines can also be fixed with Merge Sprite hack.
@@ -271,7 +274,7 @@ bool GSC_Tekken5(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_TombRaiderAnniversary(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_TombRaiderAnniversary(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -284,7 +287,7 @@ bool GSC_TombRaiderAnniversary(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_TombRaiderLegend(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_TombRaiderLegend(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -302,11 +305,11 @@ bool GSC_TombRaiderLegend(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_TombRaiderUnderWorld(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_TombRaiderUnderWorld(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
-		if (fi.TME && fi.FBP == 0x01000 && fi.FPSM == fi.TPSM && fi.TPSM == PSM_PSMCT32 && (fi.TBP0 == 0x2B60 /*|| fi.TBP0 == 0x2EFF || fi.TBP0 ==0x2F00 || fi.TBP0 == 0x3020*/ || fi.TBP0 >= 0x2C01 && fi.TBP0 != 0x3029 && fi.TBP0 != 0x302d))
+		if (fi.TME && fi.FBP == 0x01000 && fi.FPSM == fi.TPSM && fi.TPSM == PSM_PSMCT32 && (fi.TBP0 == 0x2B60 /*|| fi.TBP0 == 0x2EFF || fi.TBP0 ==0x2F00 || fi.TBP0 == 0x3020*/ || (fi.TBP0 >= 0x2C01 && fi.TBP0 != 0x3029 && fi.TBP0 != 0x302d)))
 		{
 			skip = 1; // Garbage TC
 		}
@@ -319,7 +322,7 @@ bool GSC_TombRaiderUnderWorld(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_BurnoutGames(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_BurnoutGames(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -332,10 +335,32 @@ bool GSC_BurnoutGames(const GSFrameInfo& fi, int& skip) noexcept
 		}
 	}
 
+	return GSC_BlackAndBurnoutSky(r, fi, skip);
+}
+
+bool GSHwHack::GSC_BlackAndBurnoutSky(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
+{
+	if (skip != 0)
+		return true;
+
+	const GIFRegTEX0& TEX0 = RCONTEXT->TEX0;
+	const GIFRegALPHA& ALPHA = RCONTEXT->ALPHA;
+	const GIFRegFRAME& FRAME = RCONTEXT->FRAME;
+	if (RPRIM->PRIM == GS_SPRITE && !RPRIM->IIP && RPRIM->TME && !RPRIM->FGE && RPRIM->ABE && !RPRIM->AA1 && !RPRIM->FST && !RPRIM->FIX && TEX0.TBW == 16 && TEX0.TW == 10 && TEX0.TCC && !TEX0.TFX && TEX0.PSM == PSM_PSMT8 && TEX0.CPSM == PSM_PSMCT32 && !TEX0.CSM && TEX0.TH == 8 && ALPHA.A == ALPHA.B && ALPHA.D == 0 && FRAME.FBW == 16 && FRAME.PSM == PSM_PSMCT32)
+	{
+		// Readback clouds being rendered during level loading.
+		// Later the alpha channel from the 32 bit frame buffer is used as an 8 bit indexed texture to draw
+		// the clouds on top of the sky at each frame.
+		// Burnout 3 PAL 50Hz: 0x3ba0 => 0x1e80.
+		GL_INS("OO_BurnoutGames - Readback clouds renderered from TEX0.TBP0 = 0x%04x (TEX0.CBP = 0x%04x) to FBP = 0x%04x", TEX0.TBP0, TEX0.CBP, FRAME.Block());
+		r.SwPrimRender(r, true);
+		skip = 1;
+	}
+
 	return true;
 }
 
-bool GSC_MidnightClub3(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_MidnightClub3(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -351,7 +376,7 @@ bool GSC_MidnightClub3(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_TalesOfLegendia(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_TalesOfLegendia(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -380,7 +405,7 @@ bool GSC_TalesOfLegendia(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_Kunoichi(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Kunoichi(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -405,7 +430,7 @@ bool GSC_Kunoichi(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_ZettaiZetsumeiToshi2(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_ZettaiZetsumeiToshi2(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -454,7 +479,7 @@ bool GSC_ZettaiZetsumeiToshi2(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_SakuraWarsSoLongMyLove(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_SakuraWarsSoLongMyLove(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -475,7 +500,7 @@ bool GSC_SakuraWarsSoLongMyLove(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_FightingBeautyWulong(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_FightingBeautyWulong(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -490,7 +515,7 @@ bool GSC_FightingBeautyWulong(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_GodHand(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_GodHand(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -503,7 +528,7 @@ bool GSC_GodHand(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_KnightsOfTheTemple2(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_KnightsOfTheTemple2(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -520,7 +545,7 @@ bool GSC_KnightsOfTheTemple2(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_UltramanFightingEvolution(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_UltramanFightingEvolution(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -534,7 +559,7 @@ bool GSC_UltramanFightingEvolution(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_TalesofSymphonia(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_TalesofSymphonia(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -551,7 +576,7 @@ bool GSC_TalesofSymphonia(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_Simple2000Vol114(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Simple2000Vol114(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -571,7 +596,7 @@ bool GSC_Simple2000Vol114(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_UrbanReign(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_UrbanReign(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -584,7 +609,7 @@ bool GSC_UrbanReign(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_SteambotChronicles(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_SteambotChronicles(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -609,7 +634,7 @@ bool GSC_SteambotChronicles(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_YakuzaGames(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_YakuzaGames(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -618,7 +643,9 @@ bool GSC_YakuzaGames(const GSFrameInfo& fi, int& skip) noexcept
 		{
 			// Don't enable hack on native res if crc is below aggressive.
 			// Upscaling issues, removes glow/blur effect which fixes ghosting.
-			skip = 3;
+			// Skip 3 removes most of the post effect which doesn't upscale well, but causes a depth effect to completely mess up.
+			// Skip 9 removes both the depth and blur effect, which seems to work okay.
+			skip = 9;
 		}
 	}
 
@@ -629,7 +656,7 @@ bool GSC_YakuzaGames(const GSFrameInfo& fi, int& skip) noexcept
 // Full level, correctly emulated on OpenGL/Vulkan but can be used as potential speed hack
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GSC_GetawayGames(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_GetawayGames(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -646,7 +673,7 @@ bool GSC_GetawayGames(const GSFrameInfo& fi, int& skip) noexcept
 // Aggressive only hack
 ////////////////////////////////////////////////////////////////////////////////
 
-bool GSC_AceCombat4(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_AceCombat4(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	// Removes clouds for a good speed boost, removes both 3D clouds(invisible with Hardware renderers, but cause slowdown) and 2D background clouds.
 	// Removes blur from player airplane.
@@ -664,7 +691,7 @@ bool GSC_AceCombat4(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_FFXGames(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_FFXGames(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -683,7 +710,7 @@ bool GSC_FFXGames(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_Okami(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_Okami(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -703,7 +730,7 @@ bool GSC_Okami(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_RedDeadRevolver(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_RedDeadRevolver(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -716,7 +743,7 @@ bool GSC_RedDeadRevolver(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_ShinOnimusha(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_ShinOnimusha(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -745,7 +772,7 @@ bool GSC_ShinOnimusha(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-bool GSC_XenosagaE3(const GSFrameInfo& fi, int& skip) noexcept
+bool GSHwHack::GSC_XenosagaE3(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
 	if (skip == 0)
 	{
@@ -775,113 +802,619 @@ bool GSC_XenosagaE3(const GSFrameInfo& fi, int& skip) noexcept
 	return true;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void GSState::SetupCrcHack() noexcept
+bool GSHwHack::GSC_BlueTongueGames(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
 {
-	GetSkipCount lut[CRC::TitleCount];
+	GSDrawingContext* context = r.m_context;
 
-	s_nativeres = m_nativeres;
-	s_crc_hack_level = m_crc_hack_level;
+	// Whoever wrote this was kinda nuts. They draw a stipple/dither pattern to a framebuffer, then reuse that as
+	// the depth buffer. Textures are then drawn repeatedly on top of one another, each with a slight offset.
+	// Depth testing is enabled, and that determines which pixels make it into the final texture. Kinda like an
+	// attempt at anti-aliasing or adding more detail to the textures? Or, a way to get more colours..
 
-	memset(lut, 0, sizeof(lut));
+	// The size of these textures varies quite a bit. 16-bit, 24-bit and 32-bit formats are all used.
+	// The ones we need to take care of here, are the textures which use mipmaps. Those get drawn recursively, mip
+	// levels are then drawn to the right of the base texture. And we can't handle that in the texture cache. So
+	// we'll limit to 16/24/32-bit, going up to 320 wide. Some font textures are 1024x1024, we don't really want
+	// to be rasterizing that on the CPU.
 
-	if (CRC_Partial)
+	// Catch the mipmap draws. Barnyard only uses 16/32-bit, Jurassic Park uses 24-bit.
+	// Also used for Nicktoons Unite, same engine it appears.
+	if ((context->FRAME.PSM == PSM_PSMCT16S || context->FRAME.PSM <= PSM_PSMCT24) && context->FRAME.FBW <= 5)
 	{
-		lut[CRC::GodHand] = GSC_GodHand;
-		lut[CRC::KnightsOfTheTemple2] = GSC_KnightsOfTheTemple2;
-		lut[CRC::Kunoichi] = GSC_Kunoichi;
-		lut[CRC::Manhunt2] = GSC_Manhunt2;
-		lut[CRC::MidnightClub3] = GSC_MidnightClub3;
-		lut[CRC::SacredBlaze] = GSC_SacredBlaze;
-		lut[CRC::SakuraTaisen] = GSC_SakuraTaisen;
-		lut[CRC::SakuraWarsSoLongMyLove] = GSC_SakuraWarsSoLongMyLove;
-		lut[CRC::Simple2000Vol114] = GSC_Simple2000Vol114;
-		lut[CRC::SFEX3] = GSC_SFEX3;
-		lut[CRC::TalesOfLegendia] = GSC_TalesOfLegendia;
-		lut[CRC::TalesofSymphonia] = GSC_TalesofSymphonia;
-		lut[CRC::TombRaiderAnniversary] = GSC_TombRaiderAnniversary;
-		lut[CRC::TombRaiderLegend] = GSC_TombRaiderLegend;
-		lut[CRC::TombRaiderUnderworld] = GSC_TombRaiderUnderWorld;
-		lut[CRC::UrbanReign] = GSC_UrbanReign;
-		lut[CRC::ZettaiZetsumeiToshi2] = GSC_ZettaiZetsumeiToshi2;
-
-		// Channel Effect
-		lut[CRC::CrashBandicootWoC] = GSC_CrashBandicootWoC;
-		lut[CRC::GiTS] = GSC_GiTS;
-		lut[CRC::Spartan] = GSC_Spartan;
-		lut[CRC::SteambotChronicles] = GSC_SteambotChronicles;
-
-		// Depth Issue
-		lut[CRC::BurnoutGames] = GSC_BurnoutGames;
-
-		// Half Screen bottom issue
-		lut[CRC::Tekken5] = GSC_Tekken5;
-
-		// Texture shuffle
-		lut[CRC::BigMuthaTruckers] = GSC_BigMuthaTruckers;
-		lut[CRC::DeathByDegreesTekkenNinaWilliams] = GSC_DeathByDegreesTekkenNinaWilliams; // + Upscaling issues
-
-		// Upscaling hacks
-		lut[CRC::FightingBeautyWulong] = GSC_FightingBeautyWulong;
-		lut[CRC::Oneechanbara2Special] = GSC_Oneechanbara2Special;
-		lut[CRC::UltramanFightingEvolution] = GSC_UltramanFightingEvolution;
-		lut[CRC::YakuzaGames] = GSC_YakuzaGames;
+		r.SwPrimRender(r, true);
+		skip = 1;
+		return true;
 	}
 
-	// CRC FULL is for Direct3D, they are fixed on OpenGL/Vulkan
-	if (CRC_Full)
+	// This is the giant dither-like depth buffer. We need this on the CPU *and* the GPU for textures which are
+	// rendered on both.
+	if (context->FRAME.FBW == 8 && r.m_index.tail == 32 && r.PRIM->TME && context->TEX0.TBW == 1)
 	{
-		// Accurate Blending
-		lut[CRC::GetawayGames] = GSC_GetawayGames; // Blending High
+		r.SwPrimRender(r, false);
+		return false;
 	}
 
-	if (CRC_Aggressive)
-	{
-		lut[CRC::AceCombat4] = GSC_AceCombat4;
-		lut[CRC::FFX2] = GSC_FFXGames;
-		lut[CRC::FFX] = GSC_FFXGames;
-		lut[CRC::FFXII] = GSC_FFXGames;
-		lut[CRC::RedDeadRevolver] = GSC_RedDeadRevolver;
-		lut[CRC::ShinOnimusha] = GSC_ShinOnimusha;
-		lut[CRC::XenosagaE3] = GSC_XenosagaE3;
-
-		// Upscaling issues
-		lut[CRC::Okami] = GSC_Okami;
-	}
-
-	m_gsc = lut[m_game.title];
-	g_crc_region = m_game.region;
+	return false;
 }
+
+bool GSHwHack::OI_PointListPalette(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	const size_t n_vertices = r.m_vertex.next;
+	const int w = r.m_r.width();
+	const int h = r.m_r.height();
+	const bool is_copy = !r.PRIM->ABE || (
+		r.m_context->ALPHA.A == r.m_context->ALPHA.B // (A - B) == 0 in blending equation, makes C value irrelevant.
+		&& r.m_context->ALPHA.D == 0 // Copy source RGB(A) color into frame buffer.
+	);
+	if (r.m_vt.m_primclass == GS_POINT_CLASS && w <= 64 // Small draws.
+		&& h <= 64 // Small draws.
+		&& n_vertices <= 256 // Small draws.
+		&& is_copy // Copy (no blending).
+		&& !r.PRIM->TME // No texturing please.
+		&& r.m_context->FRAME.PSM == PSM_PSMCT32 // Only 32-bit pixel format (CLUT format).
+		&& !r.PRIM->FGE // No FOG.
+		&& !r.PRIM->AA1 // No antialiasing.
+		&& !r.PRIM->FIX // Normal fragment value control.
+		&& !r.m_env.DTHE.DTHE // No dithering.
+		&& !r.m_context->TEST.ATE // No alpha test.
+		&& !r.m_context->TEST.DATE // No destination alpha test.
+		&& (!r.m_context->DepthRead() && !r.m_context->DepthWrite()) // No depth handling.
+		&& !r.m_context->TEX0.CSM // No CLUT usage.
+		&& !r.m_env.PABE.PABE // No PABE.
+		&& r.m_context->FBA.FBA == 0 // No Alpha Correction.
+		&& r.m_context->FRAME.FBMSK == 0 // No frame buffer masking.
+	)
+	{
+		const u32 FBP = r.m_context->FRAME.Block();
+		const u32 FBW = r.m_context->FRAME.FBW;
+		GL_INS("PointListPalette - m_r = <%d, %d => %d, %d>, n_vertices = %zu, FBP = 0x%x, FBW = %u", r.m_r.x, r.m_r.y, r.m_r.z, r.m_r.w, n_vertices, FBP, FBW);
+		const GSVertex* RESTRICT v = r.m_vertex.buff;
+		const int ox(r.m_context->XYOFFSET.OFX);
+		const int oy(r.m_context->XYOFFSET.OFY);
+		for (size_t i = 0; i < n_vertices; ++i)
+		{
+			const GSVertex& vi = v[i];
+			const GIFRegXYZ& xyz = vi.XYZ;
+			const int x = (int(xyz.X) - ox) / 16;
+			const int y = (int(xyz.Y) - oy) / 16;
+			if (x < r.m_r.x || x > r.m_r.z)
+				continue;
+			if (y < r.m_r.y || y > r.m_r.w)
+				continue;
+			const u32 c = vi.RGBAQ.U32[0];
+			r.m_mem.WritePixel32(x, y, c, FBP, FBW);
+		}
+		r.m_tc->InvalidateVideoMem(r.m_context->offset.fb, r.m_r);
+		return false;
+	}
+	return true;
+}
+
+bool GSHwHack::OI_BigMuthaTruckers(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	// Rendering pattern:
+	// CRTC frontbuffer at 0x0 is interlaced (half vertical resolution),
+	// game needs to do a depth effect (so green channel to alpha),
+	// but there is a vram limitation so green is pushed into the alpha channel of the CRCT buffer,
+	// vertical resolution is half so only half is processed at once
+	// We, however, don't have this limitation so we'll replace the draw with a full-screen TS.
+
+	const GIFRegTEX0& Texture = RCONTEXT->TEX0;
+
+	GIFRegTEX0 Frame = {};
+	Frame.TBW = RCONTEXT->FRAME.FBW;
+	Frame.TBP0 = RCONTEXT->FRAME.Block();
+
+	if (RPRIM->TME && Frame.TBW == 10 && Texture.TBW == 10 && Frame.TBP0 == 0x00a00 && Texture.PSM == PSM_PSMT8H && (r.m_r.y == 256 || r.m_r.y == 224))
+	{
+		// 224 ntsc, 256 pal.
+		GL_INS("OI_BigMuthaTruckers half bottom offset");
+
+		const size_t count = r.m_vertex.next;
+		GSVertex* v = &r.m_vertex.buff[0];
+		const u16 offset = (u16)r.m_r.y * 16;
+
+		for (size_t i = 0; i < count; i++)
+			v[i].V += offset;
+	}
+
+	return true;
+}
+
+bool GSHwHack::OI_DBZBTGames(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	if (t && t->m_from_target) // Avoid slow framebuffer readback
+		return true;
+
+	if (!((r.m_r == GSVector4i(0, 0, 16, 16)).alltrue() || (r.m_r == GSVector4i(0, 0, 64, 64)).alltrue()))
+		return true; // Only 16x16 or 64x64 draws.
+
+	// Sprite rendering
+	if (!r.CanUseSwSpriteRender())
+		return true;
+
+	r.SwSpriteRender();
+
+	return false; // Skip current draw
+}
+
+bool GSHwHack::OI_FFXII(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	static u32* video = nullptr;
+	static size_t lines = 0;
+
+	if (lines == 0)
+	{
+		if (r.m_vt.m_primclass == GS_LINE_CLASS && (r.m_vertex.next == 448 * 2 || r.m_vertex.next == 512 * 2))
+		{
+			lines = r.m_vertex.next / 2;
+		}
+	}
+	else
+	{
+		if (r.m_vt.m_primclass == GS_POINT_CLASS)
+		{
+			if (r.m_vertex.next >= 16 * 512)
+			{
+				// incoming pixels are stored in columns, one column is 16x512, total res 448x512 or 448x454
+
+				if (!video)
+					video = new u32[512 * 512];
+
+				const GSVertex* RESTRICT v = r.m_vertex.buff;
+				const int ox = RCONTEXT->XYOFFSET.OFX - 8;
+				const int oy = RCONTEXT->XYOFFSET.OFY - 8;
+
+				for (int i = (int)r.m_vertex.next; i > 0; i--, v++)
+				{
+					const int x = (v->XYZ.X - ox) >> 4;
+					const int y = (v->XYZ.Y - oy) >> 4;
+
+					if (x < 0 || x >= 448 || y < 0 || y >= (int)lines)
+						return false; // le sigh
+
+					video[(y << 8) + (y << 7) + (y << 6) + x] = v->RGBAQ.U32[0];
+				}
+
+				return false;
+			}
+			else
+			{
+				lines = 0;
+			}
+		}
+		else if (r.m_vt.m_primclass == GS_LINE_CLASS)
+		{
+			if (r.m_vertex.next == lines * 2)
+			{
+				// normally, this step would copy the video onto screen with 512 texture mapped horizontal lines,
+				// but we use the stored video data to create a new texture, and replace the lines with two triangles
+
+				g_gs_device->Recycle(t->m_texture);
+
+				t->m_texture = g_gs_device->CreateTexture(512, 512, 1, GSTexture::Format::Color);
+
+				t->m_texture->Update(GSVector4i(0, 0, 448, lines), video, 448 * 4);
+
+				r.m_vertex.buff[2] = r.m_vertex.buff[r.m_vertex.next - 2];
+				r.m_vertex.buff[3] = r.m_vertex.buff[r.m_vertex.next - 1];
+
+				r.m_index.buff[0] = 0;
+				r.m_index.buff[1] = 1;
+				r.m_index.buff[2] = 2;
+				r.m_index.buff[3] = 1;
+				r.m_index.buff[4] = 2;
+				r.m_index.buff[5] = 3;
+
+				r.m_vertex.head = r.m_vertex.tail = r.m_vertex.next = 4;
+				r.m_index.tail = 6;
+
+				r.m_vt.Update(r.m_vertex.buff, r.m_index.buff, r.m_vertex.tail, r.m_index.tail, GS_TRIANGLE_CLASS);
+			}
+			else
+			{
+				lines = 0;
+			}
+		}
+	}
+
+	return true;
+}
+
+bool GSHwHack::OI_FFX(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	const u32 FBP = RCONTEXT->FRAME.Block();
+	const u32 ZBP = RCONTEXT->ZBUF.Block();
+	const u32 TBP = RCONTEXT->TEX0.TBP0;
+
+	if ((FBP == 0x00d00 || FBP == 0x00000) && ZBP == 0x02100 && RPRIM->TME && TBP == 0x01a00 && RCONTEXT->TEX0.PSM == PSM_PSMCT16S)
+	{
+		// random battle transition (z buffer written directly, clear it now)
+		GL_INS("OI_FFX ZB clear");
+		g_gs_device->ClearDepth(ds);
+	}
+
+	return true;
+}
+
+bool GSHwHack::OI_MetalSlug6(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	// missing red channel fix (looks alright in pcsx2 r5000+)
+
+	GSVertex* RESTRICT v = r.m_vertex.buff;
+
+	for (size_t i = r.m_vertex.next; i > 0; i--, v++)
+	{
+		const u32 c = v->RGBAQ.U32[0];
+
+		const u32 r = (c >> 0) & 0xff;
+		const u32 g = (c >> 8) & 0xff;
+		const u32 b = (c >> 16) & 0xff;
+
+		if (r == 0 && g != 0 && b != 0)
+		{
+			v->RGBAQ.U32[0] = (c & 0xffffff00) | ((g + b + 1) >> 1);
+		}
+	}
+
+	r.m_vt.Update(r.m_vertex.buff, r.m_index.buff, r.m_vertex.tail, r.m_index.tail, r.m_vt.m_primclass);
+
+	return true;
+}
+
+bool GSHwHack::OI_RozenMaidenGebetGarden(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	if (!RPRIM->TME)
+	{
+		const u32 FBP = RCONTEXT->FRAME.Block();
+		const u32 ZBP = RCONTEXT->ZBUF.Block();
+
+		if (FBP == 0x008c0 && ZBP == 0x01a40)
+		{
+			//  frame buffer clear, atst = fail, afail = write z only, z buffer points to frame buffer
+
+			GIFRegTEX0 TEX0 = {};
+
+			TEX0.TBP0 = ZBP;
+			TEX0.TBW = RCONTEXT->FRAME.FBW;
+			TEX0.PSM = RCONTEXT->FRAME.PSM;
+
+			if (GSTextureCache::Target* tmp_rt = r.m_tc->LookupTarget(TEX0, r.GetTargetSize(), GSTextureCache::RenderTarget, true))
+			{
+				GL_INS("OI_RozenMaidenGebetGarden FB clear");
+				g_gs_device->ClearRenderTarget(tmp_rt->m_texture, 0);
+			}
+
+			return false;
+		}
+		else if (FBP == 0x00000 && RCONTEXT->ZBUF.Block() == 0x01180)
+		{
+			// z buffer clear, frame buffer now points to the z buffer (how can they be so clever?)
+
+			GIFRegTEX0 TEX0 = {};
+
+			TEX0.TBP0 = FBP;
+			TEX0.TBW = RCONTEXT->FRAME.FBW;
+			TEX0.PSM = RCONTEXT->ZBUF.PSM;
+
+			if (GSTextureCache::Target* tmp_ds = r.m_tc->LookupTarget(TEX0, r.GetTargetSize(), GSTextureCache::DepthStencil, true))
+			{
+				GL_INS("OI_RozenMaidenGebetGarden ZB clear");
+				g_gs_device->ClearDepth(tmp_ds->m_texture);
+			}
+
+			return false;
+		}
+	}
+
+	return true;
+}
+
+bool GSHwHack::OI_SonicUnleashed(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	// Rendering pattern is:
+	// Save RG channel with a kind of a TS (replaced by a copy in this hack),
+	// compute shadow in RG,
+	// save result in alpha with a TS,
+	// Restore RG channel that we previously copied to render shadows.
+
+	const GIFRegTEX0& Texture = RCONTEXT->TEX0;
+
+	GIFRegTEX0 Frame = {};
+	Frame.TBW = RCONTEXT->FRAME.FBW;
+	Frame.TBP0 = RCONTEXT->FRAME.Block();
+	Frame.PSM = RCONTEXT->FRAME.PSM;
+
+	if ((!RPRIM->TME) || (GSLocalMemory::m_psm[Texture.PSM].bpp != 16) || (GSLocalMemory::m_psm[Frame.PSM].bpp != 16) || (Texture.TBP0 == Frame.TBP0) || (Frame.TBW != 16 && Texture.TBW != 16))
+		return true;
+
+	GL_INS("OI_SonicUnleashed replace draw by a copy");
+
+	GSTextureCache::Target* src = r.m_tc->LookupTarget(Texture, GSVector2i(1, 1), GSTextureCache::RenderTarget, true);
+
+	const GSVector2i rt_size(rt->GetSize());
+	const GSVector2i src_size(src->m_texture->GetSize());
+	const GSVector2i copy_size(std::min(rt_size.x, src_size.x), std::min(rt_size.y, src_size.y));
+
+	const GSVector4 sRect(0.0f, 0.0f, static_cast<float>(copy_size.x) / static_cast<float>(src_size.x), static_cast<float>(copy_size.y) / static_cast<float>(src_size.y));
+	const GSVector4 dRect(0, 0, copy_size.x, copy_size.y);
+
+	g_gs_device->StretchRect(src->m_texture, sRect, rt, dRect, true, true, true, false);
+
+	return false;
+}
+
+
+bool GSHwHack::OI_ArTonelico2(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	// world map clipping
+	//
+	// The bad draw call is a sprite rendering to clear the z buffer
+
+	/*
+	   Depth buffer description
+	   * width is 10 pages
+	   * texture/scissor size is 640x448
+	   * depth is 16 bits so it writes 70 (10w * 7h) pages of data.
+
+	   following draw calls will use the buffer as 6 pages width with a scissor
+	   test of 384x672. So the above texture can be seen as a
+
+	   * texture width: 6 pages * 64 pixels/page = 384
+	   * texture height: 70/6 pages * 64 pixels/page =746
+
+	   So as you can see the GS issue a write of 640x448 but actually it
+	   expects to clean a 384x746 area. Ideally the fix will transform the
+	   buffer to adapt the page width properly.
+	 */
+
+	const GSVertex* v = &r.m_vertex.buff[0];
+
+	if (r.m_vertex.next == 2 && !RPRIM->TME && RCONTEXT->FRAME.FBW == 10 && v->XYZ.Z == 0 && RCONTEXT->TEST.ZTST == ZTST_ALWAYS)
+	{
+		GL_INS("OI_ArTonelico2");
+		g_gs_device->ClearDepth(ds);
+	}
+
+	return true;
+}
+
+bool GSHwHack::OI_JakGames(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	if (!(r.m_r == GSVector4i(0, 0, 16, 16)).alltrue())
+		return true; // Only 16x16 draws.
+
+	if (!r.CanUseSwSpriteRender())
+		return true;
+
+	// Render 16x16 palette via CPU.
+	r.SwSpriteRender();
+
+	return false; // Skip current draw.
+}
+
+bool GSHwHack::OI_BurnoutGames(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	if (!OI_PointListPalette(r, rt, ds, t))
+		return false; // Render point list palette.
+
+	if (t && t->m_from_target) // Avoid slow framebuffer readback
+		return true;
+
+	if (!r.CanUseSwSpriteRender())
+		return true;
+
+	// Render palette via CPU.
+	r.SwSpriteRender();
+
+	return false;
+}
+
+bool GSHwHack::GSC_Battlefield2(GSRendererHW& r, const GSFrameInfo& fi, int& skip)
+{
+	if (skip == 0)
+	{
+		if (fi.ZBP >= fi.FBP && fi.FBP >= 0x2000 && fi.ZBP >= 0x2700 && ((fi.ZBP - fi.FBP) == 0x700))
+		{
+			skip = 7;
+
+			GIFRegTEX0 TEX0 = {};
+			TEX0.TBP0 = fi.FBP;
+			TEX0.TBW = 8;
+			GSTextureCache::Target* dst = r.m_tc->LookupTarget(TEX0, GSRendererHW::GetInstance()->GetTargetSize(), GSTextureCache::DepthStencil, true);
+			if (dst)
+			{
+				g_gs_device->ClearDepth(dst->m_texture);
+			}
+		}
+	}
+
+	return true;
+}
+
+bool GSHwHack::OI_Battlefield2(GSRendererHW& r, GSTexture* rt, GSTexture* ds, GSTextureCache::Source* t)
+{
+	if (!RPRIM->TME || RCONTEXT->FRAME.Block() > 0xD00 || RCONTEXT->TEX0.TBP0 > 0x1D00)
+		return true;
+
+	if (rt && t && RCONTEXT->FRAME.Block() == 0 && RCONTEXT->TEX0.TBP0 == 0x1000)
+	{
+		const GSVector4i rc(0, 0, std::min(rt->GetWidth(), t->m_texture->GetWidth()), std::min(rt->GetHeight(), t->m_texture->GetHeight()));
+		g_gs_device->CopyRect(t->m_texture, rt, rc, 0, 0);
+	}
+
+	r.m_tc->InvalidateTemporarySource();
+	return false;
+}
+
+#undef RCONTEXT
+#undef RPRIM
 
 #undef CRC_Partial
 #undef CRC_Full
 #undef CRC_Aggressive
 
-bool GSState::IsBadFrame()
+////////////////////////////////////////////////////////////////////////////////
+
+#define CRC_F(name, level) { #name, &GSHwHack::name, level }
+
+const GSHwHack::Entry<GSRendererHW::GSC_Ptr> GSHwHack::s_get_skip_count_functions[] = {
+	CRC_F(GSC_GodHand, CRCHackLevel::Partial),
+	CRC_F(GSC_KnightsOfTheTemple2, CRCHackLevel::Partial),
+	CRC_F(GSC_Kunoichi, CRCHackLevel::Partial),
+	CRC_F(GSC_Manhunt2, CRCHackLevel::Partial),
+	CRC_F(GSC_MidnightClub3, CRCHackLevel::Partial),
+	CRC_F(GSC_SacredBlaze, CRCHackLevel::Partial),
+	CRC_F(GSC_SakuraTaisen, CRCHackLevel::Partial),
+	CRC_F(GSC_SakuraWarsSoLongMyLove, CRCHackLevel::Partial),
+	CRC_F(GSC_Simple2000Vol114, CRCHackLevel::Partial),
+	CRC_F(GSC_SFEX3, CRCHackLevel::Partial),
+	CRC_F(GSC_TalesOfLegendia, CRCHackLevel::Partial),
+	CRC_F(GSC_TalesofSymphonia, CRCHackLevel::Partial),
+	CRC_F(GSC_TombRaiderAnniversary, CRCHackLevel::Partial),
+	CRC_F(GSC_TombRaiderLegend, CRCHackLevel::Partial),
+	CRC_F(GSC_TombRaiderUnderWorld, CRCHackLevel::Partial),
+	CRC_F(GSC_UrbanReign, CRCHackLevel::Partial),
+	CRC_F(GSC_ZettaiZetsumeiToshi2, CRCHackLevel::Partial),
+	CRC_F(GSC_BlackAndBurnoutSky, CRCHackLevel::Partial),
+	CRC_F(GSC_BlueTongueGames, CRCHackLevel::Partial),
+	CRC_F(GSC_Battlefield2, CRCHackLevel::Partial),
+
+	// Channel Effect
+	CRC_F(GSC_CrashBandicootWoC, CRCHackLevel::Partial),
+	CRC_F(GSC_GiTS, CRCHackLevel::Partial),
+	CRC_F(GSC_Spartan, CRCHackLevel::Partial),
+	CRC_F(GSC_SteambotChronicles, CRCHackLevel::Partial),
+
+	// Depth Issue
+	CRC_F(GSC_BurnoutGames, CRCHackLevel::Partial),
+
+	// Half Screen bottom issue
+	CRC_F(GSC_Tekken5, CRCHackLevel::Partial),
+
+	// Texture shuffle
+	CRC_F(GSC_BigMuthaTruckers, CRCHackLevel::Partial),
+	CRC_F(GSC_DeathByDegreesTekkenNinaWilliams, CRCHackLevel::Partial), // + Upscaling issues
+
+	// Upscaling hacks
+	CRC_F(GSC_FightingBeautyWulong, CRCHackLevel::Partial),
+	CRC_F(GSC_Oneechanbara2Special, CRCHackLevel::Partial),
+	CRC_F(GSC_UltramanFightingEvolution, CRCHackLevel::Partial),
+	CRC_F(GSC_YakuzaGames, CRCHackLevel::Partial),
+
+	// Accurate Blending
+	CRC_F(GSC_GetawayGames, CRCHackLevel::Full), // Blending High
+
+	CRC_F(GSC_AceCombat4, CRCHackLevel::Aggressive),
+	CRC_F(GSC_FFXGames, CRCHackLevel::Aggressive),
+	CRC_F(GSC_FFXGames, CRCHackLevel::Aggressive),
+	CRC_F(GSC_FFXGames, CRCHackLevel::Aggressive),
+	CRC_F(GSC_RedDeadRevolver, CRCHackLevel::Aggressive),
+	CRC_F(GSC_ShinOnimusha, CRCHackLevel::Aggressive),
+	CRC_F(GSC_XenosagaE3, CRCHackLevel::Aggressive),
+
+	// Upscaling issues
+	CRC_F(GSC_Okami, CRCHackLevel::Aggressive),
+};
+
+const GSHwHack::Entry<GSRendererHW::OI_Ptr> GSHwHack::s_before_draw_functions[] = {
+	CRC_F(OI_PointListPalette, CRCHackLevel::Minimum),
+	CRC_F(OI_BigMuthaTruckers, CRCHackLevel::Minimum),
+	CRC_F(OI_DBZBTGames, CRCHackLevel::Minimum),
+	CRC_F(OI_FFXII, CRCHackLevel::Minimum),
+	CRC_F(OI_FFX, CRCHackLevel::Minimum),
+	CRC_F(OI_MetalSlug6, CRCHackLevel::Minimum),
+	CRC_F(OI_RozenMaidenGebetGarden, CRCHackLevel::Minimum),
+	CRC_F(OI_SonicUnleashed, CRCHackLevel::Minimum),
+	CRC_F(OI_ArTonelico2, CRCHackLevel::Minimum),
+	CRC_F(OI_JakGames, CRCHackLevel::Minimum),
+	CRC_F(OI_BurnoutGames, CRCHackLevel::Minimum),
+	CRC_F(OI_Battlefield2, CRCHackLevel::Minimum),
+};
+
+#undef CRC_F
+
+s16 GSLookupGetSkipCountFunctionId(const std::string_view& name)
 {
-	GSFrameInfo fi = {0};
-
-	fi.FBP = m_context->FRAME.Block();
-	fi.FPSM = m_context->FRAME.PSM;
-	fi.FBMSK = m_context->FRAME.FBMSK;
-	fi.TME = PRIM->TME;
-	fi.TBP0 = m_context->TEX0.TBP0;
-	fi.TPSM = m_context->TEX0.PSM;
-	fi.TZTST = m_context->TEST.ZTST;
-
-	if (m_gsc && !m_gsc(fi, m_skip))
+	for (u32 i = 0; i < std::size(GSHwHack::s_get_skip_count_functions); i++)
 	{
-		return false;
+		if (name == GSHwHack::s_get_skip_count_functions[i].name)
+			return static_cast<s16>(i);
+	}
+
+	return -1;
+}
+
+s16 GSLookupBeforeDrawFunctionId(const std::string_view& name)
+{
+	for (u32 i = 0; i < std::size(GSHwHack::s_before_draw_functions); i++)
+	{
+		if (name == GSHwHack::s_before_draw_functions[i].name)
+			return static_cast<s16>(i);
+	}
+
+	return -1;
+}
+
+void GSRendererHW::UpdateCRCHacks()
+{
+	GSRenderer::UpdateCRCHacks();
+
+	const CRCHackLevel real_level = (GSConfig.CRCHack == CRCHackLevel::Automatic) ?
+		GSUtil::GetRecommendedCRCHackLevel(GSConfig.Renderer) : GSConfig.CRCHack;
+
+	s_nativeres = m_nativeres;
+	s_crc_hack_level = real_level;
+
+	m_gsc = nullptr;
+	m_oi = nullptr;
+
+	if (real_level != CRCHackLevel::Off)
+	{
+		if (GSConfig.GetSkipCountFunctionId >= 0 &&
+			static_cast<size_t>(GSConfig.GetSkipCountFunctionId) < std::size(GSHwHack::s_get_skip_count_functions) &&
+			real_level >= GSHwHack::s_get_skip_count_functions[GSConfig.GetSkipCountFunctionId].level)
+		{
+			m_gsc = GSHwHack::s_get_skip_count_functions[GSConfig.GetSkipCountFunctionId].ptr;
+		}
+
+		if (GSConfig.BeforeDrawFunctionId >= 0 &&
+			static_cast<size_t>(GSConfig.BeforeDrawFunctionId) < std::size(GSHwHack::s_before_draw_functions) &&
+			real_level >= GSHwHack::s_before_draw_functions[GSConfig.BeforeDrawFunctionId].level)
+		{
+			m_oi = GSHwHack::s_before_draw_functions[GSConfig.BeforeDrawFunctionId].ptr;
+		}
+	}
+}
+
+bool GSRendererHW::IsBadFrame()
+{
+	if (m_gsc)
+	{
+		const GSFrameInfo fi = {
+			m_context->FRAME.Block(),
+			m_context->FRAME.PSM,
+			m_context->FRAME.FBMSK,
+			m_context->ZBUF.Block(),
+			m_context->ZBUF.ZMSK,
+			m_context->TEST.ZTST,
+			PRIM->TME,
+			m_context->TEX0.TBP0,
+			m_context->TEX0.PSM,
+		};
+
+		if (!m_gsc(*this, fi, m_skip))
+			return false;
 	}
 
 	if (m_skip == 0 && GSConfig.SkipDrawEnd > 0)
 	{
-		if (fi.TME)
+		if (PRIM->TME)
 		{
 			// depth textures (bully, mgs3s1 intro, Front Mission 5)
 			// General, often problematic post processing
-			if (GSLocalMemory::m_psm[fi.TPSM].depth || GSUtil::HasSharedBits(fi.FBP, fi.FPSM, fi.TBP0, fi.TPSM))
+			if (GSLocalMemory::m_psm[m_context->TEX0.PSM].depth ||
+				GSUtil::HasSharedBits(m_context->FRAME.Block(), m_context->FRAME.PSM, m_context->TEX0.TBP0, m_context->TEX0.PSM))
 			{
 				m_skip_offset = GSConfig.SkipDrawStart;
 				m_skip = GSConfig.SkipDrawEnd;

@@ -33,8 +33,11 @@
 
 #include "Config.h"
 #include "Counters.h"
+#include "Frontend/FullscreenUI.h"
 #include "Frontend/ImGuiManager.h"
+#include "Frontend/ImGuiFullscreen.h"
 #include "Frontend/ImGuiOverlays.h"
+#include "Frontend/InputManager.h"
 #include "GS.h"
 #include "GS/GS.h"
 #include "GS/GSVector.h"
@@ -42,27 +45,20 @@
 #include "HostDisplay.h"
 #include "IconsFontAwesome5.h"
 #include "PerformanceMetrics.h"
-
-#ifdef PCSX2_CORE
 #include "PAD/Host/PAD.h"
 #include "PAD/Host/KeyStatus.h"
-#include "Frontend/FullscreenUI.h"
-#include "Frontend/ImGuiManager.h"
-#include "Frontend/ImGuiFullscreen.h"
-#include "Frontend/InputManager.h"
+#include "USB/USB.h"
+
 #include "VMManager.h"
 #include "pcsx2/Recording/InputRecording.h"
-#endif
 
 namespace ImGuiManager
 {
 	static void FormatProcessorStat(std::string& text, double usage, double time);
 	static void DrawPerformanceOverlay();
-#ifdef PCSX2_CORE
 	static void DrawSettingsOverlay();
 	static void DrawInputsOverlay();
 	static void DrawInputRecordingOverlay();
-#endif
 } // namespace ImGuiManager
 
 static std::tuple<float, float> GetMinMax(gsl::span<const float> values)
@@ -116,7 +112,6 @@ void ImGuiManager::DrawPerformanceOverlay()
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
 	std::string text;
 	ImVec2 text_size;
-	bool first = true;
 
 	text.reserve(128);
 
@@ -131,16 +126,12 @@ void ImGuiManager::DrawPerformanceOverlay()
 		position_y += text_size.y + spacing; \
 	} while (0)
 
-#ifdef PCSX2_CORE
 	const bool paused = (VMManager::GetState() == VMState::Paused);
 	const bool fsui_active = FullscreenUI::HasActiveWindow();
-#else
-	const bool paused = false;
-	const bool fsui_active = false;
-#endif
 
 	if (!paused)
 	{
+		bool first = true;
 		const float speed = PerformanceMetrics::GetSpeed();
 		if (GSConfig.OsdShowFPS)
 		{
@@ -206,8 +197,8 @@ void ImGuiManager::DrawPerformanceOverlay()
 		if (GSConfig.OsdShowCPU)
 		{
 			text.clear();
-			fmt::format_to(std::back_inserter(text), "{:.2f}ms ({:.2f}ms worst)", PerformanceMetrics::GetAverageFrameTime(),
-				PerformanceMetrics::GetWorstFrameTime());
+			fmt::format_to(std::back_inserter(text), "{:.2f}ms | {:.2f}ms | {:.2f}ms", PerformanceMetrics::GetMinimumFrameTime(),
+				PerformanceMetrics::GetAverageFrameTime(), PerformanceMetrics::GetMaximumFrameTime());
 			DRAW_LINE(fixed_font, text.c_str(), IM_COL32(255, 255, 255, 255));
 
 			text.clear();
@@ -256,7 +247,6 @@ void ImGuiManager::DrawPerformanceOverlay()
 			}
 		}
 
-#ifdef PCSX2_CORE
 		if (GSConfig.OsdShowFrameTimes)
 		{
 			const ImVec2 history_size(200.0f * scale, 50.0f * scale);
@@ -317,7 +307,6 @@ void ImGuiManager::DrawPerformanceOverlay()
 			ImGui::PopStyleVar(5);
 			ImGui::PopStyleColor(3);
 		}
-#endif
 	}
 	else if (!fsui_active)
 	{
@@ -329,8 +318,6 @@ void ImGuiManager::DrawPerformanceOverlay()
 
 #undef DRAW_LINE
 }
-
-#ifdef PCSX2_CORE
 
 void ImGuiManager::DrawSettingsOverlay()
 {
@@ -358,7 +345,7 @@ void ImGuiManager::DrawSettingsOverlay()
 		APPEND("MTVU ");
 
 	APPEND("EER={} EEC={} VUR={} VUC={} VQS={} ", static_cast<unsigned>(EmuConfig.Cpu.sseMXCSR.GetRoundMode()),
-		EmuConfig.Cpu.Recompiler.GetEEClampMode(), static_cast<unsigned>(EmuConfig.Cpu.sseVUMXCSR.GetRoundMode()),
+		EmuConfig.Cpu.Recompiler.GetEEClampMode(), static_cast<unsigned>(EmuConfig.Cpu.sseVU0MXCSR.GetRoundMode()),
 		EmuConfig.Cpu.Recompiler.GetVUClampMode(), EmuConfig.GS.VsyncQueueSize);
 
 	if (EmuConfig.EnableCheats || EmuConfig.EnableWideScreenPatches || EmuConfig.EnableNoInterlacingPatches)
@@ -482,6 +469,12 @@ void ImGuiManager::DrawInputsOverlay()
 			num_ports++;
 	}
 
+	for (u32 port = 0; port < USB::NUM_PORTS; port++)
+	{
+		if (EmuConfig.USB.Ports[port].DeviceType >= 0 && !USB::GetDeviceBindings(port).empty())
+			num_ports++;
+	}
+
 	float current_x = margin;
 	float current_y = display_size.y - margin - ((static_cast<float>(num_ports) * (font->FontSize + spacing)) - spacing);
 
@@ -505,11 +498,11 @@ void ImGuiManager::DrawInputsOverlay()
 
 		for (u32 bind = 0; bind < cinfo->num_bindings; bind++)
 		{
-			const PAD::ControllerBindingInfo& bi = cinfo->bindings[bind];
-			switch (bi.type)
+			const InputBindingInfo& bi = cinfo->bindings[bind];
+			switch (bi.bind_type)
 			{
-				case PAD::ControllerBindingType::Axis:
-				case PAD::ControllerBindingType::HalfAxis:
+				case InputBindingInfo::Type::Axis:
+				case InputBindingInfo::Type::HalfAxis:
 				{
 					// axes are always shown
 					const float value = static_cast<float>(g_key_status.GetRawPressure(port, bind)) * (1.0f / 255.0f);
@@ -520,7 +513,7 @@ void ImGuiManager::DrawInputsOverlay()
 				}
 				break;
 
-				case PAD::ControllerBindingType::Button:
+				case InputBindingInfo::Type::Button:
 				{
 					// buttons only shown when active
 					const float value = static_cast<float>(g_key_status.GetRawPressure(port, bind)) * (1.0f / 255.0f);
@@ -529,9 +522,62 @@ void ImGuiManager::DrawInputsOverlay()
 				}
 				break;
 
-				case PAD::ControllerBindingType::Motor:
-				case PAD::ControllerBindingType::Macro:
-				case PAD::ControllerBindingType::Unknown:
+				case InputBindingInfo::Type::Motor:
+				case InputBindingInfo::Type::Macro:
+				case InputBindingInfo::Type::Unknown:
+				default:
+					break;
+			}
+		}
+
+		dl->AddText(font, font->FontSize, ImVec2(current_x + shadow_offset, current_y + shadow_offset), shadow_color, text.c_str(),
+			text.c_str() + text.length(), 0.0f, &clip_rect);
+		dl->AddText(
+			font, font->FontSize, ImVec2(current_x, current_y), text_color, text.c_str(), text.c_str() + text.length(), 0.0f, &clip_rect);
+
+		current_y += font->FontSize + spacing;
+	}
+
+	for (u32 port = 0; port < USB::NUM_PORTS; port++)
+	{
+		if (EmuConfig.USB.Ports[port].DeviceType < 0)
+			continue;
+
+		const gsl::span<const InputBindingInfo> bindings(USB::GetDeviceBindings(port));
+		if (bindings.empty())
+			continue;
+
+		text.clear();
+		fmt::format_to(std::back_inserter(text), "USB{} |", port + 1u);
+
+		for (const InputBindingInfo& bi : bindings)
+		{
+			switch (bi.bind_type)
+			{
+				case InputBindingInfo::Type::Axis:
+				case InputBindingInfo::Type::HalfAxis:
+				{
+					// axes are always shown
+					const float value = static_cast<float>(USB::GetDeviceBindValue(port, bi.bind_index));
+					if (value >= (254.0f / 255.0f))
+						fmt::format_to(std::back_inserter(text), " {}", bi.name);
+					else if (value > (1.0f / 255.0f))
+						fmt::format_to(std::back_inserter(text), " {}: {:.2f}", bi.name, value);
+				}
+				break;
+
+				case InputBindingInfo::Type::Button:
+				{
+					// buttons only shown when active
+					const float value = static_cast<float>(USB::GetDeviceBindValue(port, bi.bind_index));
+					if (value >= 0.5f)
+						fmt::format_to(std::back_inserter(text), " {}", bi.name);
+				}
+				break;
+
+				case InputBindingInfo::Type::Motor:
+				case InputBindingInfo::Type::Macro:
+				case InputBindingInfo::Type::Unknown:
 				default:
 					break;
 			}
@@ -546,9 +592,6 @@ void ImGuiManager::DrawInputsOverlay()
 	}
 }
 
-#endif
-
-#ifdef PCSX2_CORE
 void ImGuiManager::DrawInputRecordingOverlay()
 {
 	const float scale = ImGuiManager::GetGlobalScale();
@@ -597,14 +640,11 @@ void ImGuiManager::DrawInputRecordingOverlay()
 
 #undef DRAW_LINE
 }
-#endif
 
 void ImGuiManager::RenderOverlays()
 {
 	DrawPerformanceOverlay();
-#ifdef PCSX2_CORE
 	DrawInputRecordingOverlay();
 	DrawSettingsOverlay();
 	DrawInputsOverlay();
-#endif
 }

@@ -25,20 +25,14 @@
 #include "VUmicro.h"
 #include "COP0.h"
 #include "MTVU.h"
-
-#ifndef PCSX2_CORE
-#include "gui/SysThreads.h"
-#else
-#include "VMManager.h"
-#endif
 #include "R5900Exceptions.h"
+#include "VMManager.h"
 
 #include "Hardware.h"
 #include "IPU/IPUdma.h"
 
 #include "Elfheader.h"
 #include "CDVD/CDVD.h"
-#include "USB/USB.h"
 #include "Patch.h"
 #include "GameDatabase.h"
 
@@ -119,9 +113,6 @@ void cpuReset()
 	ElfEntry = -1;
 	g_GameStarted = false;
 	g_GameLoading = false;
-
-	// Probably not the right place, but it has to be done when the ram is actually initialized
-	USBsetRAM(iopMem->Main);
 
 	// FIXME: LastELF should be reset on media changes as well as on CPU resets, in
 	// the very unlikely case that a user swaps to another media source that "looks"
@@ -588,15 +579,9 @@ void eeGameStarting()
 
 		// GameStartingInThread may issue a reset of the cpu and/or recompilers.  Check for and
 		// handle such things here:
-#ifndef PCSX2_CORE
-		GetCoreThread().GameStartingInThread();
-		if (GetCoreThread().HasPendingStateChangeRequest())
-			Cpu->ExitExecution();
-#else
 		VMManager::Internal::GameStartingOnCPUThread();
 		if (VMManager::Internal::IsExecutionInterrupted())
 			Cpu->ExitExecution();
-#endif
 	}
 	else
 	{
@@ -650,11 +635,7 @@ int ParseArgumentString(u32 arg_block)
 // Called from recompilers; define is mandatory.
 void eeloadHook()
 {
-#ifndef PCSX2_CORE
-	const std::string elf_override(StringUtil::wxStringToUTF8String(GetCoreThread().GetElfOverride()));
-#else
 	const std::string& elf_override(VMManager::Internal::GetElfOverride());
-#endif
 
 	if (!elf_override.empty())
 		cdvdReloadElfInfo(StringUtil::StdStringFromFormat("host:%s", elf_override.c_str()));

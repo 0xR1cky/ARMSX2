@@ -20,6 +20,7 @@
 #include "newVif.h"
 #include "Gif_Unit.h"
 #include "SPU2/spu2.h"
+#include "USB/USB.h"
 
 #include "fmt/core.h"
 
@@ -67,7 +68,7 @@ void hwReset()
 
 	// Sets SPU2 sample rate to PS2 standard (48KHz) whenever emulator is reset.
 	// For PSX mode sample rate setting, see HwWrite.cpp
-	SPU2reset(PS2Modes::PS2);
+	SPU2::Reset(false);
 
 	sifReset();
 
@@ -78,7 +79,7 @@ void hwReset()
 	vif1Reset();
 	gif_fifo.init();
 	rcntInit();
-
+	USBreset();
 }
 
 __fi uint intcInterrupt()

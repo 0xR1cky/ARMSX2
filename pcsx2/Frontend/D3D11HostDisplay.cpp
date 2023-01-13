@@ -63,34 +63,6 @@ private:
 	bool m_dynamic;
 };
 
-static wil::com_ptr_nothrow<ID3D11VertexShader> CreateVertexShader(ID3D11Device* device, const void* bytecode,
-	size_t bytecode_length)
-{
-	wil::com_ptr_nothrow<ID3D11VertexShader> shader;
-	const HRESULT hr = device->CreateVertexShader(bytecode, bytecode_length, nullptr, shader.put());
-	if (FAILED(hr))
-	{
-		Console.Error("Failed to create vertex shader: 0x%08X", hr);
-		return {};
-	}
-
-	return shader;
-}
-
-static wil::com_ptr_nothrow<ID3D11PixelShader> CreatePixelShader(ID3D11Device* device, const void* bytecode,
-	size_t bytecode_length)
-{
-	wil::com_ptr_nothrow<ID3D11PixelShader> shader;
-	const HRESULT hr = device->CreatePixelShader(bytecode, bytecode_length, nullptr, shader.put());
-	if (FAILED(hr))
-	{
-		Console.Error("Failed to create pixel shader: 0x%08X", hr);
-		return {};
-	}
-
-	return shader;
-}
-
 D3D11HostDisplay::D3D11HostDisplay() = default;
 
 D3D11HostDisplay::~D3D11HostDisplay()
@@ -210,7 +182,7 @@ void D3D11HostDisplay::SetVSync(VsyncMode mode)
 	m_vsync_mode = mode;
 }
 
-bool D3D11HostDisplay::CreateDevice(const WindowInfo& wi)
+bool D3D11HostDisplay::CreateDevice(const WindowInfo& wi, VsyncMode vsync)
 {
 	UINT create_flags = 0;
 	if (EmuConfig.GS.UseDebugDevice)
@@ -314,7 +286,7 @@ bool D3D11HostDisplay::CreateDevice(const WindowInfo& wi)
 	}
 
 	m_window_info = wi;
-	m_vsync_mode = Host::GetEffectiveVSyncMode();
+	m_vsync_mode = vsync;
 
 	if (m_window_info.type != WindowInfo::Type::Surfaceless && !CreateSwapChain(nullptr))
 		return false;

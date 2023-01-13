@@ -28,6 +28,7 @@
 #include "IopBios.h"
 #include "IopHw.h"
 #include "Common.h"
+#include "VMManager.h"
 
 #include <time.h>
 
@@ -44,10 +45,6 @@
 #include "common/Path.h"
 #include "common/Perf.h"
 #include "DebugTools/Breakpoints.h"
-
-#ifndef PCSX2_CORE
-#include "gui/SysThreads.h"
-#endif
 
 #include "fmt/core.h"
 
@@ -69,7 +66,6 @@ using namespace x86Emitter;
 extern void psxBREAK();
 
 u32 g_psxMaxRecMem = 0;
-u32 s_psxrecblocks[] = {0};
 
 uptr psxRecLUT[0x10000];
 u32 psxhwLUT[0x10000];
@@ -113,8 +109,6 @@ extern void (*rpsxBSC[64])();
 void rpsxpropBSC(EEINST* prev, EEINST* pinst);
 
 static void iopClearRecLUT(BASEBLOCK* base, int count);
-
-static u32 psxdump = 0;
 
 #define PSX_GETBLOCK(x) PC_GETBLOCK_(x, psxRecLUT)
 
@@ -294,96 +288,6 @@ static void _DynGen_Dispatchers()
 
 ////////////////////////////////////////////////////
 using namespace R3000A;
-
-static void iIopDumpBlock(int startpc, u8* ptr)
-{
-	u32 i, j;
-	EEINST* pcur;
-	u8 used[34];
-	int numused, count;
-
-	Console.WriteLn("dump1 %x:%x, %x", startpc, psxpc, psxRegs.cycle);
-	FileSystem::CreateDirectoryPath(EmuFolders::Logs.c_str(), false);
-
-	std::string filename(Path::Combine(EmuFolders::Logs, fmt::format("psxdump{:.8X}.txt", startpc)));
-	std::FILE* f = FileSystem::OpenCFile(filename.c_str(), "w");
-	if (!f)
-		return;
-
-	std::fprintf(f, "Dump PSX register data: 0x%p\n\n", &psxRegs);
-
-	for (i = startpc; i < s_nEndBlock; i += 4)
-	{
-		std::fprintf(f, "%s\n", disR3000AF(iopMemRead32(i), i));
-	}
-
-	// write the instruction info
-	std::fprintf(f, "\n\nlive0 - %x, lastuse - %x used - %x\n", EEINST_LIVE, EEINST_LASTUSE, EEINST_USED);
-
-	memzero(used);
-	numused = 0;
-	for (i = 0; i < std::size(s_pInstCache->regs); ++i)
-	{
-		if (s_pInstCache->regs[i] & EEINST_USED)
-		{
-			used[i] = 1;
-			numused++;
-		}
-	}
-
-	std::fprintf(f, "       ");
-	for (i = 0; i < std::size(s_pInstCache->regs); ++i)
-	{
-		if (used[i])
-			std::fprintf(f, "%2d ", i);
-	}
-	std::fprintf(f, "\n");
-
-	std::fprintf(f, "       ");
-	for (i = 0; i < std::size(s_pInstCache->regs); ++i)
-	{
-		if (used[i])
-			std::fprintf(f, "%s ", disRNameGPR[i]);
-	}
-	std::fprintf(f, "\n");
-
-	pcur = s_pInstCache + 1;
-	for (i = 0; i < (s_nEndBlock - startpc) / 4; ++i, ++pcur)
-	{
-		std::fprintf(f, "%2d: %2.2x ", i + 1, pcur->info);
-
-		count = 1;
-		for (j = 0; j < std::size(s_pInstCache->regs); j++)
-		{
-			if (used[j])
-			{
-				std::fprintf(f, "%2.2x%s", pcur->regs[j], ((count % 8) && count < numused) ? "_" : " ");
-				++count;
-			}
-		}
-		std::fprintf(f, "\n");
-	}
-	std::fclose(f);
-
-#ifdef __linux__
-	// dump the asm
-	{
-		f = std::fopen("mydump1", "wb");
-		if (!f)
-			return;
-
-		std::fwrite(ptr, (uptr)x86Ptr - (uptr)ptr, 1, f);
-		std::fclose(f);
-	}
-
-	int status = std::system(fmt::format("objdump -D -b binary -mi386 -M intel --no-show-raw-insn {} >> {}; rm {}",
-		"mydump1", filename.c_str(), "mydump1")
-								 .c_str());
-
-	if (!WIFEXITED(status))
-		Console.Error("IOP dump didn't terminate normally");
-#endif
-}
 
 void _psxFlushConstReg(int reg)
 {
@@ -1416,9 +1320,7 @@ static bool psxDynarecCheckBreakpoint()
 		return false;
 
 	CBreakPoints::SetBreakpointTriggered(true);
-#ifndef PCSX2_CORE
-	GetCoreThread().PauseSelfDebug();
-#endif
+	VMManager::SetPaused(true);
 
 	// Exit the EE too.
 	Cpu->ExitExecution();
@@ -1432,9 +1334,7 @@ static bool psxDynarecMemcheck()
 		return false;
 
 	CBreakPoints::SetBreakpointTriggered(true);
-#ifndef PCSX2_CORE
-	GetCoreThread().PauseSelfDebug();
-#endif
+	VMManager::SetPaused(true);
 
 	// Exit the EE too.
 	Cpu->ExitExecution();
@@ -1464,11 +1364,9 @@ static void psxRecMemcheck(u32 op, u32 bits, bool store)
 	// ecx = access address
 	// edx = access address+size
 
-	auto checks = CBreakPoints::GetMemChecks();
+	auto checks = CBreakPoints::GetMemChecks(BREAKPOINT_IOP);
 	for (size_t i = 0; i < checks.size(); i++)
 	{
-		if (checks[i].cpu != BREAKPOINT_IOP)
-			continue;
 		if (checks[i].result == 0)
 			continue;
 		if ((checks[i].cond & MEMCHECK_WRITE) == 0 && store)
@@ -1572,6 +1470,7 @@ void psxRecompileNextInstruction(bool delayslot, bool swapped_delayslot)
 	// add breakpoint
 	if (!delayslot)
 	{
+		// Broken on x64
 		psxEncodeBreakpoint();
 		psxEncodeMemcheck();
 	}
@@ -1617,33 +1516,10 @@ void psxRecompileNextInstruction(bool delayslot, bool swapped_delayslot)
 #endif
 }
 
+#ifdef TRACE_BLOCKS
 static void PreBlockCheck(u32 blockpc)
 {
 #if 0
-	extern void iDumpPsxRegisters(u32 startpc, u32 temp);
-
-	static u32 lastrec = 0;
-
-	//*(int*)PSXM(0x27990) = 1; // enables cdvd bios output for scph10000
-
-	if ((psxdump & 2) && lastrec != blockpc)
-	{
-		static int curcount = 0;
-		constexpr int skip = 0;
-
-		curcount++;
-
-		if (curcount > skip)
-		{
-			iDumpPsxRegisters(blockpc, 1);
-			curcount = 0;
-		}
-
-		lastrec = blockpc;
-	}
-#endif
-#ifdef TRACE_BLOCKS
-#if 1
 	static FILE* fp = nullptr;
 	static bool fp_opened = false;
 	if (!fp_opened && psxRegs.cycle >= 0)
@@ -1672,8 +1548,8 @@ static void PreBlockCheck(u32 blockpc)
 	if (psxRegs.cycle == 0)
 		__debugbreak();
 #endif
-#endif
 }
+#endif
 
 static void iopRecRecompile(const u32 startpc)
 {
@@ -1688,12 +1564,6 @@ static void iopRecRecompile(const u32 startpc)
 			// FIXME do I need to increase the module count (0x1F -> 0x20)
 			iopMemWrite32(0x20094, 0xbffc0000);
 		}
-	}
-
-	if (IsDebugBuild && (psxdump & 4))
-	{
-		extern void iDumpPsxRegisters(u32 startpc, u32 temp);
-		iDumpPsxRegisters(startpc, 0);
 	}
 
 	pxAssert(startpc);
@@ -1781,7 +1651,7 @@ static void iopRecRecompile(const u32 startpc)
 
 			case 2: // J
 			case 3: // JAL
-				s_branchTo = _InstrucTarget_ << 2 | (i + 4) & 0xf0000000;
+				s_branchTo = (_InstrucTarget_ << 2) | ((i + 4) & 0xf0000000);
 				s_nEndBlock = i + 8;
 				goto StartRecomp;
 
@@ -1847,29 +1717,11 @@ StartRecomp:
 		}
 	}
 
-	// dump code
-	if (IsDebugBuild)
-	{
-		for (u32 recblock : s_psxrecblocks)
-		{
-			if (startpc == recblock)
-			{
-				iIopDumpBlock(startpc, recPtr);
-			}
-		}
-
-		if ((psxdump & 1))
-			iIopDumpBlock(startpc, recPtr);
-	}
-
 	g_pCurInstInfo = s_pInstCache;
 	while (!psxbranch && psxpc < s_nEndBlock)
 	{
 		psxRecompileNextInstruction(false, false);
 	}
-
-	if (IsDebugBuild && (psxdump & 1))
-		iIopDumpBlock(startpc, recPtr);
 
 	pxAssert((psxpc - startpc) >> 2 <= 0xffff);
 	s_pCurBlockEx->size = (psxpc - startpc) >> 2;

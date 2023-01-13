@@ -26,6 +26,8 @@
 #include "common/SettingsInterface.h"
 #include "common/WindowInfo.h"
 
+#include "pcsx2/Config.h"
+
 /// Class, or source of an input event.
 enum class InputSourceType : u32
 {
@@ -51,8 +53,9 @@ enum class InputSubclass : u32
 
 	ControllerButton = 0,
 	ControllerAxis = 1,
-	ControllerMotor = 2,
-	ControllerHaptic = 3,
+	ControllerHat = 2,
+	ControllerMotor = 3,
+	ControllerHaptic = 4,
 };
 
 enum class InputModifier : u32
@@ -69,9 +72,10 @@ union InputBindingKey
 	{
 		InputSourceType source_type : 4;
 		u32 source_index : 8; ///< controller number
-		InputSubclass source_subtype : 2; ///< if 1, binding is for an axis and not a button (used for controllers)
+		InputSubclass source_subtype : 3; ///< if 1, binding is for an axis and not a button (used for controllers)
 		InputModifier modifier : 2;
-		u32 unused : 16;
+		u32 invert : 1; ///< if 1, value is inverted prior to being sent to the sink
+		u32 unused : 14;
 		u32 data;
 	};
 
@@ -87,6 +91,7 @@ union InputBindingKey
 		InputBindingKey r;
 		r.bits = bits;
 		r.modifier = InputModifier::None;
+		r.invert = 0;
 		return r;
 	}
 };
@@ -143,50 +148,6 @@ DECLARE_HOTKEY_LIST(g_common_hotkeys);
 DECLARE_HOTKEY_LIST(g_gs_hotkeys);
 DECLARE_HOTKEY_LIST(g_host_hotkeys);
 
-/// Generic input bindings. These roughly match a DualShock 4 or XBox One controller.
-/// They are used for automatic binding to PS2 controller types, and for big picture mode navigation.
-enum class GenericInputBinding : u8
-{
-	Unknown,
-
-	DPadUp,
-	DPadRight,
-	DPadLeft,
-	DPadDown,
-
-	LeftStickUp,
-	LeftStickRight,
-	LeftStickDown,
-	LeftStickLeft,
-	L3,
-
-	RightStickUp,
-	RightStickRight,
-	RightStickDown,
-	RightStickLeft,
-	R3,
-
-	Triangle, // Y on XBox pads.
-	Circle, // B on XBox pads.
-	Cross, // A on XBox pads.
-	Square, // X on XBox pads.
-
-	Select, // Share on DS4, View on XBox pads.
-	Start, // Options on DS4, Menu on XBox pads.
-	System, // PS button on DS4, Guide button on XBox pads.
-
-	L1, // LB on Xbox pads.
-	L2, // Left trigger on XBox pads.
-	R1, // RB on XBox pads.
-	R2, // Right trigger on Xbox pads.
-
-	SmallMotor, // High frequency vibration.
-	LargeMotor, // Low frequency vibration.
-
-	Count,
-};
-using GenericInputBindingMapping = std::vector<std::pair<GenericInputBinding, std::string>>;
-
 /// Host mouse relative axes are X, Y, wheel horizontal, wheel vertical.
 enum class InputPointerAxis : u8
 {
@@ -207,6 +168,7 @@ namespace InputManager
 
 	/// Maximum number of host mouse devices.
 	static constexpr u32 MAX_POINTER_DEVICES = 1;
+	static constexpr u32 MAX_POINTER_BUTTONS = 3;
 
 	/// Returns a pointer to the external input source class, if present.
 	InputSource* GetInputSourceInterface(InputSourceType type);
@@ -219,6 +181,12 @@ namespace InputManager
 
 	/// Parses an input class string.
 	std::optional<InputSourceType> ParseInputSourceString(const std::string_view& str);
+
+	/// Parses a pointer device string, i.e. tells you which pointer is specified.
+	std::optional<u32> GetIndexFromPointerBinding(const std::string_view& str);
+
+	/// Returns the device name for a pointer index (e.g. Pointer-0).
+	std::string GetPointerDeviceName(u32 pointer_index);
 
 	/// Converts a key code from a human-readable string to an identifier.
 	std::optional<u32> ConvertHostKeyboardStringToCode(const std::string_view& str);
@@ -240,10 +208,10 @@ namespace InputManager
 	std::optional<InputBindingKey> ParseInputBindingKey(const std::string_view& binding);
 
 	/// Converts a input key to a string.
-	std::string ConvertInputBindingKeyToString(InputBindingKey key);
+	std::string ConvertInputBindingKeyToString(InputBindingInfo::Type binding_type, InputBindingKey key);
 
 	/// Converts a chord of binding keys to a string.
-	std::string ConvertInputBindingKeysToString(const InputBindingKey* keys, size_t num_keys);
+	std::string ConvertInputBindingKeysToString(InputBindingInfo::Type binding_type, const InputBindingKey* keys, size_t num_keys);
 
 	/// Returns a list of all hotkeys.
 	std::vector<const HotkeyInfo*> GetHotkeyList();
@@ -255,6 +223,7 @@ namespace InputManager
 	std::vector<InputBindingKey> EnumerateMotors();
 
 	/// Retrieves bindings that match the generic bindings for the specified device.
+	using GenericInputBindingMapping = std::vector<std::pair<GenericInputBinding, std::string>>;
 	GenericInputBindingMapping GetGenericBindingMapping(const std::string_view& device);
 
 	/// Returns whether a given input source is enabled.
@@ -306,14 +275,20 @@ namespace InputManager
 	/// The pad vibration state will internally remain, so that when emulation is unpaused, the effect resumes.
 	void PauseVibration();
 
+	/// Reads absolute pointer position.
+	std::pair<float, float> GetPointerAbsolutePosition(u32 index);
+
 	/// Updates absolute pointer position. Can call from UI thread, use when the host only reports absolute coordinates.
 	void UpdatePointerAbsolutePosition(u32 index, float x, float y);
 
 	/// Updates relative pointer position. Can call from the UI thread, use when host supports relative coordinate reporting.
 	void UpdatePointerRelativeDelta(u32 index, InputPointerAxis axis, float d, bool raw_input = false);
 
-	/// Returns true if any bindings are present which require relative mouse movement.
-	bool HasPointerAxisBinds();
+	/// Called when a new input device is connected.
+	void OnInputDeviceConnected(const std::string_view& identifier, const std::string_view& device_name);
+
+	/// Called when an input device is disconnected.
+	void OnInputDeviceDisconnected(const std::string_view& identifier);
 } // namespace InputManager
 
 namespace Host
@@ -326,4 +301,7 @@ namespace Host
 
 	/// Called when an input device is disconnected.
 	void OnInputDeviceDisconnected(const std::string_view& identifier);
+
+	/// Enables relative mouse mode in the host.
+	void SetRelativeMouseMode(bool enabled);
 } // namespace Host

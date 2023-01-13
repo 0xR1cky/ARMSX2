@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>658</width>
-    <height>476</height>
+    <width>861</width>
+    <height>501</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -89,12 +89,12 @@
         <widget class="QComboBox" name="aspectRatio">
          <item>
           <property name="text">
-           <string>Fit to Window/Screen</string>
+           <string>Fit to Window / Fullscreen</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Auto Standard (4:3/3:2 Progressive)</string>
+           <string>Auto Standard (4:3 Interlaced / 3:2 Progressive)</string>
           </property>
          </item>
          <item>
@@ -125,7 +125,7 @@
          </item>
          <item>
           <property name="text">
-           <string>Auto Standard (4:3/3:2 Progressive)</string>
+           <string>Auto Standard (4:3 Interlaced / 3:2 Progressive)</string>
           </property>
          </item>
          <item>
@@ -143,7 +143,7 @@
        <item row="3" column="0">
         <widget class="QLabel" name="label_23">
          <property name="text">
-          <string>Deinterlacing:</string>
+          <string>De-interlacing:</string>
          </property>
         </widget>
        </item>
@@ -156,7 +156,7 @@
          </item>
          <item>
           <property name="text">
-           <string>None</string>
+           <string>None (Interlaced, also used by Progressive)</string>
           </property>
          </item>
          <item>
@@ -171,60 +171,66 @@
          </item>
          <item>
           <property name="text">
-           <string>Bob (Top Field First)</string>
+           <string>Bob (Top Field First, Full Frames)</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Bob (Bottom Field First)</string>
+           <string>Bob (Bottom Field First, Full Frames)</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Blend (Top Field First, Half FPS)</string>
+           <string>Blend (Top Field First, Merge 2 Fields)</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Blend (Bottom Field First, Half FPS)</string>
+           <string>Blend (Bottom Field First, Merge 2 Fields)</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Adaptive (Top Field First)</string>
+           <string>Adaptive (Top Field First, Similar to Bob + Weave)</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Adaptive (Bottom Field First)</string>
+           <string>Adaptive (Bottom Field First, Similar to Bob + Weave)</string>
           </property>
          </item>
         </widget>
        </item>
-       <item row="5" column="0">
-        <widget class="QLabel" name="label_21">
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_18">
          <property name="text">
-          <string>Zoom:</string>
+          <string>Bilinear Filtering:</string>
          </property>
         </widget>
        </item>
-       <item row="5" column="1">
-        <widget class="QSpinBox" name="zoom">
-         <property name="suffix">
-          <string>%</string>
-         </property>
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="maximum">
-          <number>300</number>
-         </property>
+       <item row="4" column="1">
+        <widget class="QComboBox" name="bilinearFiltering">
+         <item>
+          <property name="text">
+           <string>None</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Bilinear (Smooth)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Bilinear (Sharp)</string>
+          </property>
+         </item>
         </widget>
        </item>
        <item row="6" column="0">
         <widget class="QLabel" name="label_24">
          <property name="text">
-          <string>Stretch Height:</string>
+          <string>Vertical Stretch:</string>
          </property>
         </widget>
        </item>
@@ -383,31 +389,69 @@
          </item>
         </layout>
        </item>
-       <item row="4" column="0">
-        <widget class="QLabel" name="label_18">
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_21">
          <property name="text">
-          <string>Bilinear Filtering:</string>
+          <string>Screenshot Size:</string>
          </property>
         </widget>
        </item>
-       <item row="4" column="1">
-        <widget class="QComboBox" name="bilinearFiltering">
+       <item row="5" column="1">
+        <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="1,0,0,0">
          <item>
-          <property name="text">
-           <string>None</string>
-          </property>
+          <widget class="QComboBox" name="screenshotSize">
+           <item>
+            <property name="text">
+             <string>Screen Resolution</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Internal Resolution</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Internal Resolution (Aspect Uncorrected)</string>
+            </property>
+           </item>
+          </widget>
          </item>
          <item>
-          <property name="text">
-           <string>Bilinear (Smooth)</string>
-          </property>
+          <widget class="QComboBox" name="screenshotFormat">
+           <item>
+            <property name="text">
+             <string>PNG</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>JPEG</string>
+            </property>
+           </item>
+          </widget>
          </item>
          <item>
-          <property name="text">
-           <string>Bilinear (Sharp)</string>
-          </property>
+          <widget class="QLabel" name="label_44">
+           <property name="text">
+            <string>Quality:</string>
+           </property>
+          </widget>
          </item>
-        </widget>
+         <item>
+          <widget class="QSpinBox" name="screenshotQuality">
+           <property name="suffix">
+            <string>%</string>
+           </property>
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>100</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
        </item>
       </layout>
      </widget>
@@ -876,14 +920,14 @@
          </item>
         </widget>
        </item>
-       <item row="3" column="0">
+       <item row="4" column="0">
         <widget class="QLabel" name="label_12">
          <property name="text">
           <string>Skipdraw Range:</string>
          </property>
         </widget>
        </item>
-       <item row="3" column="1">
+       <item row="4" column="1">
         <layout class="QHBoxLayout" name="horizontalLayout">
          <item>
           <widget class="QSpinBox" name="skipDrawStart">
@@ -901,7 +945,7 @@
          </item>
         </layout>
        </item>
-       <item row="4" column="0" colspan="2">
+       <item row="5" column="0" colspan="2">
         <layout class="QGridLayout" name="gridLayout">
          <item row="0" column="0">
           <widget class="QCheckBox" name="hwAutoFlush">
@@ -924,24 +968,10 @@
            </property>
           </widget>
          </item>
-         <item row="1" column="1">
-          <widget class="QCheckBox" name="memoryWrapping">
-           <property name="text">
-            <string>Memory Wrapping</string>
-           </property>
-          </widget>
-         </item>
          <item row="2" column="0">
           <widget class="QCheckBox" name="disableSafeFeatures">
            <property name="text">
             <string>Disable Safe Features</string>
-           </property>
-          </widget>
-         </item>
-         <item row="2" column="1">
-          <widget class="QCheckBox" name="preloadFrameData">
-           <property name="text">
-            <string>Preload Frame Data</string>
            </property>
           </widget>
          </item>
@@ -952,7 +982,14 @@
            </property>
           </widget>
          </item>
-         <item row="3" column="1">
+         <item row="1" column="1">
+          <widget class="QCheckBox" name="preloadFrameData">
+           <property name="text">
+            <string>Preload Frame Data</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
           <widget class="QCheckBox" name="textureInsideRt">
            <property name="text">
             <string>Texture Inside RT</string>
@@ -991,6 +1028,32 @@
          <property name="text">
           <string>Software CLUT Render:</string>
          </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_47">
+         <property name="text">
+          <string>GPU Target CLUT:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QComboBox" name="gpuTargetCLUTMode">
+         <item>
+          <property name="text">
+           <string>Disabled (Default)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Enabled (Exact Match)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Enabled (Check Inside Target)</string>
+          </property>
+         </item>
         </widget>
        </item>
       </layout>
@@ -1258,7 +1321,7 @@
              <widget class="QComboBox" name="casMode">
               <item>
                <property name="text">
-                <string>Disabled</string>
+                <string>None (Default)</string>
                </property>
               </item>
               <item>
@@ -1326,7 +1389,7 @@
            <widget class="QComboBox" name="tvShader">
             <item>
              <property name="text">
-              <string>None</string>
+              <string>None (Default)</string>
              </property>
             </item>
             <item>
@@ -1592,11 +1655,142 @@
       </attribute>
       <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <widget class="QGroupBox" name="groupBox_2">
+        <widget class="QGroupBox" name="advancedOptions">
          <property name="title">
-          <string>Debug Options</string>
+          <string>Advanced Options</string>
          </property>
-         <layout class="QFormLayout" name="advancedDebugFormLayout">
+         <layout class="QFormLayout" name="advancedOptionsFormLayout">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_42">
+            <property name="text">
+             <string>Hardware Download Mode:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QComboBox" name="gsDownloadMode">
+            <item>
+             <property name="text">
+              <string>Accurate (Recommended)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Disable Readbacks (Synchronize GS Thread)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Unsynchronized (Non-Deterministic)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Disabled (Ignore Transfers)</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_34">
+            <property name="text">
+             <string>GS Dump Compression:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QComboBox" name="gsDumpCompression">
+            <item>
+             <property name="text">
+              <string>Uncompressed</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>LZMA (xz)</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Zstandard (zst)</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="3" column="0" colspan="2">
+           <layout class="QGridLayout" name="gridLayout_9">
+            <item row="0" column="1">
+             <widget class="QCheckBox" name="skipPresentingDuplicateFrames">
+              <property name="text">
+               <string>Skip Presenting Duplicate Frames</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="0">
+             <widget class="QCheckBox" name="useBlitSwapChain">
+              <property name="text">
+               <string>Use Blit Swap Chain</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QCheckBox" name="threadedPresentation">
+              <property name="text">
+               <string>Disable Threaded Presentation</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <widget class="QLabel" name="label_45">
+            <property name="text">
+             <string>Video Capture Codec:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <layout class="QHBoxLayout" name="horizontalLayout_5" stretch="1,0,0,0">
+            <item>
+             <widget class="QComboBox" name="videoCaptureCodec"/>
+            </item>
+            <item>
+             <widget class="QComboBox" name="videoCaptureContainer"/>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_46">
+              <property name="text">
+               <string>Bitrate:</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="videoCaptureBitrate">
+              <property name="suffix">
+               <string> kbps</string>
+              </property>
+              <property name="minimum">
+               <number>100</number>
+              </property>
+              <property name="maximum">
+               <number>100000</number>
+              </property>
+              <property name="singleStep">
+               <number>100</number>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item>
+        <widget class="QGroupBox" name="debuggingOptions">
+         <property name="title">
+          <string>Debugging Options</string>
+         </property>
+         <layout class="QFormLayout" name="debuggingOptionsFormLayout">
           <item row="0" column="0">
            <widget class="QLabel" name="label_19">
             <property name="text">
@@ -1649,101 +1843,30 @@
             </item>
            </widget>
           </item>
-          <item row="5" column="0" colspan="2">
+          <item row="3" column="0" colspan="2">
            <layout class="QGridLayout" name="gridLayout_7">
-            <item row="2" column="0">
-             <widget class="QCheckBox" name="skipPresentingDuplicateFrames">
-              <property name="text">
-               <string>Skip Presenting Duplicate Frames</string>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="0">
-             <widget class="QCheckBox" name="useBlitSwapChain">
-              <property name="text">
-               <string>Use Blit Swap Chain</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="1">
-             <widget class="QCheckBox" name="disableFramebufferFetch">
-              <property name="text">
-               <string>Disable Framebuffer Fetch</string>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
+            <item row="1" column="0">
              <widget class="QCheckBox" name="useDebugDevice">
               <property name="text">
                <string>Use Debug Device</string>
               </property>
              </widget>
             </item>
-            <item row="1" column="0">
+            <item row="0" column="0">
              <widget class="QCheckBox" name="disableDualSource">
               <property name="text">
                <string>Disable Dual Source Blending</string>
               </property>
              </widget>
             </item>
+            <item row="0" column="1">
+             <widget class="QCheckBox" name="disableFramebufferFetch">
+              <property name="text">
+               <string>Disable Framebuffer Fetch</string>
+              </property>
+             </widget>
+            </item>
            </layout>
-          </item>
-          <item row="3" column="0">
-           <widget class="QLabel" name="label_34">
-            <property name="text">
-             <string>GS Dump Compression:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="3" column="1">
-           <widget class="QComboBox" name="gsDumpCompression">
-            <item>
-             <property name="text">
-              <string>Uncompressed</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>LZMA (xz)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Zstandard (zst)</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item row="2" column="0">
-           <widget class="QLabel" name="label_42">
-            <property name="text">
-             <string>Hardware Download Mode:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QComboBox" name="gsDownloadMode">
-            <item>
-             <property name="text">
-              <string>Accurate (Recommended)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Disable Readbacks (Synchronize GS Thread)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Unsynchronized (Non-Deterministic)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Disabled (Ignore Transfers)</string>
-             </property>
-            </item>
-           </widget>
           </item>
          </layout>
         </widget>
@@ -1772,8 +1895,8 @@
      </property>
      <property name="sizeHint" stdset="0">
       <size>
-       <width>20</width>
-       <height>40</height>
+       <width>40</width>
+       <height>60</height>
       </size>
      </property>
     </spacer>

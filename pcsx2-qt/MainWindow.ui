@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>950</width>
-    <height>640</height>
+    <width>1050</width>
+    <height>666</height>
    </rect>
   </property>
   <property name="acceptDrops">
@@ -22,7 +22,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>950</width>
+     <width>1050</width>
      <height>22</height>
     </rect>
    </property>
@@ -127,6 +127,8 @@
     </widget>
     <addaction name="menuDebugSwitchRenderer"/>
     <addaction name="separator"/>
+    <addaction name="actionDebugger"/>
+    <addaction name="separator"/>
     <addaction name="actionEnableLogTimestamps"/>
     <addaction name="separator"/>
     <addaction name="actionEnableEEConsoleLogging"/>
@@ -188,6 +190,7 @@
     <addaction name="actionToggleSoftwareRendering"/>
     <addaction name="actionReloadPatches"/>
     <addaction name="menuInput_Recording"/>
+    <addaction name="actionToolsVideoCapture"/>
     <addaction name="separator"/>
     <addaction name="actionEnableSystemConsole"/>
     <addaction name="actionEnableFileLogging"/>
@@ -719,6 +722,11 @@
     <string>Toggle Software Rendering</string>
    </property>
   </action>
+  <action name="actionDebugger">
+   <property name="text">
+    <string>Open Debugger</string>
+   </property>
+  </action>
   <action name="actionReloadPatches">
    <property name="text">
     <string>Reload Cheats/Patches</string>
@@ -880,6 +888,14 @@
   <action name="actionInputRecOpenViewer">
    <property name="text">
     <string>Recording Viewer</string>
+   </property>
+  </action>
+  <action name="actionToolsVideoCapture">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Video Capture</string>
    </property>
   </action>
  </widget>

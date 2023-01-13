@@ -28,7 +28,7 @@
 
 #ifdef FRAGMENT_SHADER
 
-#if !defined(BROKEN_DRIVER) && defined(GL_ARB_enhanced_layouts) && GL_ARB_enhanced_layouts
+#if !defined(BROKEN_DRIVER) && (pGL_ES || defined(GL_ARB_enhanced_layouts) && GL_ARB_enhanced_layouts)
 layout(location = 0)
 #endif
 in SHADER
@@ -55,6 +55,8 @@ in SHADER
     #undef TARGET_0_QUALIFIER
     #define TARGET_0_QUALIFIER inout
     #define LAST_FRAG_COLOR SV_Target0
+  #elif defined(GL_ARM_shader_framebuffer_fetch)
+    #define LAST_FRAG_COLOR gl_LastFragColorARM
   #endif
 #endif
 
@@ -125,15 +127,20 @@ vec4 sample_c(vec2 uv)
 
     return textureLod(TextureSampler, uv, lod);
 #else
-    return textureLod(TextureSampler, uv, 0); // No lod
+    return textureLod(TextureSampler, uv, 0.0f); // No lod
 #endif
 
 #endif
 }
 
-vec4 sample_p(float idx)
+vec4 sample_p(uint idx)
 {
-    return texture(PaletteSampler, vec2(idx, 0.0f));
+	return texelFetch(PaletteSampler, ivec2(int(idx), 0), 0);
+}
+
+vec4 sample_p_norm(float u)
+{
+	return sample_p(uint(u * 255.5f));
 }
 
 vec4 clamp_wrap_uv(vec4 uv)
@@ -200,7 +207,7 @@ mat4 sample_4c(vec4 uv)
     return c;
 }
 
-vec4 sample_4_index(vec4 uv)
+uvec4 sample_4_index(vec4 uv)
 {
     vec4 c;
 
@@ -216,26 +223,22 @@ vec4 sample_4_index(vec4 uv)
     c.z = sample_c(uv.xw).a;
     c.w = sample_c(uv.zw).a;
 
-    uvec4 i = uvec4(c * 255.0f + 0.5f); // Denormalize value
+    uvec4 i = uvec4(c * 255.5f); // Denormalize value
 
 #if PS_PAL_FMT == 1
     // 4HL
-    return vec4(i & 0xFu) / 255.0f;
-
+    return i & 0xFu
 #elif PS_PAL_FMT == 2
     // 4HH
-    return vec4(i >> 4u) / 255.0f;
-
+    return i >> 4u;
 #else
-    // Most of texture will hit this code so keep normalized float value
-
-    // 8 bits
-    return c;
+    // 8
+    return i;
 #endif
 
 }
 
-mat4 sample_4p(vec4 u)
+mat4 sample_4p(uvec4 u)
 {
     mat4 c;
 
@@ -249,10 +252,16 @@ mat4 sample_4p(vec4 u)
 
 int fetch_raw_depth()
 {
-#if PS_TEX_IS_FB == 1
-    return int(fetch_rt().r * exp2(32.0f));
+#if HAS_CLIP_CONTROL
+    float multiplier = exp2(32.0f);
 #else
-    return int(texelFetch(TextureSampler, ivec2(gl_FragCoord.xy), 0).r * exp2(32.0f));
+    float multiplier = exp2(24.0f);
+#endif
+
+#if PS_TEX_IS_FB == 1
+    return int(fetch_rt().r * multiplier);
+#else
+    return int(texelFetch(TextureSampler, ivec2(gl_FragCoord.xy), 0).r * multiplier);
 #endif
 }
 
@@ -344,13 +353,21 @@ vec4 sample_depth(vec2 st)
 #elif PS_DEPTH_FMT == 1
     // Based on ps_convert_float32_rgba8 of convert
     // Convert a GL_FLOAT32 depth texture into a RGBA color texture
-    uint d = uint(fetch_c(uv).r * exp2(32.0f));
+    #if HAS_CLIP_CONTROL
+      uint d = uint(fetch_c(uv).r * exp2(32.0f));
+    #else
+      uint d = uint(fetch_c(uv).r * exp2(24.0f));
+    #endif
     t = vec4(uvec4((d & 0xFFu), ((d >> 8) & 0xFFu), ((d >> 16) & 0xFFu), (d >> 24)));
 
 #elif PS_DEPTH_FMT == 2
     // Based on ps_convert_float16_rgb5a1 of convert
     // Convert a GL_FLOAT32 (only 16 lsb) depth into a RGB5A1 color texture
-    uint d = uint(fetch_c(uv).r * exp2(32.0f));
+    #if HAS_CLIP_CONTROL
+      uint d = uint(fetch_c(uv).r * exp2(32.0f));
+    #else
+      uint d = uint(fetch_c(uv).r * exp2(24.0f));
+    #endif
     t = vec4(uvec4((d & 0x1Fu), ((d >> 5) & 0x1Fu), ((d >> 10) & 0x1Fu), (d >> 15) & 0x01u)) * vec4(8.0f, 8.0f, 8.0f, 128.0f);
 
 #elif PS_DEPTH_FMT == 3
@@ -382,7 +399,7 @@ vec4 fetch_red()
 #else
     vec4 rt = fetch_raw_color();
 #endif
-    return sample_p(rt.r) * 255.0f;
+    return sample_p_norm(rt.r) * 255.0f;
 }
 
 vec4 fetch_green()
@@ -393,7 +410,7 @@ vec4 fetch_green()
 #else
     vec4 rt = fetch_raw_color();
 #endif
-    return sample_p(rt.g) * 255.0f;
+    return sample_p_norm(rt.g) * 255.0f;
 }
 
 vec4 fetch_blue()
@@ -404,19 +421,19 @@ vec4 fetch_blue()
 #else
     vec4 rt = fetch_raw_color();
 #endif
-    return sample_p(rt.b) * 255.0f;
+    return sample_p_norm(rt.b) * 255.0f;
 }
 
 vec4 fetch_alpha()
 {
     vec4 rt = fetch_raw_color();
-    return sample_p(rt.a) * 255.0f;
+    return sample_p_norm(rt.a) * 255.0f;
 }
 
 vec4 fetch_rgb()
 {
     vec4 rt = fetch_raw_color();
-    vec4 c = vec4(sample_p(rt.r).r, sample_p(rt.g).g, sample_p(rt.b).b, 1.0f);
+    vec4 c = vec4(sample_p_norm(rt.r).r, sample_p_norm(rt.g).g, sample_p_norm(rt.b).b, 1.0f);
     return c * 255.0f;
 }
 
@@ -834,16 +851,16 @@ void ps_main()
 
     vec4 C = ps_color();
 #if (APITRACE_DEBUG & 1) == 1
-    C.r = 255f;
+    C.r = 255.0f;
 #endif
 #if (APITRACE_DEBUG & 2) == 2
-    C.g = 255f;
+    C.g = 255.0f;
 #endif
 #if (APITRACE_DEBUG & 4) == 4
-    C.b = 255f;
+    C.b = 255.0f;
 #endif
 #if (APITRACE_DEBUG & 8) == 8
-    C.a = 128f;
+    C.a = 128.0f;
 #endif
 
 #if PS_SHUFFLE

@@ -174,7 +174,7 @@ void CommonHost::SetDataDirectory()
 		const char* home_dir = getenv("HOME");
 		if (home_dir)
 		{
-#ifndef XDG_STD
+#ifdef USE_LEGACY_USER_DIRECTORY
 			EmuFolders::DataRoot = Path::Combine(home_dir, "PCSX2");
 #else
 			// ~/.config should exist, but just in case it doesn't and this is a fresh profile..
@@ -346,7 +346,6 @@ void CommonHost::OnVMDestroyed()
 void CommonHost::OnVMPaused()
 {
 	InputManager::PauseVibration();
-	FullscreenUI::OnVMPaused();
 
 #ifdef ENABLE_ACHIEVEMENTS
 	Achievements::OnPaused(true);
@@ -357,8 +356,6 @@ void CommonHost::OnVMPaused()
 
 void CommonHost::OnVMResumed()
 {
-	FullscreenUI::OnVMResumed();
-
 #ifdef ENABLE_ACHIEVEMENTS
 	Achievements::OnPaused(false);
 #endif
@@ -366,7 +363,8 @@ void CommonHost::OnVMResumed()
 	UpdateInhibitScreensaver(EmuConfig.InhibitScreensaver);
 }
 
-void CommonHost::OnGameChanged(const std::string& disc_path, const std::string& game_serial, const std::string& game_name, u32 game_crc)
+void CommonHost::OnGameChanged(const std::string& disc_path, const std::string& elf_override, const std::string& game_serial,
+	const std::string& game_name, u32 game_crc)
 {
 	UpdateSessionTime(game_serial);
 

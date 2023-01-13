@@ -65,7 +65,7 @@ std::string DInputSource::GetDeviceIdentifier(u32 index)
 	return fmt::format("DInput-{}", index);
 }
 
-static constexpr std::array<const char*, DInputSource::NUM_HAT_DIRECTIONS> s_hat_directions = {{"Up", "Right", "Down", "Left"}};
+static constexpr std::array<const char*, DInputSource::NUM_HAT_DIRECTIONS> s_hat_directions = {{"Up", "Down", "Left", "Right"}};
 
 bool DInputSource::Initialize(SettingsInterface& si, std::unique_lock<std::mutex>& settings_lock)
 {
@@ -84,8 +84,8 @@ bool DInputSource::Initialize(SettingsInterface& si, std::unique_lock<std::mutex
 		return false;
 	}
 
-	HRESULT hr = create(
-		GetModuleHandleA(nullptr), DIRECTINPUT_VERSION, IID_IDirectInput8W, reinterpret_cast<LPVOID*>(m_dinput.put()), nullptr);
+	HRESULT hr =
+		create(GetModuleHandleA(nullptr), DIRECTINPUT_VERSION, IID_IDirectInput8W, reinterpret_cast<LPVOID*>(m_dinput.put()), nullptr);
 	m_joystick_data_format = get_joystick_data_format();
 	if (FAILED(hr) || !m_joystick_data_format)
 	{
@@ -96,12 +96,13 @@ bool DInputSource::Initialize(SettingsInterface& si, std::unique_lock<std::mutex
 	// need to release the lock while we're enumerating, because we call winId().
 	settings_lock.unlock();
 	const std::optional<WindowInfo> toplevel_wi(Host::GetTopLevelWindowInfo());
+	settings_lock.lock();
+
 	if (!toplevel_wi.has_value() || toplevel_wi->type != WindowInfo::Type::Win32)
 	{
 		Console.Error("Missing top level window, cannot add DInput devices.");
 		return false;
 	}
-	settings_lock.lock();
 
 	m_toplevel_window = static_cast<HWND>(toplevel_wi->window_handle);
 	ReloadDevices();
@@ -155,7 +156,7 @@ bool DInputSource::ReloadDevices()
 		{
 			const u32 index = static_cast<u32>(m_controllers.size());
 			m_controllers.push_back(std::move(cd));
-			Host::OnInputDeviceConnected(GetDeviceIdentifier(index), name);
+			InputManager::OnInputDeviceConnected(GetDeviceIdentifier(index), name);
 			changed = true;
 		}
 	}
@@ -167,7 +168,7 @@ void DInputSource::Shutdown()
 {
 	while (!m_controllers.empty())
 	{
-		Host::OnInputDeviceDisconnected(GetDeviceIdentifier(static_cast<u32>(m_controllers.size() - 1)));
+		InputManager::OnInputDeviceDisconnected(GetDeviceIdentifier(static_cast<u32>(m_controllers.size() - 1)));
 		m_controllers.pop_back();
 	}
 }
@@ -268,7 +269,7 @@ void DInputSource::PollEvents()
 
 			if (hr != DI_OK)
 			{
-				Host::OnInputDeviceDisconnected(GetDeviceIdentifier(static_cast<u32>(i)));
+				InputManager::OnInputDeviceDisconnected(GetDeviceIdentifier(static_cast<u32>(i)));
 				m_controllers.erase(m_controllers.begin() + i);
 				continue;
 			}
@@ -309,7 +310,7 @@ std::vector<InputBindingKey> DInputSource::EnumerateMotors()
 	return {};
 }
 
-bool DInputSource::GetGenericBindingMapping(const std::string_view& device, GenericInputBindingMapping* mapping)
+bool DInputSource::GetGenericBindingMapping(const std::string_view& device, InputManager::GenericInputBindingMapping* mapping)
 {
 	return {};
 }
@@ -339,13 +340,28 @@ std::optional<InputBindingKey> DInputSource::ParseKeyString(const std::string_vi
 
 	if (StringUtil::StartsWith(binding, "+Axis") || StringUtil::StartsWith(binding, "-Axis"))
 	{
-		const std::optional<u32> axis_index = StringUtil::FromChars<u32>(binding.substr(5));
+		std::string_view end;
+		const std::optional<u32> axis_index = StringUtil::FromChars<u32>(binding.substr(5), 10, &end);
 		if (!axis_index.has_value())
 			return std::nullopt;
 
 		key.source_subtype = InputSubclass::ControllerAxis;
 		key.data = axis_index.value();
 		key.modifier = (binding[0] == '-') ? InputModifier::Negate : InputModifier::None;
+		key.invert = (end == "~");
+		return key;
+	}
+	else if (StringUtil::StartsWith(binding, "FullAxis"))
+	{
+		std::string_view end;
+		const std::optional<u32> axis_index = StringUtil::FromChars<u32>(binding.substr(8), 10, &end);
+		if (!axis_index.has_value())
+			return std::nullopt;
+
+		key.source_subtype = InputSubclass::ControllerAxis;
+		key.data = axis_index.value();
+		key.modifier = InputModifier::FullAxis;
+		key.invert = (end == "~");
 		return key;
 	}
 	else if (StringUtil::StartsWith(binding, "Hat"))
@@ -391,7 +407,8 @@ std::string DInputSource::ConvertKeyToString(InputBindingKey key)
 	{
 		if (key.source_subtype == InputSubclass::ControllerAxis)
 		{
-			ret = fmt::format("DInput-{}/{}Axis{}", u32(key.source_index), key.modifier == InputModifier::Negate ? '-' : '+', u32(key.data));
+			const char* modifier = (key.modifier == InputModifier::FullAxis ? "Full" : (key.modifier == InputModifier::Negate ? "-" : "+"));
+			ret = fmt::format("DInput-{}/{}Axis{}{}", u32(key.source_index), modifier, u32(key.data), key.invert ? "~" : "");
 		}
 		else if (key.source_subtype == InputSubclass::ControllerButton && key.data >= MAX_NUM_BUTTONS)
 		{

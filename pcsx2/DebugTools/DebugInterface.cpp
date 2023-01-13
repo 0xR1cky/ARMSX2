@@ -26,12 +26,9 @@
 #include "R3000A.h"
 #include "IopMem.h"
 #include "SymbolMap.h"
+#include "VMManager.h"
 
 #include "common/StringUtil.h"
-
-#ifndef PCSX2_CORE
-#include "gui/SysThreads.h"
-#endif
 
 R5900DebugInterface r5900Debug;
 R3000DebugInterface r3000Debug;
@@ -173,40 +170,23 @@ private:
 
 bool DebugInterface::isAlive()
 {
-#ifndef PCSX2_CORE
-	return GetCoreThread().IsOpen() && g_FrameCount > 0;
-#else
-  return false;
-#endif
+	return VMManager::HasValidVM() && g_FrameCount > 0;
 }
 
 bool DebugInterface::isCpuPaused()
 {
-#ifndef PCSX2_CORE
-	return GetCoreThread().IsPaused();
-#else
-  return false;
-#endif
+	return VMManager::GetState() == VMState::Paused;
 }
 
 void DebugInterface::pauseCpu()
 {
-#ifndef PCSX2_CORE
-	SysCoreThread& core = GetCoreThread();
-	if (!core.IsPaused())
-		core.Pause({}, true);
-#endif
+	VMManager::SetPaused(true);
 }
 
 void DebugInterface::resumeCpu()
 {
-#ifndef PCSX2_CORE
-	SysCoreThread& core = GetCoreThread();
-	if (core.IsPaused())
-		core.Resume();
-#endif
+	VMManager::SetPaused(false);
 }
-
 
 char* DebugInterface::stringFromPointer(u32 p)
 {
@@ -273,9 +253,26 @@ u32 R5900DebugInterface::read8(u32 address)
 	return memRead8(address);
 }
 
+u32 R5900DebugInterface::read8(u32 address, bool& valid)
+{
+	if (!(valid = isValidAddress(address)))
+		return -1;
+
+	return memRead8(address);
+}
+
+
 u32 R5900DebugInterface::read16(u32 address)
 {
 	if (!isValidAddress(address) || address % 2)
+		return -1;
+
+	return memRead16(address);
+}
+
+u32 R5900DebugInterface::read16(u32 address, bool& valid)
+{
+	if (!(valid = (isValidAddress(address) || address % 2)))
 		return -1;
 
 	return memRead16(address);
@@ -289,9 +286,25 @@ u32 R5900DebugInterface::read32(u32 address)
 	return memRead32(address);
 }
 
+u32 R5900DebugInterface::read32(u32 address, bool& valid)
+{
+	if (!(valid = (isValidAddress(address) || address % 4)))
+		return -1;
+
+	return memRead32(address);
+}
+
 u64 R5900DebugInterface::read64(u32 address)
 {
 	if (!isValidAddress(address) || address % 8)
+		return -1;
+
+	return memRead64(address);
+}
+
+u64 R5900DebugInterface::read64(u32 address, bool& valid)
+{
+	if (!(valid = (isValidAddress(address) || address % 8)))
 		return -1;
 
 	return memRead64(address);
@@ -685,9 +698,23 @@ u32 R3000DebugInterface::read8(u32 address)
 	return iopMemRead8(address);
 }
 
+u32 R3000DebugInterface::read8(u32 address, bool& valid)
+{
+	if (!(valid = isValidAddress(address)))
+		return -1;
+	return iopMemRead8(address);
+}
+
 u32 R3000DebugInterface::read16(u32 address)
 {
 	if (!isValidAddress(address))
+		return -1;
+	return iopMemRead16(address);
+}
+
+u32 R3000DebugInterface::read16(u32 address, bool& valid)
+{
+	if (!(valid = isValidAddress(address)))
 		return -1;
 	return iopMemRead16(address);
 }
@@ -699,10 +726,24 @@ u32 R3000DebugInterface::read32(u32 address)
 	return iopMemRead32(address);
 }
 
+u32 R3000DebugInterface::read32(u32 address, bool& valid)
+{
+	if (!(valid = isValidAddress(address)))
+		return -1;
+	return iopMemRead32(address);
+
+}
+
 u64 R3000DebugInterface::read64(u32 address)
 {
 	return 0;
 }
+
+u64 R3000DebugInterface::read64(u32 address, bool& valid)
+{
+	return 0;
+}
+
 
 u128 R3000DebugInterface::read128(u32 address)
 {

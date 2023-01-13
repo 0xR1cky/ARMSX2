@@ -22,10 +22,6 @@
 #include "Elfheader.h"
 #include "DebugTools/SymbolMap.h"
 
-#ifndef PCSX2_CORE
-#include "gui/AppCoreThread.h"
-#endif
-
 u32 ElfCRC;
 u32 ElfEntry;
 std::pair<u32,u32> ElfTextRange;
@@ -301,6 +297,7 @@ void ElfObject::loadSectionHeaders()
 		eS = (Elf32_Sym*)data.GetPtr(secthead[i_st].sh_offset);
 		Console.WriteLn("found %d symbols", secthead[i_st].sh_size / sizeof(Elf32_Sym));
 
+		R5900SymbolMap.Clear();
 		for(uint i = 1; i < (secthead[i_st].sh_size / sizeof(Elf32_Sym)); i++) {
 			if ((eS[i].st_value != 0) && (ELF32_ST_TYPE(eS[i].st_info) == 2))
 			{
@@ -368,9 +365,6 @@ int GetPS2ElfName( std::string& name )
 			{
 				Console.WriteLn( Color_Blue, "(SYSTEM.CNF) Software version = %.*s",
 					static_cast<int>(value.size()), value.data());
-#ifndef PCSX2_CORE
-				GameInfo::gameVersion = StringUtil::UTF8StringToWxString(value);
-#endif
 			}
 		}
 

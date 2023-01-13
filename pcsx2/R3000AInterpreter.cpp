@@ -18,15 +18,12 @@
 #include "R3000A.h"
 #include "Common.h"
 #include "Config.h"
+#include "VMManager.h"
 
 #include "R5900OpcodeTables.h"
 #include "DebugTools/Breakpoints.h"
 #include "IopBios.h"
 #include "IopHw.h"
-
-#ifndef PCSX2_CORE
-#include "gui/SysThreads.h"
-#endif
 
 using namespace R3000A;
 
@@ -147,9 +144,7 @@ void psxBreakpoint(bool memcheck)
 	}
 
 	CBreakPoints::SetBreakpointTriggered(true);
-#ifndef PCSX2_CORE
-	GetCoreThread().PauseSelfDebug();
-#endif
+	VMManager::SetPaused(true);
 	throw Exception::ExitCpuExecute();
 }
 
@@ -162,13 +157,11 @@ void psxMemcheck(u32 op, u32 bits, bool store)
 
 	u32 end = start + bits / 8;
 
-	auto checks = CBreakPoints::GetMemChecks();
+	auto checks = CBreakPoints::GetMemChecks(BREAKPOINT_IOP);
 	for (size_t i = 0; i < checks.size(); i++)
 	{
 		auto& check = checks[i];
 
-		if (check.cpu != BREAKPOINT_IOP)
-			continue;
 		if (check.result == 0)
 			continue;
 		if ((check.cond & MEMCHECK_WRITE) == 0 && store)

@@ -19,11 +19,9 @@
 #include "GSRasterizer.h"
 #include "GS/GSExtra.h"
 #include "PerformanceMetrics.h"
+#include "common/AlignedMalloc.h"
 #include "common/StringUtil.h"
-
-#ifdef PCSX2_CORE
 #include "VMManager.h"
-#endif
 
 #define ENABLE_DRAW_STATS 0
 
@@ -37,7 +35,7 @@ static int compute_best_thread_height(int threads)
 	// - but not too small to keep the threading overhead low
 	// - ideal value between 3 and 5, or log2(64 / number of threads)
 
-	int th = theApp.GetConfigI("extrathreads_height");
+	int th = GSConfig.SWExtraThreadsHeight;
 
 	if (th > 0 && th < 9)
 		return th;
@@ -56,8 +54,10 @@ GSRasterizer::GSRasterizer(IDrawScanline* ds, int id, int threads)
 
 	m_thread_height = compute_best_thread_height(threads);
 
-	m_edge.buff = (GSVertexSW*)vmalloc(sizeof(GSVertexSW) * 2048, false);
+	m_edge.buff = static_cast<GSVertexSW*>(_aligned_malloc(sizeof(GSVertexSW) * 2048, 32));
 	m_edge.count = 0;
+	if (!m_edge.buff)
+		throw std::bad_alloc();
 
 	int rows = (2048 >> m_thread_height) + 16;
 	m_scanline = (u8*)_aligned_malloc(rows, 64);
@@ -71,10 +71,7 @@ GSRasterizer::GSRasterizer(IDrawScanline* ds, int id, int threads)
 GSRasterizer::~GSRasterizer()
 {
 	_aligned_free(m_scanline);
-
-	if (m_edge.buff != NULL)
-		vmfree(m_edge.buff, sizeof(GSVertexSW) * 2048);
-
+	_aligned_free(m_edge.buff);
 	delete m_ds;
 }
 
@@ -144,7 +141,7 @@ int GSRasterizer::GetPixels(bool reset)
 
 void GSRasterizer::Draw(GSRasterizerData* data)
 {
-	if (data->vertex != NULL && data->vertex_count == 0 || data->index != NULL && data->index_count == 0)
+	if ((data->vertex != NULL && data->vertex_count == 0) || (data->index != NULL && data->index_count == 0))
 		return;
 
 	m_pixels.actual = 0;
@@ -278,7 +275,7 @@ void GSRasterizer::DrawPoint(const GSVertexSW* vertex, int vertex_count, const u
 
 			GSVector4i p(v.p);
 
-			if (!scissor_test || m_scissor.left <= p.x && p.x < m_scissor.right && m_scissor.top <= p.y && p.y < m_scissor.bottom)
+			if (!scissor_test || (m_scissor.left <= p.x && p.x < m_scissor.right && m_scissor.top <= p.y && p.y < m_scissor.bottom))
 			{
 				if (IsOneOfMyScanlines(p.y))
 				{
@@ -299,7 +296,7 @@ void GSRasterizer::DrawPoint(const GSVertexSW* vertex, int vertex_count, const u
 
 			GSVector4i p(v.p);
 
-			if (!scissor_test || m_scissor.left <= p.x && p.x < m_scissor.right && m_scissor.top <= p.y && p.y < m_scissor.bottom)
+			if (!scissor_test || (m_scissor.left <= p.x && p.x < m_scissor.right && m_scissor.top <= p.y && p.y < m_scissor.bottom))
 			{
 				if (IsOneOfMyScanlines(p.y))
 				{
@@ -1185,7 +1182,6 @@ void GSRasterizerList::OnWorkerStartup(int i)
 
 	Threading::ThreadHandle handle(Threading::ThreadHandle::GetForCallingThread());
 
-#ifdef PCSX2_CORE
 	if (EmuConfig.Cpu.AffinityControlMode != 0)
 	{
 		const std::vector<u32>& procs = VMManager::GetSortedProcessorList();
@@ -1198,7 +1194,6 @@ void GSRasterizerList::OnWorkerStartup(int i)
 			handle.SetAffinity(affinity);
 		}
 	}
-#endif
 
 	PerformanceMetrics::SetGSSWThread(i, std::move(handle));
 }

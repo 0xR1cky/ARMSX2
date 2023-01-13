@@ -13,8 +13,7 @@
  *  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _PCSX2_CORE_RECOMPILER_
-#define _PCSX2_CORE_RECOMPILER_
+#pragma once
 
 #include "common/emitter/x86emitter.h"
 #include "VUmicro.h"
@@ -31,6 +30,7 @@
 #define MODE_READ        1
 #define MODE_WRITE       2
 #define MODE_CALLEESAVED  0x20 // can't flush reg to mem
+#define MODE_COP2 0x40 // don't allow using reserved VU registers
 
 #define PROCESS_EE_XMM 0x02
 
@@ -61,38 +61,44 @@
 #define PROCESS_CONSTT 2
 
 // XMM caching helpers
-#define XMMINFO_READLO 0x001
-#define XMMINFO_READHI 0x002
-#define XMMINFO_WRITELO 0x004
-#define XMMINFO_WRITEHI 0x008
-#define XMMINFO_WRITED 0x010
-#define XMMINFO_READD 0x020
-#define XMMINFO_READS 0x040
-#define XMMINFO_READT 0x080
-#define XMMINFO_READACC 0x200
-#define XMMINFO_WRITEACC 0x400
-#define XMMINFO_WRITET 0x800
+enum xmminfo : u16 
+{
+	XMMINFO_READLO = 0x001,
+	XMMINFO_READHI = 0x002,
+	XMMINFO_WRITELO = 0x004,
+	XMMINFO_WRITEHI = 0x008,
+	XMMINFO_WRITED = 0x010,
+	XMMINFO_READD = 0x020,
+	XMMINFO_READS = 0x040,
+	XMMINFO_READT = 0x080,
+	XMMINFO_READACC = 0x200,
+	XMMINFO_WRITEACC = 0x400,
+	XMMINFO_WRITET = 0x800,
 
-#define XMMINFO_64BITOP 0x1000
-#define XMMINFO_FORCEREGS 0x2000
-#define XMMINFO_FORCEREGT 0x4000
-#define XMMINFO_NORENAME 0x8000 // disables renaming of Rs to Rt in Rt = Rs op imm
+	XMMINFO_64BITOP = 0x1000,
+	XMMINFO_FORCEREGS = 0x2000,
+	XMMINFO_FORCEREGT = 0x4000,
+	XMMINFO_NORENAME = 0x8000 // disables renaming of Rs to Rt in Rt = Rs op imm
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 //   X86 (32-bit) Register Allocation Tools
 
-#define X86TYPE_TEMP 0
-#define X86TYPE_GPR 1
-#define X86TYPE_FPRC 2
-#define X86TYPE_VIREG 3
-#define X86TYPE_PCWRITEBACK 4
-#define X86TYPE_PSX 5
-#define X86TYPE_PSX_PCWRITEBACK 6
+enum x86type : u8 
+{
+	X86TYPE_TEMP = 0,
+	X86TYPE_GPR = 1,
+	X86TYPE_FPRC = 2,
+	X86TYPE_VIREG = 3,
+	X86TYPE_PCWRITEBACK = 4,
+	X86TYPE_PSX = 5,
+	X86TYPE_PSX_PCWRITEBACK = 6
+};
 
 struct _x86regs
 {
 	u8 inuse;
-	u8 reg; // value of 0 - not used
+	s8 reg;
 	u8 mode;
 	u8 needed;
 	u8 type; // X86TYPE_
@@ -119,6 +125,9 @@ void _flushConstRegs();
 void _flushConstReg(int reg);
 void _validateRegs();
 void _writebackX86Reg(int x86reg);
+
+void mVUFreeCOP2GPR(int hostreg);
+bool mVUIsReservedCOP2(int hostreg);
 
 ////////////////////////////////////////////////////////////////////////////////
 //   XMM (128-bit) Register Allocation Tools
@@ -214,7 +223,7 @@ struct EEINST
 	u16 info; // extra info, if 1 inst is COP1, 2 inst is COP2. Also uses EEINST_XMM
 	u8 regs[34]; // includes HI/LO (HI=32, LO=33)
 	u8 fpuregs[33]; // ACC=32
-	u8 vfregs[33]; // ACC=32
+	u8 vfregs[34]; // ACC=32, I=33
 	u8 viregs[16];
 
 	// uses XMMTYPE_ flags; if type == XMMTYPE_TEMP, not used
@@ -248,9 +257,15 @@ static __fi bool EEINST_XMMUSEDTEST(u32 reg)
 }
 
 /// Returns true if the specified VF register is used later in the block.
-static __fi bool COP2INST_USEDTEST(u32 reg)
+static __fi bool EEINST_VFUSEDTEST(u32 reg)
 {
 	return (g_pCurInstInfo->vfregs[reg] & (EEINST_USED | EEINST_LASTUSE)) == EEINST_USED;
+}
+
+/// Returns true if the specified VI register is used later in the block.
+static __fi bool EEINST_VIUSEDTEST(u32 reg)
+{
+	return (g_pCurInstInfo->viregs[reg] & (EEINST_USED | EEINST_LASTUSE)) == EEINST_USED;
 }
 
 /// Returns true if the value should be computed/written back.
@@ -298,6 +313,7 @@ extern u16 g_xmmAllocCounter;
 
 // allocates only if later insts use this register
 int _allocIfUsedGPRtoX86(int gprreg, int mode);
+int _allocIfUsedVItoX86(int vireg, int mode);
 int _allocIfUsedGPRtoXMM(int gprreg, int mode);
 int _allocIfUsedFPUtoXMM(int fpureg, int mode);
 
@@ -324,4 +340,3 @@ int _allocIfUsedFPUtoXMM(int fpureg, int mode);
 // no freeing, used when callee won't destroy xmm regs
 #define FLUSH_NODESTROY (FLUSH_CONSTANT_REGS | FLUSH_FLUSH_XMM | FLUSH_ALL_X86)
 
-#endif

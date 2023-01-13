@@ -15,12 +15,15 @@
 
 #include "PrecompiledHeader.h"
 
-#include "Global.h"
-#include "SndOut.h"
+#include "SPU2/Global.h"
+#include "SPU2/SndOut.h"
+#include "Host.h"
+#include "IconsFontAwesome5.h"
 
 #include "common/Console.h"
 #include "common/StringUtil.h"
 #include "common/RedtapeWindows.h"
+#include "common/ScopedGuard.h"
 
 #include "cubeb/cubeb.h"
 
@@ -28,31 +31,17 @@
 #include <objbase.h>
 #endif
 
-#ifdef PCSX2_CORE
-
 #include "HostSettings.h"
-
-#else
-
-#include "gui/StringHelpers.h"
-
-extern bool CfgReadBool(const wchar_t* Section, const wchar_t* Name, bool Default);
-extern int CfgReadInt(const wchar_t* Section, const wchar_t* Name, int Default);
-extern void CfgReadStr(const wchar_t* Section, const wchar_t* Name, wxString& Data, const wchar_t* Default);
-
-#endif
 
 class Cubeb : public SndOutModule
 {
 private:
-	static constexpr int MINIMUM_LATENCY_MS = 20;
-	static constexpr int MAXIMUM_LATENCY_MS = 200;
-
 	//////////////////////////////////////////////////////////////////////////////////////////
 	// Stuff necessary for speaker expansion
 	class SampleReader
 	{
 	public:
+		virtual ~SampleReader() = default;
 		virtual void ReadSamples(void* outputBuffer, long frames) = 0;
 	};
 
@@ -64,7 +53,7 @@ private:
 	public:
 		ConvertedSampleReader() = delete;
 
-		ConvertedSampleReader(u64* pWritten)
+		explicit ConvertedSampleReader(u64* pWritten)
 			: written(pWritten)
 		{
 		}
@@ -125,9 +114,6 @@ private:
 #ifdef _WIN32
 	bool m_COMInitializedByUs = false;
 #endif
-	bool m_SuggestedLatencyMinimal = false;
-	int m_SuggestedLatencyMS = 20;
-	std::string m_Backend;
 
 	//////////////////////////////////////////////////////////////////////////////////////////
 	// Instance vars
@@ -152,16 +138,12 @@ public:
 
 	bool Init() override
 	{
-		ReadSettings();
-
-		// TODO(Stenzek): Migrate the errors to Host::ReportErrorAsync() once more Qt stuff is merged.
-
 #ifdef _WIN32
 		HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
 		m_COMInitializedByUs = SUCCEEDED(hr);
 		if (FAILED(hr) && hr != RPC_E_CHANGED_MODE)
 		{
-			Console.Error("(Cubeb) Failed to initialize COM");
+			Host::ReportErrorAsync("Cubeb Error", "Failed to initialize COM");
 			return false;
 		}
 #endif
@@ -170,14 +152,15 @@ public:
 		cubeb_set_log_callback(CUBEB_LOG_NORMAL, LogCallback);
 #endif
 
-		int rv = cubeb_init(&m_context, "PCSX2", m_Backend.empty() ? nullptr : m_Backend.c_str());
+		const std::string backend(Host::GetStringSettingValue("SPU2/Output", "BackendName", ""));
+		int rv = cubeb_init(&m_context, "PCSX2", backend.empty() ? nullptr : backend.c_str());
 		if (rv != CUBEB_OK)
 		{
-			Console.Error("(Cubeb) Could not initialize cubeb context: %d", rv);
+			Host::ReportFormattedErrorAsync("Cubeb Error", "Could not initialize cubeb context: %d", rv);
 			return false;
 		}
 
-		switch (numSpeakers) // speakers = (numSpeakers + 1) *2; ?
+		switch (EmuConfig.SPU2.SpeakerConfiguration) // speakers = (numSpeakers + 1) *2; ?
 		{
 			case 0:
 				channels = 2;
@@ -224,7 +207,7 @@ public:
 
 			case 6:
 			case 7:
-				switch (dplLevel)
+				switch (EmuConfig.SPU2.DplDecodingLevel)
 				{
 					case 0:
 						Console.WriteLn("(Cubeb) 5.1 speaker expansion enabled.");
@@ -258,13 +241,13 @@ public:
 		params.layout = layout;
 		params.prefs = CUBEB_STREAM_PREF_NONE;
 
-		const u32 requested_latency_frames = static_cast<u32>((m_SuggestedLatencyMS * static_cast<u32>(SampleRate)) / 1000u);
+		const u32 requested_latency_frames = static_cast<u32>((EmuConfig.SPU2.OutputLatency * SampleRate) / 1000u);
 		u32 latency_frames = 0;
 		rv = cubeb_get_min_latency(m_context, &params, &latency_frames);
 		if (rv == CUBEB_ERROR_NOT_SUPPORTED)
 		{
 			Console.WriteLn("(Cubeb) Cubeb backend does not support latency queries, using latency of %d ms (%u frames).",
-				m_SuggestedLatencyMS, requested_latency_frames);
+				EmuConfig.SPU2.OutputLatency, requested_latency_frames);
 			latency_frames = requested_latency_frames;
 		}
 		else
@@ -278,7 +261,7 @@ public:
 
 			const float minimum_latency_ms = static_cast<float>(latency_frames * 1000u) / static_cast<float>(SampleRate);
 			Console.WriteLn("(Cubeb) Minimum latency: %.2f ms (%u audio frames)", minimum_latency_ms, latency_frames);
-			if (!m_SuggestedLatencyMinimal)
+			if (!EmuConfig.SPU2.OutputLatencyMinimal)
 			{
 				if (latency_frames > requested_latency_frames)
 				{
@@ -292,10 +275,42 @@ public:
 			}
 		}
 
+		cubeb_devid selected_device = nullptr;
+		const std::string& selected_device_name = EmuConfig.SPU2.DeviceName;
+		cubeb_device_collection devices;
+		if (!selected_device_name.empty())
+		{
+			rv = cubeb_enumerate_devices(m_context, CUBEB_DEVICE_TYPE_OUTPUT, &devices);
+			if (rv == CUBEB_OK)
+			{
+				for (size_t i = 0; i < devices.count; i++)
+				{
+					const cubeb_device_info& di = devices.device[i];
+					if (di.device_id && selected_device_name == di.device_id)
+					{
+						Console.WriteLn("Using output device '%s' (%s).", di.device_id, di.friendly_name ? di.friendly_name : di.device_id);
+						selected_device = di.devid;
+						break;
+					}
+				}
+
+				if (!selected_device)
+				{
+					Host::AddIconOSDMessage("CubebDeviceNotFound", ICON_FA_VOLUME_MUTE,
+						fmt::format("Requested audio output device '{}' not found, using default.", selected_device_name),
+						Host::OSD_WARNING_DURATION);
+				}
+			}
+			else
+			{
+				Console.Error("cubeb_enumerate_devices() returned %d, using default device.", rv);
+			}
+		}
+
 		char stream_name[32];
 		std::snprintf(stream_name, sizeof(stream_name), "%p", this);
 
-		rv = cubeb_stream_init(m_context, &stream, stream_name, nullptr, nullptr, nullptr, &params,
+		rv = cubeb_stream_init(m_context, &stream, stream_name, nullptr, nullptr, selected_device, &params,
 			latency_frames, &Cubeb::DataCallback, &Cubeb::StateCallback, this);
 		if (rv != CUBEB_OK)
 		{
@@ -373,21 +388,53 @@ public:
 		return cubeb_get_backend_names();
 	}
 
-	void ReadSettings()
+	std::vector<SndOutDeviceInfo> GetOutputDeviceList(const char* driver) const override
 	{
-#ifndef PCSX2_CORE
-		m_SuggestedLatencyMinimal = CfgReadBool(L"Cubeb", L"MinimalSuggestedLatency", false);
-		m_SuggestedLatencyMS = std::clamp(CfgReadInt(L"Cubeb", L"ManualSuggestedLatencyMS", MINIMUM_LATENCY_MS), MINIMUM_LATENCY_MS, MAXIMUM_LATENCY_MS);
+		std::vector<SndOutDeviceInfo> ret;
+		ret.emplace_back(std::string(), "Default", 0u);
 
-		// TODO: Once the config stuff gets merged, drop the wxString here.
-		wxString backend;
-		CfgReadStr(L"SPU2/Output", L"BackendName", backend, L"");
-		m_Backend = StringUtil::wxStringToUTF8String(backend);
-#else
-		m_SuggestedLatencyMinimal = Host::GetBoolSettingValue("Cubeb", "MinimalSuggestedLatency", false);
-		m_SuggestedLatencyMS = std::clamp(Host::GetIntSettingValue("Cubeb", "ManualSuggestedLatencyMS", MINIMUM_LATENCY_MS), MINIMUM_LATENCY_MS, MAXIMUM_LATENCY_MS);
-		m_Backend = Host::GetStringSettingValue("SPU2/Output", "BackendName", "");
-#endif
+		cubeb* context;
+		int rv = cubeb_init(&context, "PCSX2", (driver && *driver) ? driver : nullptr);
+		if (rv != CUBEB_OK)
+		{
+			Console.Error("(GetOutputDeviceList) cubeb_init() failed: %d", rv);
+			return ret;
+		}
+
+		ScopedGuard context_cleanup([context]() { cubeb_destroy(context); });
+
+		cubeb_device_collection devices;
+		rv = cubeb_enumerate_devices(context, CUBEB_DEVICE_TYPE_OUTPUT, &devices);
+		if (rv != CUBEB_OK)
+		{
+			Console.Error("(GetOutputDeviceList) cubeb_enumerate_devices() failed: %d", rv);
+			return ret;
+		}
+
+		ScopedGuard devices_cleanup([context, &devices]() { cubeb_device_collection_destroy(context, &devices); });
+
+		// we need stream parameters to query latency
+		cubeb_stream_params params = {};
+		params.format = CUBEB_SAMPLE_S16LE;
+		params.rate = SampleRate;
+		params.channels = 2;
+		params.layout = CUBEB_LAYOUT_UNDEFINED;
+		params.prefs = CUBEB_STREAM_PREF_NONE;
+
+		u32 min_latency = 0;
+		cubeb_get_min_latency(context, &params, &min_latency);
+		ret[0].minimum_latency_frames = min_latency;
+
+		for (size_t i = 0; i < devices.count; i++)
+		{
+			const cubeb_device_info& di = devices.device[i];
+			if (!di.device_id)
+				continue;
+
+			ret.emplace_back(di.device_id, di.friendly_name ? di.friendly_name : di.device_id, min_latency);
+		}
+
+		return ret;
 	}
 };
 

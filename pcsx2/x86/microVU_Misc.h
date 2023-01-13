@@ -154,13 +154,10 @@ static const char branchSTR[16][8] = {
 
 #define gprT1  eax // eax - Temp Reg
 #define gprT2  ecx // ecx - Temp Reg
-#define gprT3  edx // edx - Temp Reg
 #define gprT1q rax // eax - Temp Reg
 #define gprT2q rcx // ecx - Temp Reg
-#define gprT3q rdx // edx - Temp Reg
 #define gprT1b ax  // Low 16-bit of gprT1 (eax)
 #define gprT2b cx  // Low 16-bit of gprT2 (ecx)
-#define gprT3b dx  // Low 16-bit of gprT3 (edx)
 
 #define gprF0  ebx // Status Flag 0
 #define gprF1 r12d // Status Flag 1
@@ -239,7 +236,7 @@ typedef u32 (*mVUCall)(void*, void*);
 #define Rmem         &mVU.regs().VI[REG_R].UL
 #define aWrap(x, m)  ((x > m) ? 0 : x)
 #define shuffleSS(x) ((x == 1) ? (0x27) : ((x == 2) ? (0xc6) : ((x == 4) ? (0xe1) : (0xe4))))
-#define clampE       CHECK_VU_EXTRA_OVERFLOW
+#define clampE       CHECK_VU_EXTRA_OVERFLOW(mVU.index)
 #define varPrint(x)  DevCon.WriteLn(#x " = %d", (int)x)
 #define islowerOP    ((iPC & 1) == 0)
 

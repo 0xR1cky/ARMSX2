@@ -85,6 +85,9 @@ std::unique_ptr<HostDisplayTexture> OpenGLHostDisplay::CreateTexture(u32 width, 
 	// clear error
 	glGetError();
 
+	// don't worry, I'm planning on removing this eventually - we'll use GSTexture instead.
+	glActiveTexture(GL_TEXTURE7);
+
 	GLuint id;
 	glGenTextures(1, &id);
 	glBindTexture(GL_TEXTURE_2D, id);
@@ -100,6 +103,8 @@ std::unique_ptr<HostDisplayTexture> OpenGLHostDisplay::CreateTexture(u32 width, 
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 	}
 
+	glActiveTexture(GL_TEXTURE0);
+
 	GLenum error = glGetError();
 	if (error != GL_NO_ERROR)
 	{
@@ -113,37 +118,20 @@ std::unique_ptr<HostDisplayTexture> OpenGLHostDisplay::CreateTexture(u32 width, 
 
 void OpenGLHostDisplay::UpdateTexture(HostDisplayTexture* texture, u32 x, u32 y, u32 width, u32 height, const void* texture_data, u32 texture_data_stride)
 {
-	OpenGLHostDisplayTexture* tex = static_cast<OpenGLHostDisplayTexture*>(texture);
+	glActiveTexture(GL_TEXTURE7);
 
-	GLint alignment;
-	if (texture_data_stride & 1)
-		alignment = 1;
-	else if (texture_data_stride & 2)
-		alignment = 2;
-	else
-		alignment = 4;
-
-	GLint old_texture_binding = 0, old_alignment = 0, old_row_length = 0;
-	glGetIntegerv(GL_TEXTURE_BINDING_2D, &old_texture_binding);
-	glBindTexture(GL_TEXTURE_2D, tex->GetGLID());
-
-	glGetIntegerv(GL_UNPACK_ALIGNMENT, &old_alignment);
-	glPixelStorei(GL_UNPACK_ALIGNMENT, alignment);
-
-	glGetIntegerv(GL_UNPACK_ROW_LENGTH, &old_row_length);
 	glPixelStorei(GL_UNPACK_ROW_LENGTH, texture_data_stride / sizeof(u32));
 
 	glTexSubImage2D(GL_TEXTURE_2D, 0, x, y, width, height, GL_RGBA8, GL_UNSIGNED_BYTE, texture_data);
 
-	glPixelStorei(GL_UNPACK_ROW_LENGTH, old_row_length);
+	glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
 
-	glPixelStorei(GL_UNPACK_ALIGNMENT, old_alignment);
-	glBindTexture(GL_TEXTURE_2D, old_texture_binding);
+	glActiveTexture(GL_TEXTURE0);
 }
 
 void OpenGLHostDisplay::SetVSync(VsyncMode mode)
 {
-	if (m_gl_context->GetWindowInfo().type == WindowInfo::Type::Surfaceless)
+	if (m_vsync_mode == mode || m_gl_context->GetWindowInfo().type == WindowInfo::Type::Surfaceless)
 		return;
 
 	// Window framebuffer has to be bound to call SetSwapInterval.
@@ -155,6 +143,7 @@ void OpenGLHostDisplay::SetVSync(VsyncMode mode)
 		m_gl_context->SetSwapInterval(static_cast<s32>(mode != VsyncMode::Off));
 
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, current_fbo);
+	m_vsync_mode = mode;
 }
 
 const char* OpenGLHostDisplay::GetGLSLVersionString() const
@@ -198,7 +187,7 @@ bool OpenGLHostDisplay::HasSurface() const
 	return m_window_info.type != WindowInfo::Type::Surfaceless;
 }
 
-bool OpenGLHostDisplay::CreateDevice(const WindowInfo& wi)
+bool OpenGLHostDisplay::CreateDevice(const WindowInfo& wi, VsyncMode vsync)
 {
 	m_gl_context = GL::Context::Create(wi);
 	if (!m_gl_context)
@@ -209,12 +198,15 @@ bool OpenGLHostDisplay::CreateDevice(const WindowInfo& wi)
 	}
 
 	m_window_info = m_gl_context->GetWindowInfo();
-	m_vsync_mode = Host::GetEffectiveVSyncMode();
+	m_vsync_mode = vsync;
 	return true;
 }
 
 bool OpenGLHostDisplay::SetupDevice()
 {
+	// We do use 8-bit formats, and higher alignment for 32-bit formats won't hurt anything.
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
 	SetSwapInterval();
 	GL::Program::ResetLastProgram();
 	return true;
@@ -362,11 +354,8 @@ bool OpenGLHostDisplay::BeginPresent(bool frame_skip)
 
 void OpenGLHostDisplay::EndPresent()
 {
-	// clear out pipeline bindings, since imgui doesn't use them
-	glBindProgramPipeline(0);
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
-	glActiveTexture(GL_TEXTURE0);
 
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
@@ -401,7 +390,7 @@ void OpenGLHostDisplay::DestroyTimestampQueries()
 	if (m_timestamp_query_started)
 	{
 		const auto EndQuery = gles ? glEndQueryEXT : glEndQuery;
-		EndQuery(m_timestamp_queries[m_write_timestamp_query]);
+		EndQuery(GL_TIME_ELAPSED);
 	}
 
 	DeleteQueries(static_cast<u32>(m_timestamp_queries.size()), m_timestamp_queries.data());

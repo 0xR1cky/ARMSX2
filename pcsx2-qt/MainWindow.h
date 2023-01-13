@@ -25,6 +25,7 @@
 #include "Tools/InputRecording/InputRecordingViewer.h"
 #include "Settings/ControllerSettingsDialog.h"
 #include "Settings/SettingsDialog.h"
+#include "Debugger/DebuggerWindow.h"
 #include "ui_MainWindow.h"
 
 class QProgressBar;
@@ -78,6 +79,12 @@ public:
 	/// Default theme name for the platform.
 	static const char* DEFAULT_THEME_NAME;
 
+	/// Default filter for opening a file.
+	static const char* OPEN_FILE_FILTER;
+
+	/// Default filter for opening a disc image.
+	static const char* DISC_IMAGE_FILTER;
+
 public:
 	MainWindow();
 	~MainWindow();
@@ -100,6 +107,9 @@ public:
 	__fi QLabel* getStatusFPSWidget() const { return m_status_fps_widget; }
 	__fi QLabel* getStatusVPSWidget() const { return m_status_vps_widget; }
 
+	/// Rescans a single file. NOTE: Happens on UI thread.
+	void rescanFile(const std::string& path);
+
 public Q_SLOTS:
 	void checkForUpdates(bool display_message);
 	void refreshGameList(bool invalidate_cache);
@@ -108,7 +118,8 @@ public Q_SLOTS:
 	void reportError(const QString& title, const QString& message);
 	bool confirmMessage(const QString& title, const QString& message);
 	void runOnUIThread(const std::function<void()>& func);
-	bool requestShutdown(bool allow_confirm = true, bool allow_save_to_state = true, bool default_save_to_state = true, bool block_until_done = false);
+	bool requestShutdown(
+		bool allow_confirm = true, bool allow_save_to_state = true, bool default_save_to_state = true, bool block_until_done = false);
 	void requestExit();
 	void checkForSettingChanges();
 	std::optional<WindowInfo> getWindowInfo();
@@ -119,6 +130,7 @@ private Q_SLOTS:
 	DisplayWidget* createDisplay(bool fullscreen, bool render_to_main);
 	DisplayWidget* updateDisplay(bool fullscreen, bool render_to_main, bool surfaceless);
 	void displayResizeRequested(qint32 width, qint32 height);
+	void relativeMouseModeRequested(bool enabled);
 	void destroyDisplay();
 	void focusDisplayWidget();
 
@@ -158,6 +170,7 @@ private Q_SLOTS:
 	void onSaveGSDumpActionTriggered();
 	void onBlockDumpActionToggled(bool checked);
 	void onShowAdvancedSettingsToggled(bool checked);
+	void onToolsVideoCaptureToggled(bool checked);
 
 	// Input Recording
 	void onInputRecNewActionTriggered();
@@ -172,7 +185,7 @@ private Q_SLOTS:
 	void onVMResumed();
 	void onVMStopped();
 
-	void onGameChanged(const QString& path, const QString& serial, const QString& name, quint32 crc);
+	void onGameChanged(const QString& path, const QString& elf_override, const QString& serial, const QString& name, quint32 crc);
 
 protected:
 	void showEvent(QShowEvent* event) override;
@@ -221,6 +234,7 @@ private:
 	void restoreDisplayWindowGeometryFromConfig();
 	void createDisplayWidget(bool fullscreen, bool render_to_main, bool is_exclusive_fullscreen);
 	void destroyDisplayWidget(bool show_game_list);
+	void updateDisplayWidgetCursor();
 	void setDisplayFullscreen(const std::string& fullscreen_mode);
 
 	SettingsDialog* getSettingsDialog();
@@ -229,13 +243,16 @@ private:
 	InputRecordingViewer* getInputRecordingViewer();
 	void updateInputRecordingActions(bool started);
 
+	DebuggerWindow* getDebuggerWindow();
+	void openDebugger();
+
 	ControllerSettingsDialog* getControllerSettingsDialog();
 	void doControllerSettings(ControllerSettingsDialog::Category category = ControllerSettingsDialog::Category::Count);
 
 	QString getDiscDevicePath(const QString& title);
 
-	void startGameListEntry(const GameList::Entry* entry, std::optional<s32> save_slot = std::nullopt,
-		std::optional<bool> fast_boot = std::nullopt);
+	void startGameListEntry(
+		const GameList::Entry* entry, std::optional<s32> save_slot = std::nullopt, std::optional<bool> fast_boot = std::nullopt);
 	void setGameListEntryCoverImage(const GameList::Entry* entry);
 	void clearGameListEntryPlayTime(const GameList::Entry* entry);
 
@@ -259,6 +276,8 @@ private:
 	ControllerSettingsDialog* m_controller_settings_dialog = nullptr;
 	AutoUpdaterDialog* m_auto_updater_dialog = nullptr;
 
+	DebuggerWindow* m_debugger_window = nullptr;
+
 	QProgressBar* m_status_progress_widget = nullptr;
 	QLabel* m_status_verbose_widget = nullptr;
 	QLabel* m_status_renderer_widget = nullptr;
@@ -267,11 +286,13 @@ private:
 	QLabel* m_status_resolution_widget = nullptr;
 
 	QString m_current_disc_path;
+	QString m_current_elf_override;
 	QString m_current_game_serial;
 	QString m_current_game_name;
 	quint32 m_current_game_crc;
 
 	bool m_display_created = false;
+	bool m_relative_mouse_mode = false;
 	bool m_save_states_invalidated = false;
 	bool m_was_paused_on_surface_loss = false;
 	bool m_was_disc_change_request = false;

@@ -38,8 +38,7 @@ public:
 
 	virtual void PollEvents() = 0;
 
-	virtual std::optional<InputBindingKey> ParseKeyString(
-		const std::string_view& device, const std::string_view& binding) = 0;
+	virtual std::optional<InputBindingKey> ParseKeyString(const std::string_view& device, const std::string_view& binding) = 0;
 	virtual std::string ConvertKeyToString(InputBindingKey key) = 0;
 
 	/// Enumerates available devices. Returns a pair of the prefix (e.g. SDL-0) and the device name.
@@ -50,7 +49,7 @@ public:
 
 	/// Retrieves bindings that match the generic bindings for the specified device.
 	/// Returns false if it's not one of our devices.
-	virtual bool GetGenericBindingMapping(const std::string_view& device, GenericInputBindingMapping* mapping) = 0;
+	virtual bool GetGenericBindingMapping(const std::string_view& device, InputManager::GenericInputBindingMapping* mapping) = 0;
 
 	/// Informs the source of a new vibration motor state. Changes may not take effect until the next PollEvents() call.
 	virtual void UpdateMotorState(InputBindingKey key, float intensity) = 0;
@@ -63,6 +62,10 @@ public:
 
 	/// Creates a key for a generic controller button event.
 	static InputBindingKey MakeGenericControllerButtonKey(InputSourceType clazz, u32 controller_index, s32 button_index);
+
+	/// Creates a key for a generic controller hat event.
+	static InputBindingKey MakeGenericControllerHatKey(
+		InputSourceType clazz, u32 controller_index, s32 hat_index, u8 hat_direction, u32 num_directions);
 
 	/// Creates a key for a generic controller motor event.
 	static InputBindingKey MakeGenericControllerMotorKey(InputSourceType clazz, u32 controller_index, s32 motor_index);

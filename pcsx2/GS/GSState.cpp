@@ -17,6 +17,7 @@
 #include "GSState.h"
 #include "GSGL.h"
 #include "GSUtil.h"
+#include "common/Path.h"
 #include "common/StringUtil.h"
 
 #include <algorithm> // clamp
@@ -38,16 +39,12 @@ static __fi bool IsFirstProvokingVertex()
 
 GSState::GSState()
 	: m_version(STATE_VERSION)
-	, m_gsc(NULL)
-	, m_skip(0)
-	, m_skip_offset(0)
 	, m_q(1.0f)
 	, m_scanmask_used(0)
 	, tex_flushed(true)
 	, m_vt(this, IsFirstProvokingVertex())
 	, m_regs(NULL)
 	, m_crc(0)
-	, m_options(0)
 {
 	// m_nativeres seems to be a hack. Unfortunately it impacts draw call number which make debug painful in the replayer.
 	// Let's keep it disabled to ease debug.
@@ -55,25 +52,6 @@ GSState::GSState()
 	m_mipmap = GSConfig.Mipmap;
 
 	s_n = 0;
-	s_dump = theApp.GetConfigB("dump");
-	s_save = theApp.GetConfigB("save");
-	s_savet = theApp.GetConfigB("savet");
-	s_savez = theApp.GetConfigB("savez");
-	s_savef = theApp.GetConfigB("savef");
-	s_saven = theApp.GetConfigI("saven");
-	s_savel = theApp.GetConfigI("savel");
-	m_dump_root = "";
-#if defined(__unix__)
-	if (s_dump)
-	{
-		GSmkdir(root_hw.c_str());
-		GSmkdir(root_sw.c_str());
-	}
-#endif
-
-	m_crc_hack_level = GSConfig.CRCHack;
-	if (m_crc_hack_level == CRCHackLevel::Automatic)
-		m_crc_hack_level = GSUtil::GetRecommendedCRCHackLevel(GSConfig.Renderer);
 
 	memset(&m_v, 0, sizeof(m_v));
 	memset(&m_vertex, 0, sizeof(m_vertex));
@@ -145,6 +123,16 @@ GSState::~GSState()
 		_aligned_free(m_vertex.buff);
 	if (m_index.buff)
 		_aligned_free(m_index.buff);
+}
+
+std::string GSState::GetDrawDumpPath(const char* format, ...)
+{
+	std::va_list ap;
+	va_start(ap, format);
+	const std::string& base = GSConfig.UseHardwareRenderer() ? GSConfig.HWDumpDirectory : GSConfig.SWDumpDirectory;
+	std::string ret(Path::Combine(base, StringUtil::StdStringFromFormatV(format, ap)));
+	va_end(ap);
+	return ret;
 }
 
 void GSState::Reset(bool hardware_reset)
@@ -2085,12 +2073,12 @@ void GSState::Read(u8* mem, int len)
 
 	m_mem.ReadImageX(m_tr.x, m_tr.y, mem, len, m_env.BITBLTBUF, m_env.TRXPOS, m_env.TRXREG);
 
-	if (s_dump && s_save && s_n >= s_saven)
+	if (GSConfig.DumpGSData && GSConfig.SaveRT && s_n >= GSConfig.SaveN)
 	{
-		std::string s = m_dump_root + StringUtil::StdStringFromFormat(
+		const std::string s(GetDrawDumpPath(
 			"%05d_read_%05x_%d_%d_%d_%d_%d_%d.bmp",
 			s_n, (int)m_env.BITBLTBUF.SBP, (int)m_env.BITBLTBUF.SBW, (int)m_env.BITBLTBUF.SPSM,
-			r.left, r.top, r.right, r.bottom);
+			r.left, r.top, r.right, r.bottom));
 
 		m_mem.SaveBMP(s, m_env.BITBLTBUF.SBP, m_env.BITBLTBUF.SBW, m_env.BITBLTBUF.SPSM, r.right, r.bottom);
 	}
@@ -2763,12 +2751,15 @@ int GSState::Defrost(const freezeData* fd)
 	return 0;
 }
 
-void GSState::SetGameCRC(u32 crc, int options)
+void GSState::SetGameCRC(u32 crc)
 {
 	m_crc = crc;
-	m_options = options;
-	m_game = CRC::Lookup(m_crc_hack_level != CRCHackLevel::Off ? crc : 0);
-	SetupCrcHack();
+	UpdateCRCHacks();
+}
+
+void GSState::UpdateCRCHacks()
+{
+	m_game = CRC::Lookup((GSConfig.CRCHack != CRCHackLevel::Off) ? m_crc : 0);
 }
 
 //

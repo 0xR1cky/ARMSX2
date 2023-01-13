@@ -15,13 +15,14 @@
 
 #pragma once
 
-#include "GSVertexSW.h"
+#include "GS/Renderers/SW/GSVertexSW.h"
 #include "GS/Renderers/Common/GSFunctionMap.h"
 #include "GS/GSAlignedClass.h"
 #include "GS/GSPerfMon.h"
 #include "GS/GSThread_CXX11.h"
 #include "GS/GSRingHeap.h"
 #include "GS/MultiISA.h"
+#include "GS/config.h"
 
 MULTI_ISA_UNSHARED_START
 
@@ -71,6 +72,15 @@ public:
 class IDrawScanline : public GSAlignedClass<32>
 {
 public:
+	IDrawScanline()
+		: m_sp(NULL)
+		, m_ds(NULL)
+		, m_de(NULL)
+		, m_dr(NULL)
+	{
+	}
+	virtual ~IDrawScanline() {}
+
 	typedef void (*SetupPrimPtr)(const GSVertexSW* vertex, const u32* index, const GSVertexSW& dscan);
 	typedef void (*DrawScanlinePtr)(int pixels, int left, int top, const GSVertexSW& scan);
 	typedef void (IDrawScanline::*DrawRectPtr)(const GSVector4i& r, const GSVertexSW& v); // TODO: jit
@@ -82,15 +92,6 @@ protected:
 	DrawRectPtr m_dr;
 
 public:
-	IDrawScanline()
-		: m_sp(NULL)
-		, m_ds(NULL)
-		, m_de(NULL)
-		, m_dr(NULL)
-	{
-	}
-	virtual ~IDrawScanline() {}
-
 	virtual void BeginDraw(const GSRasterizerData* data) = 0;
 	virtual void EndDraw(u64 frame, u64 ticks, int actual, int total, int prims) = 0;
 
