@@ -56,6 +56,7 @@
 #define PS_FIXED_ONE_A 0
 #define PS_PABE 0
 #define PS_DITHER 0
+#define PS_DITHER_BLEND_MIX 0
 #define PS_ZCLAMP 0
 #define PS_SCANMSK 0
 #define PS_AUTOMATIC_LOD 0
@@ -775,6 +776,28 @@ void ps_dither(inout float3 C, float2 pos_xy)
 	}
 }
 
+void ps_dither_blend_mix(inout float3 C, float2 pos_xy)
+{
+	int2 fpos;
+
+	if (PS_DITHER_BLEND_MIX == 2)
+		fpos = int2(pos_xy);
+	else
+		fpos = int2(pos_xy * RcpScaleFactor);
+
+	float value = DitherMatrix[fpos.x & 3][fpos.y & 3];
+	if (PS_ROUND_INV)
+		C -= value;
+	else
+		C += value;
+
+	if (PS_DFMT == FMT_16 && PS_ROUND_INV)
+		C += 7.0f; // Need to round up, not down since the shader will invert
+
+	C = clamp(C, (float3)0.0f, (float3)255.0f);
+	C = (float3)((int3)C & (int3)0xF8);
+}
+
 void ps_color_clamp_wrap(inout float3 C)
 {
 	// When dithering the bottom 3 bits become meaningless and cause lines in the picture
@@ -876,6 +899,9 @@ void ps_blend(inout float4 Color, inout float4 As_rgba, float2 pos_xy)
 			float3 alpha_compensate = max((float3)0.0f, overflow_check);
 			As_rgba.rgb -= alpha_compensate;
 		}
+
+		if (PS_DITHER_BLEND_MIX && C == 1.0f)
+			ps_dither_blend_mix(Color.rgb, pos_xy);
 	}
 	else
 	{

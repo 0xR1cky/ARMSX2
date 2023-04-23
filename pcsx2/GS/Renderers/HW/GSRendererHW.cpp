@@ -3140,8 +3140,6 @@ void GSRendererHW::EmulateBlending(bool& DATE_PRIMID, bool& DATE_BARRIER, bool& 
 				// Do not run BLEND MIX if sw blending is already present, it's less accurate
 				blend_mix &= !sw_blending;
 				sw_blending |= blend_mix;
-				// Disable dithering on blend mix.
-				m_conf.ps.dither &= !blend_mix;
 				[[fallthrough]];
 			case AccBlendLevel::Minimum:
 				break;
@@ -3185,8 +3183,6 @@ void GSRendererHW::EmulateBlending(bool& DATE_PRIMID, bool& DATE_BARRIER, bool& 
 				// Do not run BLEND MIX if sw blending is already present, it's less accurate
 				blend_mix &= !sw_blending;
 				sw_blending |= blend_mix;
-				// Disable dithering on blend mix.
-				m_conf.ps.dither &= !blend_mix;
 				[[fallthrough]];
 			case AccBlendLevel::Minimum:
 				break;
@@ -3418,6 +3414,11 @@ void GSRendererHW::EmulateBlending(bool& DATE_PRIMID, bool& DATE_BARRIER, bool& 
 					m_conf.ps.blend_hw = 2;
 				}
 
+				if (m_conf.ps.dither && !(m_conf.ps.blend_a == m_conf.ps.blend_d == 1))
+				{
+					m_conf.ps.dither_blend_mix = m_conf.ps.dither;
+				}
+
 				m_conf.ps.blend_a = 0;
 				m_conf.ps.blend_b = 2;
 				m_conf.ps.blend_d = 2;
@@ -3436,10 +3437,17 @@ void GSRendererHW::EmulateBlending(bool& DATE_PRIMID, bool& DATE_BARRIER, bool& 
 			}
 			else if (blend_mix3)
 			{
+				if (m_conf.ps.dither)
+				{
+					m_conf.ps.dither_blend_mix = m_conf.ps.dither;
+				}
+
 				m_conf.ps.blend_a = 2;
 				m_conf.ps.blend_b = 0;
 				m_conf.ps.blend_d = 0;
 			}
+
+			m_conf.ps.dither = 0;
 
 			// Only Ad case will require one barrier
 			if (blend_ad_alpha_masked)
@@ -4298,7 +4306,8 @@ __ri void GSRendererHW::DrawPrims(GSTextureCache::Target* rt, GSTextureCache::Ta
 	}
 
 	// Before emulateblending, dither will be used
-	m_conf.ps.dither = GSConfig.Dithering > 0 && m_conf.ps.dfmt == 2 && env.DTHE.DTHE;
+	if (GSConfig.Dithering > 0 && m_conf.ps.dfmt == 2 && env.DTHE.DTHE)
+		m_conf.ps.dither = GSConfig.Dithering;
 
 	if (m_conf.ps.dfmt == 1)
 	{
@@ -4416,12 +4425,11 @@ __ri void GSRendererHW::DrawPrims(GSTextureCache::Target* rt, GSTextureCache::Ta
 
 	m_conf.ps.fba = m_context->FBA.FBA;
 
-	if (m_conf.ps.dither)
+	if (m_conf.ps.dither || m_conf.ps.dither_blend_mix)
 	{
 		const GIFRegDIMX& DIMX = m_draw_env->DIMX;
 		GL_DBG("DITHERING mode ENABLED (%d)", GSConfig.Dithering);
 
-		m_conf.ps.dither = GSConfig.Dithering;
 		m_conf.cb_ps.DitherMatrix[0] = GSVector4(DIMX.DM00, DIMX.DM01, DIMX.DM02, DIMX.DM03);
 		m_conf.cb_ps.DitherMatrix[1] = GSVector4(DIMX.DM10, DIMX.DM11, DIMX.DM12, DIMX.DM13);
 		m_conf.cb_ps.DitherMatrix[2] = GSVector4(DIMX.DM20, DIMX.DM21, DIMX.DM22, DIMX.DM23);
