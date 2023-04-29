@@ -1584,6 +1584,11 @@ void dynarecMemLogcheck(u32 start, bool store)
 		DevCon.WriteLn("Hit load breakpoint @0x%x", start);
 }
 
+static int RETURN_READ_IN_RAX()
+{
+	return rax.GetId();
+}
+
 void recMemcheck(u32 op, u32 bits, bool store)
 {
 	iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
@@ -1623,6 +1628,36 @@ void recMemcheck(u32 op, u32 bits, bool store)
 		xCMP(eax, edx); // start < address+size
 		xForwardJGE8 next2; // if start >= address+size then goto next2
 
+		// eax is used as a flag to determine if the on-change check has bassed
+		xMOV(eax, 1);
+
+		if((checks[i].cond & MEMCHECK_WRITE_ONCHANGE) && store)
+		{
+			if(bits <= 64) // On-change conditions are not implemented for 128-bit stores
+			{
+				// TODO: smart masking where we only check the bytes that intersect the memcheck range
+				// This solution doesn't work very well when the memcheck range is larger than the store size
+				const u64 mask = 0xFFFFFFFFFFFFFFFFULL >> (64 - std::min((checks[i].end - checks[i].start) * 8, bits));
+				vtlb_DynGenReadNonQuad(64, false, false, ecx.GetId(), RETURN_READ_IN_RAX);
+				xAND(rax, mask);
+
+				_eeMoveGPRtoR(rcx, (op >> 16) & 0x1F);
+
+				xAND(rcx, mask);
+				xCMP(rax, rcx);
+				xForwardJE8 equal;  // if *rt == *(base+offset)
+				xMOV(eax, 1);
+				xForwardJump8 notequal;
+				equal.SetTarget();
+				xMOV(eax, 0);
+				notequal.SetTarget();
+			}
+			iFlushCall(FLUSH_EVERYTHING);
+		}
+
+		xCMP(eax, 1);
+		xForwardJNE8 next3;
+
 		// hit the breakpoint
 		if (checks[i].result & MEMCHECK_LOG)
 		{
@@ -1649,6 +1684,7 @@ void recMemcheck(u32 op, u32 bits, bool store)
 
 		next1.SetTarget();
 		next2.SetTarget();
+		next3.SetTarget();
 	}
 }
 
