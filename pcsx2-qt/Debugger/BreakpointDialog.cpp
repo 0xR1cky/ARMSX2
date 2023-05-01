@@ -36,6 +36,7 @@ BreakpointDialog::BreakpointDialog(QWidget* parent, DebugInterface* cpu, Breakpo
 
 	connect(m_ui.rdoExecute, &QRadioButton::toggled, this, &BreakpointDialog::onRdoButtonToggled);
 	connect(m_ui.rdoMemory, &QRadioButton::toggled, this, &BreakpointDialog::onRdoButtonToggled);
+	connect(m_ui.chkWrite, &QCheckBox::toggled, [this](bool checked) { m_ui.chkChange->setEnabled(checked); });
 }
 
 BreakpointDialog::BreakpointDialog(QWidget* parent, DebugInterface* cpu, BreakpointModel& model, BreakpointMemcheck bp_mc, int rowIndex)
