@@ -84,7 +84,36 @@ void intMemcheck(u32 op, u32 bits, bool store)
 			continue;
 
 		if (start < check.end && check.start < end)
-			intBreakpoint(true);
+		{
+			if((check.cond & MEMCHECK_WRITE_ONCHANGE) && store)
+			{
+				const u64 rt = cpuRegs.GPR.r[(op >> 16) & 0x1F].UD[0];
+				u64 dst = 0;
+
+				switch(bits)
+				{
+					case 128:
+						intBreakpoint(true);
+						return;
+					break;
+					case 64:
+						dst = memRead64(start);
+					break;
+					default: // 8,16,32
+						dst = static_cast<u32>(memRead32(start));
+					break;
+				}
+				const u64 mask = 0xFFFFFFFFFFFFFFFFULL >> (64 - std::min((checks[i].end - checks[i].start) * 8, bits));
+				if((dst & mask) != (rt & mask))
+				{
+					intBreakpoint(true);
+				}
+			}
+			else
+			{
+				intBreakpoint(true);
+			}
+		}
 	}
 }
 
